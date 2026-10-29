@@ -32,14 +32,16 @@ public partial class MainWindow : Window
 
         _pinDots = [PinDot1, PinDot2, PinDot3, PinDot4];
 
-        // Hook up UserManagementModule with POS Login Screen
-        UserManagementModule.UsersUpdated += RefreshLoginCards;
-        UserManagementModule.RequestCloseToPos += (_, _) =>
+        // Hook up MainShellModule's UsersControl with POS Login Screen
+        MainShellModule.UsersControl.UsersUpdated += RefreshLoginCards;
+        RefreshLoginCards();
+
+        // Hook up MainShellModule Logout
+        MainShellModule.LogoutRequested += (_, _) =>
         {
-            UserManagementModule.Visibility = Visibility.Collapsed;
+            MainShellModule.Visibility = Visibility.Collapsed;
             RefreshLoginCards();
         };
-        RefreshLoginCards();
 
         // Live Header Clock Timer
         UpdateDateTimeDisplay();
@@ -65,9 +67,9 @@ public partial class MainWindow : Window
 
     private void RefreshLoginCards()
     {
-        UserManagementModule.RefreshPosLoginUsers();
+        MainShellModule.UsersControl.RefreshPosLoginUsers();
         PosLoginUsersItemsControl.ItemsSource = null;
-        PosLoginUsersItemsControl.ItemsSource = UserManagementModule.PosLoginUsers;
+        PosLoginUsersItemsControl.ItemsSource = MainShellModule.UsersControl.PosLoginUsers;
     }
 
     // ==================== POS USER CARD SELECTION ====================
@@ -256,9 +258,11 @@ public partial class MainWindow : Window
     // ==================== SESSION START & EXIT LOGIC ====================
     private void StartPosSession(string role)
     {
-        UserManagementModule.Visibility = Visibility.Visible;
+        MainShellModule.Visibility = Visibility.Visible;
+        MainShellModule.SetCurrentUser(role);
+        MainShellModule.SwitchToSettings();
 
-        ToastMessageText.Text = $"Authenticated as {role} — Opening Odoo 20 POS Register...";
+        ToastMessageText.Text = $"Authenticated as {role} — Active POS Session";
         SessionToastBanner.Visibility = Visibility.Visible;
         _toastTimer.Stop();
         _toastTimer.Start();

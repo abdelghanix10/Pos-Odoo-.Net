@@ -502,9 +502,9 @@
                 </Grid>
             </Grid>
 
-                <local:UserManagementView x:Name="UserManagementModule"
-                          Grid.Row="1"
-                          Visibility="Collapsed"/>
+                <local:MainShellView x:Name="MainShellModule"
+                                     Grid.Row="1"
+                                     Visibility="Collapsed"/>
         </Grid>
 
         <!-- ========================================================= -->

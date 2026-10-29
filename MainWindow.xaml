@@ -335,7 +335,7 @@
             <Grid Grid.Row="1" Margin="48">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="364"/>
+                    <ColumnDefinition Width="Auto" MinWidth="388"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- CENTER BRANDING AREA -->
@@ -424,15 +424,16 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 1. TOP-RIGHT USER SELECTION (DYNAMIC POS USERS) -->
+                    <!-- 1. TOP-RIGHT USER SELECTION (DYNAMIC POS USERS - 2 COLUMNS) -->
                     <ScrollViewer Grid.Row="0"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
-                                  MaxHeight="460">
+                                  MaxHeight="400"
+                                  Padding="0,0,10,0">
                         <ItemsControl x:Name="PosLoginUsersItemsControl">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <WrapPanel Orientation="Horizontal" Width="364"/>
+                                    <UniformGrid Columns="2" HorizontalAlignment="Center"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
@@ -440,7 +441,7 @@
                                     <Button Style="{StaticResource UserRoleCardStyle}"
                                             Tag="{Binding}"
                                             Click="PosUserCard_Click"
-                                            Margin="0,0,16,16">
+                                            Margin="8">
                                         <StackPanel HorizontalAlignment="Center">
                                             <!-- Circle Avatar (68x68) -->
                                             <Border Width="68" Height="68"

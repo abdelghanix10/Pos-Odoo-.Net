@@ -19,6 +19,7 @@ public partial class UserManagementView : UserControl
     public event Action? UsersUpdated;
     public event EventHandler? RequestCloseToPos;
 
+    private readonly System.Windows.Threading.DispatcherTimer _toastTimer;
     private PosUserRecord? _editingUser;
     private BitmapImage? _stagedAvatarBitmap;
     private string _stagedStatus = "Confirmed";
@@ -26,10 +27,29 @@ public partial class UserManagementView : UserControl
     public UserManagementView()
     {
         InitializeComponent();
+
+        _toastTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _toastTimer.Tick += (_, _) =>
+        {
+            _toastTimer.Stop();
+            UserActionToastBanner.Visibility = Visibility.Collapsed;
+        };
+
         SeedDefaultOdooUsers();
         UsersKanbanItemsControl.ItemsSource = _filteredUsers;
         RefreshKanbanFilter();
         RefreshPosLoginUsers();
+    }
+
+    public void ShowToast(string message, bool isDelete = false)
+    {
+        UserActionToastText.Text = message;
+        ToastIndicatorDot.Fill = isDelete
+            ? (Brush)FindResource("DangerRedBrush")
+            : (Brush)FindResource("ActiveGreenBrush");
+        UserActionToastBanner.Visibility = Visibility.Visible;
+        _toastTimer.Stop();
+        _toastTimer.Start();
     }
 
     private void SeedDefaultOdooUsers()
@@ -290,6 +310,7 @@ public partial class UserManagementView : UserControl
 
         SwitchToKanbanView();
         NotifyUsersUpdated();
+        ShowToast($"User \"{name}\" saved successfully.");
     }
 
     private void DiscardUserButton_Click(object sender, RoutedEventArgs e)
@@ -535,20 +556,30 @@ public partial class UserManagementView : UserControl
     {
         if (_editingUser is null) return;
 
-        var result = MessageBox.Show(
-            $"Are you sure you want to delete user \"{_editingUser.Name.Trim()}\"?",
-            "Confirm Delete User",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+        DeleteModalPromptText.Text = $"Are you sure you want to delete user \"{_editingUser.Name.Trim()}\"? This action cannot be undone.";
+        DeleteConfirmModalOverlay.Visibility = Visibility.Visible;
+    }
 
-        if (result == MessageBoxResult.Yes)
-        {
-            var userToDelete = _editingUser;
-            _allUsers.Remove(userToDelete);
-            _editingUser = null;
-            SwitchToKanbanView();
-            NotifyUsersUpdated();
-        }
+    private void CancelDeleteModal_Click(object sender, RoutedEventArgs e)
+    {
+        DeleteConfirmModalOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void ConfirmDeleteUser_Click(object sender, RoutedEventArgs e)
+    {
+        if (_editingUser is null) return;
+
+        string deletedName = _editingUser.Name.Trim();
+        var userToDelete = _editingUser;
+
+        _allUsers.Remove(userToDelete);
+        _editingUser = null;
+
+        DeleteConfirmModalOverlay.Visibility = Visibility.Collapsed;
+        SwitchToKanbanView();
+        NotifyUsersUpdated();
+
+        ShowToast($"User \"{deletedName}\" has been deleted.", isDelete: true);
     }
 
     private void BackToPosButton_Click(object sender, RoutedEventArgs e)

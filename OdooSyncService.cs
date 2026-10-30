@@ -393,4 +393,208 @@ public class OdooSyncService
             )
         ];
     }
+
+    /// <summary>
+    /// Fetches POS product categories from Odoo's pos.category model via JSON-RPC.
+    /// Also queries pos.config to resolve human-readable shop names for linked POS configs.
+    /// </summary>
+    public async Task<List<PosCategoryDto>> FetchOdooCategoriesAsync(OdooConfigRecord config, bool allowOfflineSimulation = false)
+    {
+        string baseUrl = NormalizeUrl(config.ServerUrl);
+        string endpoint = $"{baseUrl}/jsonrpc";
+
+        try
+        {
+            // 1. Authenticate to get UID
+            var test = await TestConnectionAsync(config);
+            if (!test.Success || !test.Uid.HasValue)
+            {
+                if (allowOfflineSimulation)
+                {
+                    return GetSimulatedOdooCategories();
+                }
+                throw new InvalidOperationException(test.Message);
+            }
+
+            int uid = test.Uid.Value;
+
+            // 2. Query pos.config to map ID -> Shop Name
+            var shopMap = new Dictionary<int, string>();
+            try
+            {
+                var shopPayload = new
+                {
+                    jsonrpc = "2.0",
+                    method = "call",
+                    @params = new
+                    {
+                        service = "object",
+                        method = "execute_kw",
+                        args = new object[]
+                        {
+                            config.DatabaseName,
+                            uid,
+                            config.ApiKey ?? "",
+                            "pos.config",
+                            "search_read",
+                            new object[] { new object[] { } },
+                            new { fields = new[] { "id", "name" } }
+                        }
+                    },
+                    id = 11
+                };
+
+                var shopReq = new StringContent(JsonSerializer.Serialize(shopPayload), Encoding.UTF8, "application/json");
+                var shopResp = await _httpClient.PostAsync(endpoint, shopReq);
+                if (shopResp.IsSuccessStatusCode)
+                {
+                    string s = await shopResp.Content.ReadAsStringAsync();
+                    using var sDoc = JsonDocument.Parse(s);
+                    if (sDoc.RootElement.TryGetProperty("result", out var sList) && sList.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var sItem in sList.EnumerateArray())
+                        {
+                            int sId = sItem.GetProperty("id").GetInt32();
+                            string sName = sItem.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+                            shopMap[sId] = sName;
+                        }
+                    }
+                }
+            }
+            catch { /* Fallback to ID numbers if pos.config query fails */ }
+
+            // 3. Query pos.category records
+            var categoryPayload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "pos.category",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new
+                        {
+                            fields = new[] { "id", "name", "parent_id", "sequence", "color", "image_128", "pos_config_ids" }
+                        }
+                    }
+                },
+                id = 12
+            };
+
+            var catReq = new StringContent(JsonSerializer.Serialize(categoryPayload), Encoding.UTF8, "application/json");
+            var catResp = await _httpClient.PostAsync(endpoint, catReq);
+            catResp.EnsureSuccessStatusCode();
+
+            string respString = await catResp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(respString);
+
+            if (doc.RootElement.TryGetProperty("error", out var errorProp))
+            {
+                string errMsg = "Odoo Error";
+                if (errorProp.TryGetProperty("data", out var dataProp) &&
+                    dataProp.TryGetProperty("message", out var msgProp))
+                {
+                    errMsg = msgProp.GetString() ?? errMsg;
+                }
+                else if (errorProp.TryGetProperty("message", out var mProp))
+                {
+                    errMsg = mProp.GetString() ?? errMsg;
+                }
+                throw new InvalidOperationException($"Odoo categories query failed: {errMsg}");
+            }
+
+            if (doc.RootElement.TryGetProperty("result", out var resultList) &&
+                resultList.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<PosCategoryDto>();
+                foreach (var item in resultList.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+
+                    // Parent category: false or [id, "Parent Name"]
+                    int? parentId = null;
+                    string? parentName = null;
+                    if (item.TryGetProperty("parent_id", out var pProp) && pProp.ValueKind == JsonValueKind.Array && pProp.GetArrayLength() >= 2)
+                    {
+                        parentId = pProp[0].GetInt32();
+                        parentName = pProp[1].GetString();
+                    }
+
+                    int sequence = item.TryGetProperty("sequence", out var sProp) && sProp.ValueKind == JsonValueKind.Number ? sProp.GetInt32() : 10;
+                    int color = item.TryGetProperty("color", out var cProp) && cProp.ValueKind == JsonValueKind.Number ? cProp.GetInt32() : 0;
+                    string colorHex = PosCategoryRecord.GetOdooColorHex(color);
+
+                    string? imageBase64 = null;
+                    if (item.TryGetProperty("image_128", out var imgProp) && imgProp.ValueKind == JsonValueKind.String)
+                    {
+                        imageBase64 = imgProp.GetString();
+                    }
+
+                    // Linked POS config shops: [1, 2]
+                    var shops = new List<string>();
+                    if (item.TryGetProperty("pos_config_ids", out var configsProp) && configsProp.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var cId in configsProp.EnumerateArray())
+                        {
+                            int id = cId.GetInt32();
+                            if (shopMap.TryGetValue(id, out var sName))
+                                shops.Add(sName);
+                            else
+                                shops.Add($"POS {id}");
+                        }
+                    }
+                    string linkedShops = string.Join(", ", shops);
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        list.Add(new PosCategoryDto(odooId, name, parentId, parentName, linkedShops, color, colorHex, sequence, imageBase64));
+                    }
+                }
+
+                UpdateStatus(true, "Odoo Online");
+                return list;
+            }
+
+            if (allowOfflineSimulation)
+                return GetSimulatedOdooCategories();
+
+            return [];
+        }
+        catch
+        {
+            if (allowOfflineSimulation)
+            {
+                return GetSimulatedOdooCategories();
+            }
+            UpdateStatus(false, "Offline (Local Mode)");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Provides simulated Odoo 20 POS categories for demo / offline environments.
+    /// </summary>
+    public static List<PosCategoryDto> GetSimulatedOdooCategories()
+    {
+        return
+        [
+            new PosCategoryDto(1, "Misc", null, null, "Furniture Shop", 9, PosCategoryRecord.GetOdooColorHex(9), 1, null),
+            new PosCategoryDto(2, "Desks", null, null, "Furniture Shop", 3, PosCategoryRecord.GetOdooColorHex(3), 2, null),
+            new PosCategoryDto(3, "Chairs", null, null, "Furniture Shop", 1, PosCategoryRecord.GetOdooColorHex(1), 3, null),
+            new PosCategoryDto(4, "Upper body", null, null, "Clothes Shop", 5, PosCategoryRecord.GetOdooColorHex(5), 4, null),
+            new PosCategoryDto(5, "Lower body", null, null, "Clothes Shop", 10, PosCategoryRecord.GetOdooColorHex(10), 5, null),
+            new PosCategoryDto(6, "Others", null, null, "Clothes Shop", 3, PosCategoryRecord.GetOdooColorHex(3), 6, null),
+            new PosCategoryDto(7, "Breads", null, null, "Bakery Shop", 7, PosCategoryRecord.GetOdooColorHex(7), 7, null),
+            new PosCategoryDto(8, "Pastries", null, null, "Bakery Shop", 8, PosCategoryRecord.GetOdooColorHex(8), 8, null)
+        ];
+    }
 }

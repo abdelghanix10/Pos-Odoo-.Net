@@ -20,6 +20,7 @@ public partial class MainShellView : UserControl
 
     public string CurrentUser { get; private set; } = "Administrator";
     public UserManagementView UsersControl => UsersViewControl;
+    public PosCategoryManagementView CategoriesControl => CategoriesViewControl;
 
     public MainShellView()
     {
@@ -74,6 +75,12 @@ public partial class MainShellView : UserControl
                 ? "Last Synced: Never"
                 : $"Last Synced: {config.LastSyncedAt}";
 
+            var lastCatSync = await SqliteDatabaseService.Instance.GetLastCategorySyncStatusAsync();
+            if (!string.IsNullOrEmpty(lastCatSync))
+            {
+                LastCategoriesSyncedStatusText.Text = $"Last Synced: {lastCatSync}";
+            }
+
             if (!string.IsNullOrEmpty(config.LastStatus))
             {
                 ConnectionStatusText.Text = config.LastStatus;
@@ -107,6 +114,7 @@ public partial class MainShellView : UserControl
             // Collapse navigation panel into icon-only mode
             SidebarMenuColumn.Width = new GridLength(_collapsedSidebarWidth);
             UsersLabel.Visibility = Visibility.Collapsed;
+            CategoriesLabel.Visibility = Visibility.Collapsed;
             SettingsLabel.Visibility = Visibility.Collapsed;
             LogoutLabel.Visibility = Visibility.Collapsed;
 
@@ -118,6 +126,7 @@ public partial class MainShellView : UserControl
             // Expand navigation panel to show icons & labels
             SidebarMenuColumn.Width = new GridLength(_expandedSidebarWidth);
             UsersLabel.Visibility = Visibility.Visible;
+            CategoriesLabel.Visibility = Visibility.Visible;
             SettingsLabel.Visibility = Visibility.Visible;
             LogoutLabel.Visibility = Visibility.Visible;
 
@@ -127,11 +136,16 @@ public partial class MainShellView : UserControl
     }
 
     // =========================================================================
-    // 2. PRIMARY NAVIGATION (USERS & SETTINGS)
+    // 2. PRIMARY NAVIGATION (USERS, CATEGORIES, SETTINGS)
     // =========================================================================
     private void NavUsers_Click(object sender, RoutedEventArgs e)
     {
         SwitchToUsers();
+    }
+
+    private void NavCategories_Click(object sender, RoutedEventArgs e)
+    {
+        SwitchToCategories();
     }
 
     private void NavSettings_Click(object sender, RoutedEventArgs e)
@@ -142,6 +156,7 @@ public partial class MainShellView : UserControl
     public void SwitchToUsers()
     {
         SettingsViewPanel.Visibility = Visibility.Collapsed;
+        CategoriesViewControl.Visibility = Visibility.Collapsed;
         UsersViewControl.Visibility = Visibility.Visible;
 
         // Visual Active Highlights
@@ -151,15 +166,41 @@ public partial class MainShellView : UserControl
         Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
 
         NavUsersBtn.Style = activeStyle;
+        NavCategoriesBtn.Style = defaultStyle;
         NavSettingsBtn.Style = defaultStyle;
 
         UsersLabel.Foreground = purpleBrush;
+        CategoriesLabel.Foreground = primaryTextBrush;
         SettingsLabel.Foreground = primaryTextBrush;
+    }
+
+    public void SwitchToCategories()
+    {
+        SettingsViewPanel.Visibility = Visibility.Collapsed;
+        UsersViewControl.Visibility = Visibility.Collapsed;
+        CategoriesViewControl.Visibility = Visibility.Visible;
+
+        // Visual Active Highlights
+        Style activeStyle = (Style)FindResource("ActiveSidebarItemButtonStyle");
+        Style defaultStyle = (Style)FindResource("SidebarItemButtonStyle");
+        Brush purpleBrush = (Brush)FindResource("OdooPurpleBrush");
+        Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
+
+        NavCategoriesBtn.Style = activeStyle;
+        NavUsersBtn.Style = defaultStyle;
+        NavSettingsBtn.Style = defaultStyle;
+
+        CategoriesLabel.Foreground = purpleBrush;
+        UsersLabel.Foreground = primaryTextBrush;
+        SettingsLabel.Foreground = primaryTextBrush;
+
+        _ = CategoriesViewControl.ReloadCategoriesFromDatabaseAsync();
     }
 
     public void SwitchToSettings()
     {
         UsersViewControl.Visibility = Visibility.Collapsed;
+        CategoriesViewControl.Visibility = Visibility.Collapsed;
         SettingsViewPanel.Visibility = Visibility.Visible;
 
         // Visual Active Highlights
@@ -169,9 +210,11 @@ public partial class MainShellView : UserControl
         Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
 
         NavSettingsBtn.Style = activeStyle;
+        NavCategoriesBtn.Style = defaultStyle;
         NavUsersBtn.Style = defaultStyle;
 
         SettingsLabel.Foreground = purpleBrush;
+        CategoriesLabel.Foreground = primaryTextBrush;
         UsersLabel.Foreground = primaryTextBrush;
     }
 
@@ -423,6 +466,94 @@ public partial class MainShellView : UserControl
         finally
         {
             SetSettingsSyncLoadingState(false);
+        }
+    }
+
+    private async void SyncCategoriesNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetCategoriesSyncLoadingState(true);
+            CategoriesSyncDetailText.Text = "Connecting to Odoo & synchronizing pos.category...";
+            CategoriesSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
+
+            string url = CfgServerUrlTextBox.Text.Trim();
+            string db = CfgDatabaseTextBox.Text.Trim();
+            string user = CfgUsernameTextBox.Text.Trim();
+            string pwd = GetCurrentPassword();
+
+            OdooConfigRecord config;
+            if (!string.IsNullOrWhiteSpace(url) && !string.IsNullOrWhiteSpace(db) && !string.IsNullOrWhiteSpace(user))
+            {
+                config = new OdooConfigRecord(url, db, user, pwd, null, "Connected");
+                await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config);
+            }
+            else
+            {
+                config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                CategoriesSyncDetailText.Text = "Cannot synchronize: Odoo Server URL is not configured.";
+                CategoriesSyncDetailText.Foreground = GetSafeBrush("WarningAmberBrush", Color.FromRgb(0xF5, 0x9E, 0x0B));
+                ShowToast("Please enter and save Odoo connection settings first.", isWarning: true);
+                return;
+            }
+
+            var odooCategories = await OdooSyncService.Instance.FetchOdooCategoriesAsync(config, allowOfflineSimulation: false);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooCategoriesAsync(odooCategories);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated.";
+
+            await SqliteDatabaseService.Instance.UpdateCategorySyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastCategoriesSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            CategoriesSyncDetailText.Text = statusMsg;
+            CategoriesSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await CategoriesViewControl.ReloadCategoriesFromDatabaseAsync();
+
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            CategoriesSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            CategoriesSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetCategoriesSyncLoadingState(false);
+        }
+    }
+
+    private void SetCategoriesSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncCategoriesNowBtn.IsEnabled = false;
+            SettingsCatSyncButtonText.Text = "Syncing Categories...";
+            CategoriesSyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsCatSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsCatSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsCatSyncIconRotation.Angle = 0;
+            SettingsCatSyncButtonText.Text = "Sync Categories Now";
+            CategoriesSyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncCategoriesNowBtn.IsEnabled = true;
         }
     }
 

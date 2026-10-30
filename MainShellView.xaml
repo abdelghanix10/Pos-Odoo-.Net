@@ -416,6 +416,35 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- ==================== POS CATEGORIES ITEM ==================== -->
+                        <Button x:Name="NavCategoriesBtn"
+                                Style="{StaticResource SidebarItemButtonStyle}"
+                                Click="NavCategories_Click"
+                                ToolTip="PoS Product Categories"
+                                Margin="0,2,0,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                    <Canvas Width="24" Height="24">
+                                        <!-- Category tag / layers shape in Odoo Teal and Purple -->
+                                        <Path Data="M 12,2 L 2,7 L 12,12 L 22,7 L 12,2 Z"
+                                              Fill="{StaticResource OdooTealBrush}"/>
+                                        <Path Data="M 2,12 L 12,17 L 22,12 M 2,17 L 12,22 L 22,17"
+                                              Stroke="{StaticResource OdooPurpleBrush}"
+                                              StrokeThickness="2"
+                                              StrokeLineJoin="Round"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock x:Name="CategoriesLabel"
+                                           Text="PoS Categories"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
                         <!-- ==================== SETTINGS (CONFIGURATION) ITEM ==================== -->
                         <Button x:Name="NavSettingsBtn"
                                 Style="{StaticResource ActiveSidebarItemButtonStyle}"
@@ -939,6 +968,65 @@
                                                        Margin="0,4,0,0"/>
                                         </StackPanel>
                                     </Grid>
+
+                                    <!-- Divider between Users and Categories sync -->
+                                    <Border Height="1" Background="{StaticResource SubtleBorderLightBrush}" Margin="0,18,0,18"/>
+
+                                    <!-- Sync Categories Controls & Progress -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="20"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Sync Categories Now Button (Secondary Teal Action Button) -->
+                                        <Button Grid.Column="0"
+                                                x:Name="SyncCategoriesNowBtn"
+                                                Style="{StaticResource OdooTealActionButtonStyle}"
+                                                Click="SyncCategoriesNowBtn_Click"
+                                                Height="44"
+                                                Padding="22,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Viewbox x:Name="SettingsCatSyncIconBox" Width="16" Height="16" Margin="0,0,10,0" RenderTransformOrigin="0.5,0.5">
+                                                    <Viewbox.RenderTransform>
+                                                        <RotateTransform x:Name="SettingsCatSyncIconRotation" Angle="0"/>
+                                                    </Viewbox.RenderTransform>
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,2 L 2,7 L 12,12 L 22,7 L 12,2 Z" Fill="#FFFFFF"/>
+                                                        <Path Data="M 2,12 L 12,17 L 22,12 M 2,17 L 12,22 L 22,17" Stroke="#FFFFFF" StrokeThickness="2" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock x:Name="SettingsCatSyncButtonText" Text="Sync Categories Now" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <!-- Progress & Categories Sync Status Details -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <!-- Last Categories Synced Date & Time Status Text -->
+                                                <TextBlock x:Name="LastCategoriesSyncedStatusText"
+                                                           Text="Last Synced: Never"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+
+                                                <!-- Categories Sync Progress Bar -->
+                                                <ProgressBar x:Name="CategoriesSyncProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Width="140" Height="4"
+                                                             Visibility="Collapsed"
+                                                             Margin="16,0,0,0"/>
+                                            </StackPanel>
+
+                                            <!-- Detail feedback / summary message -->
+                                            <TextBlock x:Name="CategoriesSyncDetailText"
+                                                       Text="Click 'Sync Categories Now' to fetch and upsert pos.category from Odoo."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 
@@ -964,6 +1052,10 @@
             <!-- ==================== VIEW B: USERS MANAGEMENT VIEW ==================== -->
             <local:UserManagementView x:Name="UsersViewControl"
                                       Visibility="Collapsed"/>
+
+            <!-- ==================== VIEW C: POS CATEGORIES MANAGEMENT VIEW ==================== -->
+            <local:PosCategoryManagementView x:Name="CategoriesViewControl"
+                                             Visibility="Collapsed"/>
 
             <!-- ==================== TOAST BANNER NOTIFICATION ==================== -->
             <Border x:Name="ShellToastBanner"

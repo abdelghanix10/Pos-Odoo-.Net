@@ -62,7 +62,7 @@ public class OdooSyncService
         }
     }
 
-    private void UpdateStatus(bool online, string label)
+    public void UpdateStatus(bool online, string label)
     {
         bool changed = (IsOnline != online) || (ConnectionStatusLabel != label);
         IsOnline = online;
@@ -81,7 +81,7 @@ public class OdooSyncService
     }
 
     /// <summary>
-    /// Probes if the host server responds to HTTP requests within a short timeout.
+    /// Probes if the host server responds to HTTP requests within a reasonable timeout.
     /// </summary>
     public async Task<bool> CheckServerReachableAsync(string serverUrl)
     {
@@ -90,18 +90,17 @@ public class OdooSyncService
         string baseUrl = NormalizeUrl(serverUrl);
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3.5));
-            using var req = new HttpRequestMessage(HttpMethod.Head, baseUrl);
-            var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
-            // Any HTTP response below 500 indicates the server host is reachable and alive
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var resp = await _httpClient.GetAsync(baseUrl, HttpCompletionOption.ResponseHeadersRead, cts.Token);
             return (int)resp.StatusCode >= 200 && (int)resp.StatusCode < 500;
         }
         catch
         {
             try
             {
-                using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(3.5));
-                var resp2 = await _httpClient.GetAsync(baseUrl, HttpCompletionOption.ResponseHeadersRead, cts2.Token);
+                using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                using var req = new HttpRequestMessage(HttpMethod.Head, baseUrl);
+                var resp2 = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts2.Token);
                 return (int)resp2.StatusCode >= 200 && (int)resp2.StatusCode < 500;
             }
             catch
@@ -279,6 +278,21 @@ public class OdooSyncService
             string respString = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(respString);
 
+            if (doc.RootElement.TryGetProperty("error", out var errorProp))
+            {
+                string errMsg = "Odoo Error";
+                if (errorProp.TryGetProperty("data", out var dataProp) &&
+                    dataProp.TryGetProperty("message", out var msgProp))
+                {
+                    errMsg = msgProp.GetString() ?? errMsg;
+                }
+                else if (errorProp.TryGetProperty("message", out var mProp))
+                {
+                    errMsg = mProp.GetString() ?? errMsg;
+                }
+                throw new InvalidOperationException($"Odoo query failed: {errMsg}");
+            }
+
             if (doc.RootElement.TryGetProperty("result", out var resultList) &&
                 resultList.ValueKind == JsonValueKind.Array)
             {
@@ -302,6 +316,7 @@ public class OdooSyncService
                         list.Add(new OdooUserDto(odooId, name, login, email, phone, avatar));
                     }
                 }
+                UpdateStatus(true, "Odoo Online");
                 return list;
             }
 
@@ -316,6 +331,7 @@ public class OdooSyncService
             {
                 return GetSimulatedOdooUsers();
             }
+            UpdateStatus(false, "Offline (Local Mode)");
             throw;
         }
     }

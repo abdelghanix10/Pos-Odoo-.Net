@@ -108,24 +108,29 @@ public partial class UserManagementView : UserControl
         {
             SetSyncLoadingState(true);
 
-            // 1. Verify live Odoo Online connectivity
-            bool isOnline = await OdooSyncService.Instance.CheckConnectivityAsync();
-            if (!isOnline)
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
             {
-                ShowToast("Cannot synchronize: Odoo Online is unreachable. Operating in Offline (Local Mode).", isWarning: true);
+                ShowToast("Cannot synchronize: Odoo Server URL is not configured. Please open Settings.", isWarning: true);
                 return;
             }
 
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: true);
+            // Fetch live users directly from Odoo
+            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: false);
 
-            var (imported, updated) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(odooUsers);
-            await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(DateTime.Now, $"Success ({imported + updated} users)");
+            // Reconcile users in local SQLite: upsert users present in Odoo, DELETE users NOT in Odoo
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(odooUsers);
+
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated.";
+
+            await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(DateTime.Now, statusMsg);
 
             await ReloadUsersFromDatabaseAsync();
             NotifyUsersUpdated();
 
-            ShowToast($"Sync Complete: {imported} imported, {updated} updated from Odoo.");
+            ShowToast(statusMsg);
         }
         catch (Exception ex)
         {

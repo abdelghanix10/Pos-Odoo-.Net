@@ -364,38 +364,55 @@ public partial class MainShellView : UserControl
         try
         {
             SetSettingsSyncLoadingState(true);
-            SyncDetailText.Text = "Verifying connection & synchronizing res.users...";
+            SyncDetailText.Text = "Connecting to Odoo & synchronizing res.users...";
             SyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            // 1. Verify live Odoo Online reachability before initiating sync
-            bool isOnline = await OdooSyncService.Instance.CheckConnectivityAsync();
-            if (!isOnline)
+            string url = CfgServerUrlTextBox.Text.Trim();
+            string db = CfgDatabaseTextBox.Text.Trim();
+            string user = CfgUsernameTextBox.Text.Trim();
+            string pwd = GetCurrentPassword();
+
+            OdooConfigRecord config;
+            if (!string.IsNullOrWhiteSpace(url) && !string.IsNullOrWhiteSpace(db) && !string.IsNullOrWhiteSpace(user))
             {
-                SyncDetailText.Text = "Cannot synchronize: Odoo Online is unreachable (Offline Mode).";
+                config = new OdooConfigRecord(url, db, user, pwd, null, "Connected");
+                await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config);
+            }
+            else
+            {
+                config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                SyncDetailText.Text = "Cannot synchronize: Odoo Server URL is not configured.";
                 SyncDetailText.Foreground = GetSafeBrush("WarningAmberBrush", Color.FromRgb(0xF5, 0x9E, 0x0B));
-                ShowToast("Cannot synchronize: Odoo Online is unreachable. Operating in Offline (Local Mode).", isWarning: true);
+                ShowToast("Please enter and save Odoo connection settings first.", isWarning: true);
                 return;
             }
 
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            // Fetch live users directly from Odoo (no simulation; connects with real credentials)
+            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: false);
 
-            // Fetch users from Odoo
-            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: true);
-
-            // Upsert users into local SQLite database (preserving local PINs and passwords)
-            var (imported, updated) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(odooUsers);
+            // Reconcile users in local SQLite: upsert users present in Odoo, DELETE users NOT in Odoo
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(odooUsers);
 
             string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(DateTime.Now, $"Success ({imported + updated} users)");
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated.";
+
+            await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(DateTime.Now, statusMsg);
 
             LastSyncedStatusText.Text = $"Last Synced: {syncTime}";
-            SyncDetailText.Text = $"Sync Complete: {imported} new user(s) imported, {updated} user(s) updated.";
+            SyncDetailText.Text = statusMsg;
             SyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             // Refresh the Users Kanban view and POS login cards
             await UsersViewControl.ReloadUsersFromDatabaseAsync();
+            UsersViewControl.NotifyUsersUpdated();
 
-            ShowToast($"Sync Complete: {imported} imported, {updated} updated from Odoo.");
+            ShowToast(statusMsg);
         }
         catch (Exception ex)
         {

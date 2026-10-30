@@ -307,15 +307,29 @@ public class SqliteDatabaseService
     /// Preserves existing local PIN and Password values.
     /// Returns (importedCount, updatedCount).
     /// </summary>
-    public async Task<(int imported, int updated)> UpsertOdooUsersAsync(List<OdooUserDto> odooUsers)
+    /// <summary>
+    /// Synchronizes users from Odoo into the local SQLite database.
+    /// Upserts users present in Odoo, and DELETES any local user not present in Odoo Online.
+    /// Preserves existing local PIN and Password values.
+    /// Returns (importedCount, updatedCount, deletedCount).
+    /// </summary>
+    public async Task<(int imported, int updated, int deleted)> UpsertOdooUsersAsync(List<OdooUserDto> odooUsers)
     {
         int imported = 0;
         int updated = 0;
+        int deleted = 0;
 
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
 
+        var odooIds = odooUsers.Select(u => u.OdooId).ToHashSet();
+        var odooLogins = odooUsers
+            .Where(u => !string.IsNullOrWhiteSpace(u.Login))
+            .Select(u => u.Login.Trim().ToLowerInvariant())
+            .ToHashSet();
+
+        // 1. Upsert users from Odoo
         foreach (var odooUser in odooUsers)
         {
             // Check if user already exists by OdooId or Login
@@ -324,11 +338,11 @@ public class SqliteDatabaseService
             checkCmd.CommandText = """
                 SELECT Id, Pin, Password, AvatarBase64
                 FROM Users
-                WHERE (OdooId IS NOT NULL AND OdooId = @odooId) OR Login = @login
+                WHERE (OdooId IS NOT NULL AND OdooId = @odooId) OR LOWER(Login) = @login
                 LIMIT 1;
                 """;
             checkCmd.Parameters.AddWithValue("@odooId", odooUser.OdooId);
-            checkCmd.Parameters.AddWithValue("@login", odooUser.Login);
+            checkCmd.Parameters.AddWithValue("@login", odooUser.Login.Trim().ToLowerInvariant());
 
             long? existingId = null;
             string existingPin = "";
@@ -395,8 +409,45 @@ public class SqliteDatabaseService
             }
         }
 
+        // 2. DELETE all users NOT in Odoo Online
+        // Only run reconciliation deletion if we have received users from Odoo (protects against empty results)
+        if (odooUsers.Count > 0)
+        {
+            var usersToDelete = new List<long>();
+            await using (var fetchAllCmd = connection.CreateCommand())
+            {
+                fetchAllCmd.Transaction = transaction;
+                fetchAllCmd.CommandText = "SELECT Id, OdooId, Login FROM Users;";
+                await using var reader = await fetchAllCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    long id = reader.GetInt64(0);
+                    int? odooId = reader.IsDBNull(1) ? null : reader.GetInt32(1);
+                    string login = reader.IsDBNull(2) ? "" : reader.GetString(2).Trim().ToLowerInvariant();
+
+                    bool existsInOdoo = (odooId.HasValue && odooIds.Contains(odooId.Value)) ||
+                                        (!string.IsNullOrEmpty(login) && odooLogins.Contains(login));
+
+                    if (!existsInOdoo)
+                    {
+                        usersToDelete.Add(id);
+                    }
+                }
+            }
+
+            foreach (long deleteId in usersToDelete)
+            {
+                await using var delCmd = connection.CreateCommand();
+                delCmd.Transaction = transaction;
+                delCmd.CommandText = "DELETE FROM Users WHERE Id = @id;";
+                delCmd.Parameters.AddWithValue("@id", deleteId);
+                await delCmd.ExecuteNonQueryAsync();
+                deleted++;
+            }
+        }
+
         await transaction.CommitAsync();
-        return (imported, updated);
+        return (imported, updated, deleted);
     }
 }
 

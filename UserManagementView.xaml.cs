@@ -5,8 +5,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
-using Microsoft.Win32;
 
 namespace OdooPosLogin;
 
@@ -21,8 +19,6 @@ public partial class UserManagementView : UserControl
 
     private readonly System.Windows.Threading.DispatcherTimer _toastTimer;
     private PosUserRecord? _editingUser;
-    private BitmapImage? _stagedAvatarBitmap;
-    private string _stagedStatus = "Confirmed";
 
     public UserManagementView()
     {
@@ -35,111 +31,8 @@ public partial class UserManagementView : UserControl
             UserActionToastBanner.Visibility = Visibility.Collapsed;
         };
 
-        _ = ReloadUsersFromDatabaseAsync();
         UsersKanbanItemsControl.ItemsSource = _filteredUsers;
-        RefreshKanbanFilter();
-        RefreshPosLoginUsers();
-    }
-
-    public void ShowToast(string message, bool isDelete = false)
-    {
-        UserActionToastText.Text = message;
-        ToastIndicatorDot.Fill = isDelete
-            ? (Brush)FindResource("DangerRedBrush")
-            : (Brush)FindResource("ActiveGreenBrush");
-        UserActionToastBanner.Visibility = Visibility.Visible;
-        _toastTimer.Stop();
-        _toastTimer.Start();
-    }
-
-    private void SeedDefaultOdooUsers()
-    {
-        _allUsers.AddRange(
-        [
-            new PosUserRecord
-            {
-                Name = "Mitchell Admin",
-                Login = "admin@yourcompany.com",
-                Email = "admin@yourcompany.com",
-                Phone = "+1 (555) 234-5678",
-                Pin = "1234",
-                Status = "Confirmed",
-                IsPurpleTheme = true,
-                IsVisibleInPos = true
-            },
-            new PosUserRecord
-            {
-                Name = "Marc Demo",
-                Login = "marc.demo@yourcompany.com",
-                Email = "marc.demo@yourcompany.com",
-                Phone = "+1 (555) 876-5432",
-                Pin = "1234",
-                Status = "Confirmed",
-                IsPurpleTheme = false,
-                IsVisibleInPos = true
-            },
-            new PosUserRecord
-            {
-                Name = "Abigail Peterson",
-                Login = "abigail.p@yourcompany.com",
-                Email = "abigail.p@yourcompany.com",
-                Phone = "+1 (555) 392-1100",
-                Pin = "2580",
-                Status = "Confirmed",
-                IsPurpleTheme = true,
-                IsVisibleInPos = true
-            },
-            new PosUserRecord
-            {
-                Name = "Joel Willis",
-                Login = "joel.willis@yourcompany.com",
-                Email = "joel.willis@yourcompany.com",
-                Phone = "+1 (555) 601-9940",
-                Pin = "9999",
-                Status = "Confirmed",
-                IsPurpleTheme = false,
-                IsVisibleInPos = true
-            },
-            new PosUserRecord
-            {
-                Name = "Anita Oliver",
-                Login = "anita.oliver@yourcompany.com",
-                Email = "anita.oliver@yourcompany.com",
-                Phone = "+1 (555) 482-7721",
-                Pin = "4321",
-                Status = "Invited",
-                IsPurpleTheme = true,
-                IsVisibleInPos = false
-            },
-            new PosUserRecord
-            {
-                Name = "Randall Lewis",
-                Login = "randall.l@yourcompany.com",
-                Email = "randall.l@yourcompany.com",
-                Phone = "+1 (555) 910-3318",
-                Pin = "0000",
-                Status = "Confirmed",
-                IsPurpleTheme = false,
-                IsVisibleInPos = false
-            }
-        ]);
-    }
-
-    // ==================== KANBAN SEARCH & FILTER ====================
-    public void RefreshPosLoginUsers()
-    {
-        PosLoginUsers.Clear();
-        foreach (PosUserRecord user in _allUsers.Where(u => u.IsVisibleInPos))
-        {
-            PosLoginUsers.Add(user);
-        }
-    }
-
-    public void NotifyUsersUpdated()
-    {
-        RefreshKanbanFilter();
-        RefreshPosLoginUsers();
-        UsersUpdated?.Invoke();
+        _ = ReloadUsersFromDatabaseAsync();
     }
 
     public async Task ReloadUsersFromDatabaseAsync()
@@ -151,6 +44,27 @@ public partial class UserManagementView : UserControl
         RefreshPosLoginUsers();
     }
 
+    public void ShowToast(string message, bool isError = false, bool isWarning = false)
+    {
+        UserActionToastText.Text = message;
+        if (isWarning)
+        {
+            ToastIndicatorDot.Fill = (Brush)FindResource("WarningAmberBrush");
+        }
+        else if (isError)
+        {
+            ToastIndicatorDot.Fill = (Brush)FindResource("DangerRedBrush");
+        }
+        else
+        {
+            ToastIndicatorDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+        }
+        UserActionToastBanner.Visibility = Visibility.Visible;
+        _toastTimer.Stop();
+        _toastTimer.Start();
+    }
+
+    // ==================== ODOO SYNCHRONIZATION ====================
     private async void SyncUsersButton_Click(object sender, RoutedEventArgs e)
     {
         await TriggerOdooSyncAsync();
@@ -158,6 +72,14 @@ public partial class UserManagementView : UserControl
 
     public async Task TriggerOdooSyncAsync()
     {
+        // 1. Verify live Odoo Online connectivity
+        bool isOnline = await OdooSyncService.Instance.CheckConnectivityAsync();
+        if (!isOnline)
+        {
+            ShowToast("Cannot synchronize: Odoo Online is unreachable. Operating in Offline (Local Mode).", isWarning: true);
+            return;
+        }
+
         try
         {
             TopSyncFromOdooBtn.IsEnabled = false;
@@ -175,7 +97,7 @@ public partial class UserManagementView : UserControl
         }
         catch (Exception ex)
         {
-            ShowToast($"Sync Failed: {ex.Message}", isDelete: true);
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
         }
         finally
         {
@@ -183,22 +105,43 @@ public partial class UserManagementView : UserControl
         }
     }
 
+    public void RefreshPosLoginUsers()
+    {
+        PosLoginUsers.Clear();
+        foreach (PosUserRecord user in _allUsers.Where(u => u.IsVisibleInPos))
+        {
+            PosLoginUsers.Add(user);
+        }
+    }
+
+    public void NotifyUsersUpdated()
+    {
+        RefreshKanbanFilter();
+        RefreshPosLoginUsers();
+        UsersUpdated?.Invoke();
+    }
+
+    // ==================== KANBAN SEARCH & FILTER ====================
     private void RefreshKanbanFilter()
     {
         string query = SearchUsersTextBox.Text.Trim();
         _filteredUsers.Clear();
 
-        foreach (PosUserRecord user in _allUsers)
+        IEnumerable<PosUserRecord> source = _allUsers;
+        if (!string.IsNullOrWhiteSpace(query))
         {
-            if (!string.IsNullOrEmpty(query) &&
-                !user.Name.Contains(query, StringComparison.OrdinalIgnoreCase) &&
-                !user.Login.Contains(query, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
+            source = source.Where(u =>
+                u.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                u.Login.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                u.Email.Contains(query, StringComparison.OrdinalIgnoreCase));
+        }
 
+        foreach (var user in source)
+        {
             _filteredUsers.Add(user);
         }
+
+        UserCountText.Text = $"{_filteredUsers.Count} Users";
     }
 
     private void SearchUsersTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -209,12 +152,7 @@ public partial class UserManagementView : UserControl
         RefreshKanbanFilter();
     }
 
-    // ==================== NAVIGATION: KANBAN <-> FORM ====================
-    private void NewUserButton_Click(object sender, RoutedEventArgs e)
-    {
-        OpenUserForm(null);
-    }
-
+    // ==================== NAVIGATION: KANBAN <-> DETAIL VIEW ====================
     private void KanbanUserCard_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: PosUserRecord selectedUser })
@@ -228,60 +166,47 @@ public partial class UserManagementView : UserControl
         SwitchToKanbanView();
     }
 
-    private void OpenUserForm(PosUserRecord? userToEdit)
+    private void OpenUserForm(PosUserRecord userToEdit)
     {
         _editingUser = userToEdit;
-        ValidationBanner.Visibility = Visibility.Collapsed;
-        ResetValidationBorders();
 
-        if (userToEdit is null)
+        // Display Read-Only Profile Information from Odoo
+        BreadcrumbCurrentTitle.Text = userToEdit.Name.Trim();
+        FormNameTextBox.Text = userToEdit.Name.Trim();
+        FormLoginTextBox.Text = userToEdit.Login;
+        FormEmailTextBox.Text = string.IsNullOrWhiteSpace(userToEdit.Email) ? "-" : userToEdit.Email;
+        FormPhoneTextBox.Text = string.IsNullOrWhiteSpace(userToEdit.Phone) ? "-" : userToEdit.Phone;
+
+        // Avatar Image Display
+        if (userToEdit.AvatarBitmap is not null)
         {
-            // Create Mode
-            BreadcrumbCurrentTitle.Text = "New";
-            FormNameTextBox.Text = string.Empty;
-            FormLoginTextBox.Text = string.Empty;
-            FormEmailTextBox.Text = string.Empty;
-            FormPhoneTextBox.Text = string.Empty;
-            FormPasswordBox.Password = string.Empty;
-            FormPinPasswordBox.Password = string.Empty;
-            FormVisibleInPosCheckBox.IsChecked = true;
-            DeleteUserButton.Visibility = Visibility.Collapsed;
-            _stagedAvatarBitmap = null;
-            _stagedStatus = "Invited";
+            FormAvatarImage.Source = userToEdit.AvatarBitmap;
+            FormAvatarImage.Visibility = Visibility.Visible;
         }
         else
         {
-            // Edit Mode
-            BreadcrumbCurrentTitle.Text = userToEdit.Name.Trim();
-            FormNameTextBox.Text = userToEdit.Name.Trim();
-            FormLoginTextBox.Text = userToEdit.Login;
-            FormEmailTextBox.Text = userToEdit.Email;
-            FormPhoneTextBox.Text = userToEdit.Phone;
-            FormPasswordBox.Password = userToEdit.Password;
-            FormPinPasswordBox.Password = userToEdit.Pin;
-            FormVisibleInPosCheckBox.IsChecked = userToEdit.IsVisibleInPos;
-            DeleteUserButton.Visibility = Visibility.Visible;
-            _stagedAvatarBitmap = userToEdit.AvatarBitmap;
-            _stagedStatus = userToEdit.Status;
+            FormAvatarImage.Source = null;
+            FormAvatarImage.Visibility = Visibility.Collapsed;
         }
 
-        UpdateAvatarUploaderPreview();
+        // Local Editable POS Credentials
+        FormPasswordBox.Password = userToEdit.Password;
+        FormPinPasswordBox.Password = userToEdit.Pin;
+        FormVisibleInPosCheckBox.IsChecked = userToEdit.IsVisibleInPos;
+
         UpdateFormUserPager();
 
-        // Toggle Shared Top Control Bar states
+        // Toggle Top Control Bar elements
         BreadcrumbFormSubPanel.Visibility = Visibility.Visible;
         FormSaveDiscardPanel.Visibility = Visibility.Visible;
         FormPagerContainer.Visibility = Visibility.Visible;
         BackToPosButton.Visibility = Visibility.Collapsed;
         TopSyncFromOdooBtn.Visibility = Visibility.Collapsed;
-
         KanbanSearchBarContainer.Visibility = Visibility.Collapsed;
 
-        // Toggle Main View
+        // Toggle Views
         KanbanViewContainer.Visibility = Visibility.Collapsed;
         FormViewContainer.Visibility = Visibility.Visible;
-
-        FormNameTextBox.Focus();
     }
 
     private void SwitchToKanbanView()
@@ -291,7 +216,6 @@ public partial class UserManagementView : UserControl
         FormPagerContainer.Visibility = Visibility.Collapsed;
         BackToPosButton.Visibility = Visibility.Visible;
         TopSyncFromOdooBtn.Visibility = Visibility.Visible;
-
         KanbanSearchBarContainer.Visibility = Visibility.Visible;
 
         FormViewContainer.Visibility = Visibility.Collapsed;
@@ -300,64 +224,21 @@ public partial class UserManagementView : UserControl
         RefreshKanbanFilter();
     }
 
-    // ==================== SAVE / DISCARD & VALIDATION ====================
+    // ==================== SAVE LOCAL CREDENTIALS & DISCARD ====================
     private async void SaveUserButton_Click(object sender, RoutedEventArgs e)
     {
-        string name = FormNameTextBox.Text.Trim();
-        string login = FormLoginTextBox.Text.Trim();
+        if (_editingUser is null) return;
 
-        bool isNameMissing = string.IsNullOrWhiteSpace(name);
-        bool isLoginMissing = string.IsNullOrWhiteSpace(login);
+        // Only update local POS security credentials
+        _editingUser.Password = FormPasswordBox.Password;
+        _editingUser.Pin = FormPinPasswordBox.Password;
+        _editingUser.IsVisibleInPos = FormVisibleInPosCheckBox.IsChecked == true;
 
-        if (isNameMissing || isLoginMissing)
-        {
-            Brush dangerBrush = (Brush)FindResource("DangerRedBrush");
-            if (isNameMissing)
-                NameUnderlineBorder.BorderBrush = dangerBrush;
-            if (isLoginMissing)
-                LoginInputBorder.BorderBrush = dangerBrush;
-
-            ValidationBanner.Visibility = Visibility.Visible;
-            return;
-        }
-
-        if (_editingUser is null)
-        {
-            var newUser = new PosUserRecord
-            {
-                Name = name,
-                Login = login,
-                Email = string.IsNullOrWhiteSpace(FormEmailTextBox.Text) ? login : FormEmailTextBox.Text.Trim(),
-                Phone = FormPhoneTextBox.Text.Trim(),
-                Password = FormPasswordBox.Password,
-                Pin = FormPinPasswordBox.Password,
-                Status = _stagedStatus,
-                AvatarBitmap = _stagedAvatarBitmap,
-                IsVisibleInPos = FormVisibleInPosCheckBox.IsChecked == true,
-                IsPurpleTheme = _allUsers.Count % 2 == 0
-            };
-            newUser.AvatarBase64 = PosImageUtils.BitmapImageToBase64(_stagedAvatarBitmap);
-            _allUsers.Insert(0, newUser);
-            await SqliteDatabaseService.Instance.SaveUserRecordAsync(newUser);
-        }
-        else
-        {
-            _editingUser.Name = name;
-            _editingUser.Login = login;
-            _editingUser.Email = FormEmailTextBox.Text.Trim();
-            _editingUser.Phone = FormPhoneTextBox.Text.Trim();
-            _editingUser.Password = FormPasswordBox.Password;
-            _editingUser.Pin = FormPinPasswordBox.Password;
-            _editingUser.Status = _stagedStatus;
-            _editingUser.AvatarBitmap = _stagedAvatarBitmap;
-            _editingUser.IsVisibleInPos = FormVisibleInPosCheckBox.IsChecked == true;
-            _editingUser.AvatarBase64 = PosImageUtils.BitmapImageToBase64(_stagedAvatarBitmap);
-            await SqliteDatabaseService.Instance.SaveUserRecordAsync(_editingUser);
-        }
+        await SqliteDatabaseService.Instance.SaveUserRecordAsync(_editingUser);
 
         SwitchToKanbanView();
         NotifyUsersUpdated();
-        ShowToast($"User \"{name}\" saved successfully.");
+        ShowToast($"Credentials for \"{_editingUser.Name.Trim()}\" updated successfully.");
     }
 
     private void DiscardUserButton_Click(object sender, RoutedEventArgs e)
@@ -365,74 +246,7 @@ public partial class UserManagementView : UserControl
         SwitchToKanbanView();
     }
 
-    // ==================== FOCUS & PLACEHOLDER HANDLERS ====================
-    private void RequiredField_GotFocus(object sender, RoutedEventArgs e)
-    {
-        if (ReferenceEquals(sender, FormNameTextBox))
-        {
-            NameUnderlineBorder.BorderBrush = (Brush)FindResource("OdooPurpleBrush");
-        }
-        else if (ReferenceEquals(sender, FormLoginTextBox))
-        {
-            LoginInputBorder.BorderBrush = (Brush)FindResource("OdooPurpleBrush");
-        }
-    }
-
-    private void RequiredField_LostFocus(object sender, RoutedEventArgs e)
-    {
-        if (ReferenceEquals(sender, FormNameTextBox))
-        {
-            NameUnderlineBorder.BorderBrush = string.IsNullOrWhiteSpace(FormNameTextBox.Text)
-                ? (Brush)FindResource("DangerRedBrush")
-                : (Brush)FindResource("InputBorderBrush");
-        }
-        else if (ReferenceEquals(sender, FormLoginTextBox))
-        {
-            LoginInputBorder.BorderBrush = string.IsNullOrWhiteSpace(FormLoginTextBox.Text)
-                ? (Brush)FindResource("DangerRedBrush")
-                : (Brush)FindResource("SubtleBorderBrush");
-        }
-    }
-
-    private void ResetValidationBorders()
-    {
-        NameUnderlineBorder.BorderBrush = (Brush)FindResource("InputBorderBrush");
-        LoginInputBorder.BorderBrush = (Brush)FindResource("SubtleBorderBrush");
-    }
-
-    private void FormNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        NamePlaceholderText.Visibility = string.IsNullOrEmpty(FormNameTextBox.Text)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-
-        if (!string.IsNullOrWhiteSpace(FormNameTextBox.Text))
-        {
-            BreadcrumbCurrentTitle.Text = FormNameTextBox.Text.Trim();
-        }
-    }
-
-    private void FormLoginTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        LoginPlaceholderText.Visibility = string.IsNullOrEmpty(FormLoginTextBox.Text)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    private void FormEmailTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        EmailPlaceholderText.Visibility = string.IsNullOrEmpty(FormEmailTextBox.Text)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
-    private void FormPhoneTextBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        PhonePlaceholderText.Visibility = string.IsNullOrEmpty(FormPhoneTextBox.Text)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
-
+    // ==================== PASSWORD & PIN INPUT HANDLERS ====================
     private void FormPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
     {
         PasswordPlaceholderText.Visibility = string.IsNullOrEmpty(FormPasswordBox.Password)
@@ -447,7 +261,6 @@ public partial class UserManagementView : UserControl
             : Visibility.Collapsed;
     }
 
-    // Restrict PIN to Numeric Digits Only
     [GeneratedRegex("^[0-9]+$")]
     private static partial Regex NumericRegex();
 
@@ -472,71 +285,6 @@ public partial class UserManagementView : UserControl
         }
     }
 
-    // ==================== AVATAR UPLOADER (96x96) ====================
-    private void UploadAvatarButton_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Select User Avatar Image",
-            Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp"
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.UriSource = new Uri(dialog.FileName, UriKind.Absolute);
-            bitmap.EndInit();
-
-            _stagedAvatarBitmap = bitmap;
-            UpdateAvatarUploaderPreview();
-        }
-    }
-
-    private void UpdateAvatarUploaderPreview()
-    {
-        // Locate template elements inside the Upload button if applied
-        if (FormViewContainer.FindName("AvatarUploadBtn") is Button) { }
-
-        // Apply via visual tree helper on the template or direct binding
-        ApplyAvatarToTemplate();
-    }
-
-    private void ApplyAvatarToTemplate()
-    {
-        // Find the Rectangle and ImageBrush inside the 96x96 Upload Button template
-        if (TryFindChildByName<Rectangle>(FormViewContainer, "FormAvatarPreviewRect") is Rectangle previewRect &&
-            previewRect.Fill is ImageBrush brush)
-        {
-            if (_stagedAvatarBitmap is not null)
-            {
-                brush.ImageSource = _stagedAvatarBitmap;
-                previewRect.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                previewRect.Visibility = Visibility.Collapsed;
-            }
-        }
-    }
-
-    private static T? TryFindChildByName<T>(DependencyObject parent, string name) where T : FrameworkElement
-    {
-        int count = VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < count; i++)
-        {
-            DependencyObject child = VisualTreeHelper.GetChild(parent, i);
-            if (child is T element && element.Name == name)
-                return element;
-
-            T? result = TryFindChildByName<T>(child, name);
-            if (result is not null)
-                return result;
-        }
-        return null;
-    }
-
     // ==================== USER RECORD PAGER NAVIGATION ====================
     private IList<PosUserRecord> GetCurrentNavigationList()
     {
@@ -554,7 +302,7 @@ public partial class UserManagementView : UserControl
 
         if (_editingUser is null)
         {
-            FormPagerCountText.Text = total > 0 ? $"New / {total}" : "New";
+            FormPagerCountText.Text = total > 0 ? $"1 / {total}" : "-";
             FormPrevUserButton.IsEnabled = false;
             FormNextUserButton.IsEnabled = false;
             return;
@@ -597,37 +345,6 @@ public partial class UserManagementView : UserControl
         {
             OpenUserForm(list[index + 1]);
         }
-    }
-
-    private void DeleteUserButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_editingUser is null) return;
-
-        DeleteModalPromptText.Text = $"Are you sure you want to delete user \"{_editingUser.Name.Trim()}\"? This action cannot be undone.";
-        DeleteConfirmModalOverlay.Visibility = Visibility.Visible;
-    }
-
-    private void CancelDeleteModal_Click(object sender, RoutedEventArgs e)
-    {
-        DeleteConfirmModalOverlay.Visibility = Visibility.Collapsed;
-    }
-
-    private async void ConfirmDeleteUser_Click(object sender, RoutedEventArgs e)
-    {
-        if (_editingUser is null) return;
-
-        string deletedName = _editingUser.Name.Trim();
-        var userToDelete = _editingUser;
-
-        _allUsers.Remove(userToDelete);
-        await SqliteDatabaseService.Instance.DeleteUserRecordAsync(userToDelete.Login);
-        _editingUser = null;
-
-        DeleteConfirmModalOverlay.Visibility = Visibility.Collapsed;
-        SwitchToKanbanView();
-        NotifyUsersUpdated();
-
-        ShowToast($"User \"{deletedName}\" has been deleted.", isDelete: true);
     }
 
     private void BackToPosButton_Click(object sender, RoutedEventArgs e)
@@ -677,7 +394,6 @@ public class PosUserRecord
         ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#714B67"))
         : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84"));
 
-    // Green (#10B981) for Active/Confirmed, Amber for Invited, Muted Gray for Inactive
     public Brush StatusDotBrush => Status switch
     {
         "Confirmed" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")),

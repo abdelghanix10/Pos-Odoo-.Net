@@ -37,6 +37,24 @@ public partial class MainShellView : UserControl
             SwitchToSettings();
         };
 
+        // Listen for live online status updates
+        OdooSyncService.Instance.OnlineStatusChanged += isOnline =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (isOnline)
+                {
+                    ConnectionStatusDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+                    ConnectionStatusText.Text = "Odoo Online";
+                }
+                else
+                {
+                    ConnectionStatusDot.Fill = (Brush)FindResource("MutedTextBrush");
+                    ConnectionStatusText.Text = "Offline (Local Mode)";
+                }
+            });
+        };
+
         // Load persisted Odoo configuration from SQLite
         _ = LoadSavedConfigAsync();
     }
@@ -58,7 +76,8 @@ public partial class MainShellView : UserControl
             if (!string.IsNullOrEmpty(config.LastStatus))
             {
                 ConnectionStatusText.Text = config.LastStatus;
-                if (config.LastStatus.StartsWith("Connected", StringComparison.OrdinalIgnoreCase))
+                if (config.LastStatus.StartsWith("Connected", StringComparison.OrdinalIgnoreCase) ||
+                    config.LastStatus.Equals("Odoo Online", StringComparison.OrdinalIgnoreCase))
                 {
                     ConnectionStatusDot.Fill = (Brush)FindResource("ActiveGreenBrush");
                 }
@@ -243,6 +262,9 @@ public partial class MainShellView : UserControl
 
             await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config);
             ShowToast("Odoo connection credentials saved to local SQLite.");
+
+            // Immediately check live connectivity with new settings
+            _ = OdooSyncService.Instance.CheckConnectivityAsync();
         }
         catch (Exception ex)
         {
@@ -283,8 +305,9 @@ public partial class MainShellView : UserControl
                 ShowToast(result.Message, isError: true);
             }
 
-            // Persist status
+            // Persist status and re-verify connectivity
             await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config with { LastStatus = ConnectionStatusText.Text });
+            _ = OdooSyncService.Instance.CheckConnectivityAsync();
         }
         catch (Exception ex)
         {
@@ -304,22 +327,24 @@ public partial class MainShellView : UserControl
     // =========================================================================
     private async void SyncUsersNowBtn_Click(object sender, RoutedEventArgs e)
     {
+        // 1. Verify live Odoo Online reachability before initiating sync
+        bool isOnline = await OdooSyncService.Instance.CheckConnectivityAsync();
+        if (!isOnline)
+        {
+            SyncDetailText.Text = "Cannot synchronize: Odoo Online is unreachable (Offline Mode).";
+            ShowToast("Cannot synchronize: Odoo Online is unreachable. Operating in Offline (Local Mode).", isWarning: true);
+            return;
+        }
+
         SyncUsersNowBtn.IsEnabled = false;
         SyncProgressBar.Visibility = Visibility.Visible;
         SyncDetailText.Text = "Connecting to Odoo & synchronizing res.users...";
 
         try
         {
-            var config = new OdooConfigRecord(
-                CfgServerUrlTextBox.Text.Trim(),
-                CfgDatabaseTextBox.Text.Trim(),
-                CfgUsernameTextBox.Text.Trim(),
-                GetCurrentPassword(),
-                null,
-                ConnectionStatusText.Text
-            );
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
 
-            // Fetch users from Odoo (with resilient simulation for offline/demo environments)
+            // Fetch users from Odoo
             var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: true);
 
             // Upsert users into local SQLite database (preserving local PINs and passwords)
@@ -348,12 +373,21 @@ public partial class MainShellView : UserControl
         }
     }
 
-    public void ShowToast(string message, bool isError = false)
+    public void ShowToast(string message, bool isError = false, bool isWarning = false)
     {
         ShellToastMessageText.Text = message;
-        ShellToastDot.Fill = isError
-            ? (Brush)FindResource("DangerRedBrush")
-            : (Brush)FindResource("ActiveGreenBrush");
+        if (isWarning)
+        {
+            ShellToastDot.Fill = (Brush)FindResource("WarningAmberBrush");
+        }
+        else if (isError)
+        {
+            ShellToastDot.Fill = (Brush)FindResource("DangerRedBrush");
+        }
+        else
+        {
+            ShellToastDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+        }
         ShellToastBanner.Visibility = Visibility.Visible;
         _toastTimer.Stop();
         _toastTimer.Start();

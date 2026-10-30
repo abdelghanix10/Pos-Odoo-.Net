@@ -13,6 +13,10 @@ public class OdooSyncService
 
     private readonly HttpClient _httpClient;
 
+    public bool IsOnline { get; private set; } = false;
+    public string ConnectionStatusLabel { get; private set; } = "Offline (Local Mode)";
+    public event Action<bool>? OnlineStatusChanged;
+
     private OdooSyncService()
     {
         _httpClient = new HttpClient
@@ -33,12 +37,82 @@ public class OdooSyncService
     }
 
     /// <summary>
+    /// Checks live background reachability of the configured Odoo server and raises OnlineStatusChanged if the state changed.
+    /// </summary>
+    public async Task<bool> CheckConnectivityAsync()
+    {
+        try
+        {
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                UpdateStatus(false, "Offline (Local Mode)");
+                return false;
+            }
+
+            bool reachable = await CheckServerReachableAsync(config.ServerUrl);
+            UpdateStatus(reachable, reachable ? "Odoo Online" : "Offline (Local Mode)");
+            return reachable;
+        }
+        catch
+        {
+            UpdateStatus(false, "Offline (Local Mode)");
+            return false;
+        }
+    }
+
+    private void UpdateStatus(bool online, string label)
+    {
+        bool changed = (IsOnline != online) || (ConnectionStatusLabel != label);
+        IsOnline = online;
+        ConnectionStatusLabel = label;
+        if (changed)
+        {
+            OnlineStatusChanged?.Invoke(online);
+        }
+    }
+
+    /// <summary>
+    /// Probes if the host server responds to HTTP requests within a short timeout.
+    /// </summary>
+    public async Task<bool> CheckServerReachableAsync(string serverUrl)
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl)) return false;
+
+        string baseUrl = NormalizeUrl(serverUrl);
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3.5));
+            using var req = new HttpRequestMessage(HttpMethod.Head, baseUrl);
+            var resp = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            // Any HTTP response below 500 indicates the server host is reachable and alive
+            return (int)resp.StatusCode >= 200 && (int)resp.StatusCode < 500;
+        }
+        catch
+        {
+            try
+            {
+                using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(3.5));
+                var resp2 = await _httpClient.GetAsync(baseUrl, HttpCompletionOption.ResponseHeadersRead, cts2.Token);
+                return (int)resp2.StatusCode >= 200 && (int)resp2.StatusCode < 500;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    /// <summary>
     /// Tests connection and authentication with the Odoo instance.
     /// </summary>
     public async Task<ConnectionTestResult> TestConnectionAsync(OdooConfigRecord config)
     {
         if (string.IsNullOrWhiteSpace(config.ServerUrl))
+        {
+            UpdateStatus(false, "Offline (Local Mode)");
             return new ConnectionTestResult(false, "Server URL is required.");
+        }
         if (string.IsNullOrWhiteSpace(config.DatabaseName))
             return new ConnectionTestResult(false, "Database name is required.");
         if (string.IsNullOrWhiteSpace(config.Username))
@@ -87,16 +161,19 @@ public class OdooSyncService
                 {
                     if (resultProp.ValueKind == JsonValueKind.Number && resultProp.TryGetInt32(out int uid) && uid > 0)
                     {
+                        UpdateStatus(true, "Odoo Online");
                         return new ConnectionTestResult(true, $"Connected: Odoo instance verified (UID: {uid})", uid);
                     }
                     if (resultProp.ValueKind == JsonValueKind.False)
                     {
+                        UpdateStatus(true, "Odoo Online"); // Host is online even if credentials failed
                         return new ConnectionTestResult(false, "Authentication Failed: Invalid Database, Username, or API Key.");
                     }
                 }
 
                 if (root.TryGetProperty("error", out var errorProp))
                 {
+                    UpdateStatus(true, "Odoo Online");
                     string errMsg = "Odoo Error";
                     if (errorProp.TryGetProperty("data", out var dataProp) &&
                         dataProp.TryGetProperty("message", out var msgProp))
@@ -111,26 +188,29 @@ public class OdooSyncService
                 }
             }
 
+            UpdateStatus(true, "Odoo Online");
             return new ConnectionTestResult(false, $"Server returned HTTP {(int)response.StatusCode}: {response.ReasonPhrase}");
         }
         catch (HttpRequestException ex)
         {
-            // If user is running a demo URL (e.g. demo.odoo.com) or offline test, provide clear diagnostics
+            UpdateStatus(false, "Offline (Local Mode)");
             return new ConnectionTestResult(false, $"Cannot reach server: {ex.Message}");
         }
         catch (TaskCanceledException)
         {
+            UpdateStatus(false, "Offline (Local Mode)");
             return new ConnectionTestResult(false, "Connection timed out (10s). Verify host and network.");
         }
         catch (Exception ex)
         {
+            UpdateStatus(false, "Offline (Local Mode)");
             return new ConnectionTestResult(false, $"Error: {ex.Message}");
         }
     }
 
     /// <summary>
     /// Fetches users from Odoo's res.users model via JSON-RPC.
-    /// Falls back to mock sync if offline/unreachable to facilitate local development & testing.
+    /// If simulated fallback is allowed and server is online, fallback mock users are provided for demo.
     /// </summary>
     public async Task<List<OdooUserDto>> FetchOdooUsersAsync(OdooConfigRecord config, bool allowOfflineSimulation = true)
     {
@@ -145,7 +225,7 @@ public class OdooSyncService
             {
                 if (allowOfflineSimulation)
                 {
-                    // Fall back to sample Odoo users for offline/demo development
+                    // Sample Odoo users for demo testing
                     return GetSimulatedOdooUsers();
                 }
                 throw new InvalidOperationException(test.Message);
@@ -233,7 +313,7 @@ public class OdooSyncService
     }
 
     /// <summary>
-    /// Provides rich simulated Odoo 20 users for offline environments or demo testing.
+    /// Provides simulated Odoo 20 users for demo environments.
     /// </summary>
     public static List<OdooUserDto> GetSimulatedOdooUsers()
     {
@@ -290,4 +370,3 @@ public class OdooSyncService
         ];
     }
 }
-

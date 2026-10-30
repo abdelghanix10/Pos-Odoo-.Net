@@ -11,6 +11,7 @@ public partial class MainWindow : Window
 {
     private readonly DispatcherTimer _clockTimer;
     private readonly DispatcherTimer _toastTimer;
+    private readonly DispatcherTimer _connectivityTimer;
     private readonly Ellipse[] _pinDots;
 
     private PosUserRecord? _selectedUser;
@@ -56,6 +57,16 @@ public partial class MainWindow : Window
             _toastTimer.Stop();
             SessionToastBanner.Visibility = Visibility.Collapsed;
         };
+
+        // Live Odoo Connectivity Monitor & Global Header Status Badge
+        OdooSyncService.Instance.OnlineStatusChanged += isOnline =>
+        {
+            Dispatcher.Invoke(() => UpdateConnectionStatusVisual(isOnline));
+        };
+        _connectivityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        _connectivityTimer.Tick += async (_, _) => await OdooSyncService.Instance.CheckConnectivityAsync();
+        _connectivityTimer.Start();
+        _ = OdooSyncService.Instance.CheckConnectivityAsync();
     }
 
     private void UpdateDateTimeDisplay()
@@ -63,6 +74,28 @@ public partial class MainWindow : Window
         DateTime now = DateTime.Now;
         ClockTextBlock.Text = now.ToString("hh:mm:ss tt");
         DateTextBlock.Text = now.ToString("dddd, MMM dd, yyyy");
+    }
+
+    public void UpdateConnectionStatusVisual(bool isOnline)
+    {
+        if (isOnline)
+        {
+            GlobalStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981"));
+            GlobalStatusText.Text = "Odoo Online";
+            GlobalStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#065F46"));
+            GlobalConnectionStatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ECFDF5"));
+            GlobalConnectionStatusBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A7F3D0"));
+            GlobalConnectionStatusBadge.ToolTip = "Connected to Odoo Online";
+        }
+        else
+        {
+            GlobalStatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+            GlobalStatusText.Text = "Offline (Local Mode)";
+            GlobalStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#92400E"));
+            GlobalConnectionStatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFBEB"));
+            GlobalConnectionStatusBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FDE68A"));
+            GlobalConnectionStatusBadge.ToolTip = "Operating in Offline (Local Mode) - Odoo Online is unreachable";
+        }
     }
 
     private void RefreshLoginCards()
@@ -282,6 +315,7 @@ public partial class MainWindow : Window
     {
         _clockTimer.Stop();
         _toastTimer.Stop();
+        _connectivityTimer.Stop();
         Application.Current.Shutdown();
     }
 }

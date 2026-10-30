@@ -209,6 +209,28 @@
                             Style="{StaticResource OdooPrimaryButtonStyle}"
                             Click="NewUserButton_Click"
                             Margin="0,0,18,0"/>
+                    <!-- Sync from Odoo Button -->
+                    <Button x:Name="TopSyncFromOdooBtn"
+                            Style="{StaticResource OdooIconButtonStyle}"
+                            Click="SyncUsersButton_Click"
+                            ToolTip="Synchronize users from Odoo server"
+                            Margin="0,0,18,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Viewbox Width="16" Height="16" Margin="0,0,8,0">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z"
+                                          Fill="{StaticResource OdooTealBrush}"/>
+                                    <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z"
+                                          Fill="{StaticResource OdooPurpleBrush}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="Sync from Odoo"
+                                       FontSize="13.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource PrimaryTextBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
 
                     <!-- Breadcrumb: "Users" (Clickable in Form View) -->
                     <Button x:Name="BreadcrumbUsersButton"

@@ -35,7 +35,7 @@ public partial class UserManagementView : UserControl
             UserActionToastBanner.Visibility = Visibility.Collapsed;
         };
 
-        SeedDefaultOdooUsers();
+        _ = ReloadUsersFromDatabaseAsync();
         UsersKanbanItemsControl.ItemsSource = _filteredUsers;
         RefreshKanbanFilter();
         RefreshPosLoginUsers();
@@ -142,6 +142,47 @@ public partial class UserManagementView : UserControl
         UsersUpdated?.Invoke();
     }
 
+    public async Task ReloadUsersFromDatabaseAsync()
+    {
+        var users = await SqliteDatabaseService.Instance.LoadAllUsersAsync();
+        _allUsers.Clear();
+        _allUsers.AddRange(users);
+        RefreshKanbanFilter();
+        RefreshPosLoginUsers();
+    }
+
+    private async void SyncUsersButton_Click(object sender, RoutedEventArgs e)
+    {
+        await TriggerOdooSyncAsync();
+    }
+
+    public async Task TriggerOdooSyncAsync()
+    {
+        try
+        {
+            TopSyncFromOdooBtn.IsEnabled = false;
+
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: true);
+
+            var (imported, updated) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(odooUsers);
+            await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(DateTime.Now, $"Success ({imported + updated} users)");
+
+            await ReloadUsersFromDatabaseAsync();
+            NotifyUsersUpdated();
+
+            ShowToast($"Sync Complete: {imported} imported, {updated} updated from Odoo.");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Sync Failed: {ex.Message}", isDelete: true);
+        }
+        finally
+        {
+            TopSyncFromOdooBtn.IsEnabled = true;
+        }
+    }
+
     private void RefreshKanbanFilter()
     {
         string query = SearchUsersTextBox.Text.Trim();
@@ -232,6 +273,7 @@ public partial class UserManagementView : UserControl
         FormSaveDiscardPanel.Visibility = Visibility.Visible;
         FormPagerContainer.Visibility = Visibility.Visible;
         BackToPosButton.Visibility = Visibility.Collapsed;
+        TopSyncFromOdooBtn.Visibility = Visibility.Collapsed;
 
         KanbanSearchBarContainer.Visibility = Visibility.Collapsed;
 
@@ -248,6 +290,7 @@ public partial class UserManagementView : UserControl
         FormSaveDiscardPanel.Visibility = Visibility.Collapsed;
         FormPagerContainer.Visibility = Visibility.Collapsed;
         BackToPosButton.Visibility = Visibility.Visible;
+        TopSyncFromOdooBtn.Visibility = Visibility.Visible;
 
         KanbanSearchBarContainer.Visibility = Visibility.Visible;
 
@@ -258,7 +301,7 @@ public partial class UserManagementView : UserControl
     }
 
     // ==================== SAVE / DISCARD & VALIDATION ====================
-    private void SaveUserButton_Click(object sender, RoutedEventArgs e)
+    private async void SaveUserButton_Click(object sender, RoutedEventArgs e)
     {
         string name = FormNameTextBox.Text.Trim();
         string login = FormLoginTextBox.Text.Trim();
@@ -293,7 +336,9 @@ public partial class UserManagementView : UserControl
                 IsVisibleInPos = FormVisibleInPosCheckBox.IsChecked == true,
                 IsPurpleTheme = _allUsers.Count % 2 == 0
             };
+            newUser.AvatarBase64 = PosImageUtils.BitmapImageToBase64(_stagedAvatarBitmap);
             _allUsers.Insert(0, newUser);
+            await SqliteDatabaseService.Instance.SaveUserRecordAsync(newUser);
         }
         else
         {
@@ -306,6 +351,8 @@ public partial class UserManagementView : UserControl
             _editingUser.Status = _stagedStatus;
             _editingUser.AvatarBitmap = _stagedAvatarBitmap;
             _editingUser.IsVisibleInPos = FormVisibleInPosCheckBox.IsChecked == true;
+            _editingUser.AvatarBase64 = PosImageUtils.BitmapImageToBase64(_stagedAvatarBitmap);
+            await SqliteDatabaseService.Instance.SaveUserRecordAsync(_editingUser);
         }
 
         SwitchToKanbanView();
@@ -565,7 +612,7 @@ public partial class UserManagementView : UserControl
         DeleteConfirmModalOverlay.Visibility = Visibility.Collapsed;
     }
 
-    private void ConfirmDeleteUser_Click(object sender, RoutedEventArgs e)
+    private async void ConfirmDeleteUser_Click(object sender, RoutedEventArgs e)
     {
         if (_editingUser is null) return;
 
@@ -573,6 +620,7 @@ public partial class UserManagementView : UserControl
         var userToDelete = _editingUser;
 
         _allUsers.Remove(userToDelete);
+        await SqliteDatabaseService.Instance.DeleteUserRecordAsync(userToDelete.Login);
         _editingUser = null;
 
         DeleteConfirmModalOverlay.Visibility = Visibility.Collapsed;
@@ -591,6 +639,7 @@ public partial class UserManagementView : UserControl
 // ==================== USER MODEL FOR KANBAN & FORM ====================
 public class PosUserRecord
 {
+    public int? OdooId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Login { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
@@ -600,6 +649,7 @@ public class PosUserRecord
     public string Status { get; set; } = "Confirmed";
     public bool IsPurpleTheme { get; set; } = true;
     public BitmapImage? AvatarBitmap { get; set; }
+    public string? AvatarBase64 { get; set; }
     public bool IsVisibleInPos { get; set; } = true;
 
     public Visibility PosBadgeVisibility => IsVisibleInPos ? Visibility.Visible : Visibility.Collapsed;

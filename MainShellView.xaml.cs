@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace OdooPosLogin;
 
@@ -9,6 +10,9 @@ public partial class MainShellView : UserControl
     private bool _isSidebarCollapsed = false;
     private readonly double _expandedSidebarWidth = 180.0;
     private readonly double _collapsedSidebarWidth = 56.0;
+
+    private bool _isPasswordRevealed = false;
+    private readonly DispatcherTimer _toastTimer;
 
     // Events to communicate with parent Window
     public event EventHandler? LogoutRequested;
@@ -20,11 +24,50 @@ public partial class MainShellView : UserControl
     {
         InitializeComponent();
 
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _toastTimer.Tick += (_, _) =>
+        {
+            _toastTimer.Stop();
+            ShellToastBanner.Visibility = Visibility.Collapsed;
+        };
+
         // Hook up UserManagementView "Back to POS" to return to Settings view
         UsersViewControl.RequestCloseToPos += (_, _) =>
         {
             SwitchToSettings();
         };
+
+        // Load persisted Odoo configuration from SQLite
+        _ = LoadSavedConfigAsync();
+    }
+
+    private async Task LoadSavedConfigAsync()
+    {
+        try
+        {
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            CfgServerUrlTextBox.Text = config.ServerUrl;
+            CfgDatabaseTextBox.Text = config.DatabaseName;
+            CfgUsernameTextBox.Text = config.Username;
+            SetCurrentPassword(config.ApiKey ?? "");
+
+            LastSyncedStatusText.Text = string.IsNullOrEmpty(config.LastSyncedAt)
+                ? "Last Synced: Never"
+                : $"Last Synced: {config.LastSyncedAt}";
+
+            if (!string.IsNullOrEmpty(config.LastStatus))
+            {
+                ConnectionStatusText.Text = config.LastStatus;
+                if (config.LastStatus.StartsWith("Connected", StringComparison.OrdinalIgnoreCase))
+                {
+                    ConnectionStatusDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading Odoo config: {ex.Message}");
+        }
     }
 
     public void SetCurrentUser(string userName)
@@ -136,5 +179,183 @@ public partial class MainShellView : UserControl
 
         // Apply active accent style (bold bottom accent line) to clicked tab
         clickedTab.Style = activeStyle;
+
+        string tabTag = clickedTab.Tag as string ?? "General";
+        if (tabTag == "General")
+        {
+            GeneralSettingsScrollViewer.Visibility = Visibility.Visible;
+            OtherTabsEmptyContainer.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            GeneralSettingsScrollViewer.Visibility = Visibility.Collapsed;
+            OtherTabsEmptyContainer.Visibility = Visibility.Visible;
+        }
+    }
+
+    // =========================================================================
+    // 4. PASSWORD MASK / REVEAL TOGGLE
+    // =========================================================================
+    private void TogglePasswordView_Click(object sender, RoutedEventArgs e)
+    {
+        _isPasswordRevealed = !_isPasswordRevealed;
+
+        if (_isPasswordRevealed)
+        {
+            CfgPasswordRevealed.Text = CfgPasswordMasked.Password;
+            CfgPasswordMasked.Visibility = Visibility.Collapsed;
+            CfgPasswordRevealed.Visibility = Visibility.Visible;
+            EyePupil.Fill = (Brush)FindResource("OdooPurpleBrush");
+        }
+        else
+        {
+            CfgPasswordMasked.Password = CfgPasswordRevealed.Text;
+            CfgPasswordRevealed.Visibility = Visibility.Collapsed;
+            CfgPasswordMasked.Visibility = Visibility.Visible;
+            EyePupil.Fill = (Brush)FindResource("SecondaryTextBrush");
+        }
+    }
+
+    private string GetCurrentPassword() =>
+        _isPasswordRevealed ? CfgPasswordRevealed.Text : CfgPasswordMasked.Password;
+
+    private void SetCurrentPassword(string password)
+    {
+        CfgPasswordMasked.Password = password;
+        CfgPasswordRevealed.Text = password;
+    }
+
+    // =========================================================================
+    // 5. ODOO CONNECTION ACTIONS (SAVE & TEST)
+    // =========================================================================
+    private async void SaveConnectionBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var config = new OdooConfigRecord(
+                CfgServerUrlTextBox.Text.Trim(),
+                CfgDatabaseTextBox.Text.Trim(),
+                CfgUsernameTextBox.Text.Trim(),
+                GetCurrentPassword(),
+                null,
+                ConnectionStatusText.Text
+            );
+
+            await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config);
+            ShowToast("Odoo connection credentials saved to local SQLite.");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Failed to save: {ex.Message}", isError: true);
+        }
+    }
+
+    private async void TestConnectionBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var config = new OdooConfigRecord(
+            CfgServerUrlTextBox.Text.Trim(),
+            CfgDatabaseTextBox.Text.Trim(),
+            CfgUsernameTextBox.Text.Trim(),
+            GetCurrentPassword(),
+            null,
+            null
+        );
+
+        TestConnectionProgressBar.Visibility = Visibility.Visible;
+        TestConnectionBtn.IsEnabled = false;
+        ConnectionStatusDot.Fill = (Brush)FindResource("MutedTextBrush");
+        ConnectionStatusText.Text = "Verifying connection...";
+
+        try
+        {
+            var result = await OdooSyncService.Instance.TestConnectionAsync(config);
+
+            if (result.Success)
+            {
+                ConnectionStatusDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+                ConnectionStatusText.Text = result.Message;
+                ShowToast("Odoo connection verified successfully!");
+            }
+            else
+            {
+                ConnectionStatusDot.Fill = (Brush)FindResource("DangerRedBrush");
+                ConnectionStatusText.Text = result.Message;
+                ShowToast(result.Message, isError: true);
+            }
+
+            // Persist status
+            await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config with { LastStatus = ConnectionStatusText.Text });
+        }
+        catch (Exception ex)
+        {
+            ConnectionStatusDot.Fill = (Brush)FindResource("DangerRedBrush");
+            ConnectionStatusText.Text = $"Error: {ex.Message}";
+            ShowToast(ex.Message, isError: true);
+        }
+        finally
+        {
+            TestConnectionProgressBar.Visibility = Visibility.Collapsed;
+            TestConnectionBtn.IsEnabled = true;
+        }
+    }
+
+    // =========================================================================
+    // 6. USER SYNCHRONIZATION FROM ODOO TO SQLITE
+    // =========================================================================
+    private async void SyncUsersNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        SyncUsersNowBtn.IsEnabled = false;
+        SyncProgressBar.Visibility = Visibility.Visible;
+        SyncDetailText.Text = "Connecting to Odoo & synchronizing res.users...";
+
+        try
+        {
+            var config = new OdooConfigRecord(
+                CfgServerUrlTextBox.Text.Trim(),
+                CfgDatabaseTextBox.Text.Trim(),
+                CfgUsernameTextBox.Text.Trim(),
+                GetCurrentPassword(),
+                null,
+                ConnectionStatusText.Text
+            );
+
+            // Fetch users from Odoo (with resilient simulation for offline/demo environments)
+            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: true);
+
+            // Upsert users into local SQLite database (preserving local PINs and passwords)
+            var (imported, updated) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(odooUsers);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(DateTime.Now, $"Success ({imported + updated} users)");
+
+            LastSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            SyncDetailText.Text = $"Sync Complete: {imported} new user(s) imported, {updated} user(s) updated.";
+
+            // Refresh the Users Kanban view and POS login cards
+            await UsersViewControl.ReloadUsersFromDatabaseAsync();
+
+            ShowToast($"Sync Complete: {imported} imported, {updated} updated from Odoo.");
+        }
+        catch (Exception ex)
+        {
+            SyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncUsersNowBtn.IsEnabled = true;
+        }
+    }
+
+    public void ShowToast(string message, bool isError = false)
+    {
+        ShellToastMessageText.Text = message;
+        ShellToastDot.Fill = isError
+            ? (Brush)FindResource("DangerRedBrush")
+            : (Brush)FindResource("ActiveGreenBrush");
+        ShellToastBanner.Visibility = Visibility.Visible;
+        _toastTimer.Stop();
+        _toastTimer.Start();
     }
 }

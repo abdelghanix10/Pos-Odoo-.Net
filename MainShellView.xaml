@@ -32,6 +32,9 @@
         <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6B7280"/>
         <SolidColorBrush x:Key="MutedTextBrush" Color="#9CA3AF"/>
 
+        <SolidColorBrush x:Key="ActiveGreenBrush" Color="#10B981"/>
+        <SolidColorBrush x:Key="ActiveGreenSoftBrush" Color="#ECFDF5"/>
+
         <SolidColorBrush x:Key="DangerRedBrush" Color="#DC2626"/>
         <SolidColorBrush x:Key="DangerRedSoftBrush" Color="#FEF2F2"/>
 
@@ -124,7 +127,7 @@
             </Setter>
         </Style>
 
-        <!-- ==================== TOGGLE BAR BUTTON STYLE (SLIM RIGHT BORDER) ==================== -->
+        <!-- ==================== TOGGLE BAR BUTTON STYLE ==================== -->
         <Style x:Key="SidebarToggleBarButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -167,7 +170,6 @@
         </Style>
 
         <!-- ==================== ODOO TAB BUTTON STYLES ==================== -->
-        <!-- Inactive Tab -->
         <Style x:Key="OdooTabButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -190,7 +192,6 @@
                                            FontWeight="{TemplateBinding FontWeight}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
-                                <!-- Bottom Accent Line (Hidden when inactive) -->
                                 <Border x:Name="BottomAccent"
                                         Height="3"
                                         Background="Transparent"
@@ -212,7 +213,6 @@
             </Setter>
         </Style>
 
-        <!-- Active Tab with Bold Bottom Accent Line -->
         <Style x:Key="OdooActiveTabButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -235,7 +235,6 @@
                                            FontWeight="{TemplateBinding FontWeight}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
-                                <!-- Bold Bottom Accent Line -->
                                 <Border Height="3"
                                         Background="{StaticResource OdooPurpleBrush}"
                                         VerticalAlignment="Bottom"
@@ -254,14 +253,104 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- ==================== FORM INPUT FIELD CONTAINER STYLE ==================== -->
+        <Style x:Key="SettingsInputBoxStyle" TargetType="Border">
+            <Setter Property="Background" Value="#F9FAFB"/>
+            <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}"/>
+                </Trigger>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter Property="Background" Value="#FFFFFF"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="BorderThickness" Value="1.5"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Primary Action Button (Purple) -->
+        <Style x:Key="OdooPrimaryActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="20,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BtnBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="{StaticResource OdooPurpleHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="BtnBorder" Property="Opacity" Value="0.5"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary Action Button (Teal) -->
+        <Style x:Key="OdooTealActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource OdooTealBrush}"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BtnBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="{StaticResource OdooTealHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="BtnBorder" Property="Opacity" Value="0.5"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <!-- ==================== MAIN APPLICATION SHELL ROOT ==================== -->
     <Grid>
         <Grid.ColumnDefinitions>
-            <!-- Column 0: Collapsible Navigation Shell (Width="Auto") -->
+            <!-- Column 0: Collapsible Navigation Shell -->
             <ColumnDefinition Width="Auto"/>
-            <!-- Column 1: Main Content Workspace (Width="*") -->
+            <!-- Column 1: Main Content Workspace -->
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
@@ -384,9 +473,7 @@
                 </Grid>
             </Border>
 
-            <!-- =================================================================== -->
-            <!-- SLIM, TOUCH-FRIENDLY COLLAPSE/EXPAND TOGGLE BAR (|<) ATTACHED RIGHT -->
-            <!-- =================================================================== -->
+            <!-- ==================== SLIM TOGGLE BAR (|<) ==================== -->
             <Border Grid.Column="1"
                     Background="{StaticResource AppBackgroundBrush}"
                     BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -395,10 +482,8 @@
                         Style="{StaticResource SidebarToggleBarButtonStyle}"
                         Click="SidebarToggle_Click"
                         ToolTip="Toggle Navigation Sidebar (|&lt;)">
-                    <!-- Modern vector toggle icon: vertical line + left chevron |< -->
                     <Viewbox Width="12" Height="12">
                         <Canvas Width="24" Height="24">
-                            <!-- Toggle Bar Indicator Glyphs -->
                             <Path x:Name="ToggleIconPath"
                                   Data="M 6,4 L 6,20 M 18,4 L 10,12 L 18,20"
                                   Stroke="{StaticResource SecondaryTextBrush}"
@@ -421,18 +506,18 @@
         <!-- 2. MAIN CONTENT AREA (SWITCHES BETWEEN CONFIGURATION AND USERS)         -->
         <!-- ======================================================================= -->
         <Grid Grid.Column="1" Background="{StaticResource AppBackgroundBrush}">
-            <!-- VIEW A: SETTINGS (CONFIGURATION) VIEW -->
+            <!-- ==================== VIEW A: SETTINGS (CONFIGURATION) VIEW ==================== -->
             <Grid x:Name="SettingsViewPanel" Visibility="Visible">
                 <Grid.RowDefinitions>
                     <!-- Row 0: Page Header with Bold Title & Subtle Divider -->
                     <RowDefinition Height="Auto"/>
                     <!-- Row 1: Horizontal Tab Bar Strip -->
                     <RowDefinition Height="Auto"/>
-                    <!-- Row 2: Content Area (Clean, Blank Surface Container) -->
+                    <!-- Row 2: Content Area -->
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- ==================== PAGE HEADER ==================== -->
+                <!-- 1. PAGE HEADER -->
                 <Border Grid.Row="0"
                         Background="{StaticResource SurfaceCardBrush}"
                         Padding="32,24,32,0">
@@ -450,15 +535,14 @@
                     </StackPanel>
                 </Border>
 
-                <!-- ==================== HORIZONTAL TAB BAR STRIP ==================== -->
-                <!-- Directly below the header with 5 tabs: General (active), Locale, Payment Method, Peripherals, System Options -->
+                <!-- 2. HORIZONTAL TAB BAR STRIP -->
                 <Border Grid.Row="1"
                         Background="{StaticResource SurfaceCardBrush}"
                         BorderBrush="{StaticResource SubtleBorderBrush}"
                         BorderThickness="0,0,0,1"
                         Padding="32,0">
                     <StackPanel Orientation="Horizontal">
-                        <!-- Tab 1: General (active, indicated by bold bottom accent line) -->
+                        <!-- Tab 1: General (active, bold bottom accent line) -->
                         <Button x:Name="TabGeneral"
                                 Style="{StaticResource OdooActiveTabButtonStyle}"
                                 Content="General"
@@ -495,24 +579,405 @@
                     </StackPanel>
                 </Border>
 
-                <!-- ==================== CONTENT AREA ==================== -->
-                <!-- Completely empty clean, blank white/light-gray surface container -->
-                <Border Grid.Row="2"
-                        Background="{StaticResource SurfaceCardBrush}"
-                        BorderBrush="{StaticResource SubtleBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="8"
-                        Margin="32,24,32,32"
-                        Effect="{StaticResource CardShadowEffect}">
-                    <!-- Clean, blank surface container left completely empty to be populated in a later step -->
-                    <Grid x:Name="EmptySettingsContentContainer">
-                    </Grid>
-                </Border>
+                <!-- 3. CONFIGURATION TAB CONTENT BODY -->
+                <Grid Grid.Row="2">
+                    <!-- GENERAL TAB PANEL (ODOO CONNECTION + SYNCHRONIZATION) -->
+                    <ScrollViewer x:Name="GeneralSettingsScrollViewer"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="32,24,32,32">
+                        <StackPanel MaxWidth="1000" HorizontalAlignment="Left">
+
+                            <!-- ===================================================== -->
+                            <!-- CARD 1: ODOO SERVER CONNECTION SETTINGS               -->
+                            <!-- ===================================================== -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="28,24"
+                                    Effect="{StaticResource CardShadowEffect}"
+                                    Margin="0,0,0,24">
+                                <StackPanel>
+                                    <!-- Card Header -->
+                                    <Grid Margin="0,0,0,20">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Width="40" Height="40"
+                                                    CornerRadius="20"
+                                                    Background="{StaticResource OdooPurpleSoftBrush}"
+                                                    Margin="0,0,14,0">
+                                                <Viewbox Width="20" Height="20">
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 19.35,10.04 C 18.67,6.59 15.64,4 12,4 C 9.11,4 6.6,5.64 5.35,8.04 C 2.34,8.36 0,10.91 0,14 C 0,17.31 2.69,20 6,20 L 19,20 C 21.76,20 24,17.76 24,15 C 24,12.36 21.95,10.22 19.35,10.04 Z"
+                                                              Stroke="{StaticResource OdooPurpleBrush}"
+                                                              StrokeThickness="1.8"
+                                                              Fill="{StaticResource OdooPurpleSoftBrush}"/>
+                                                        <Path Data="M 9,13 L 12,10 L 15,13 M 12,10 L 12,17"
+                                                              Stroke="{StaticResource OdooTealBrush}"
+                                                              StrokeThickness="2"
+                                                              StrokeStartLineCap="Round"
+                                                              StrokeEndLineCap="Round"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="Odoo Server Connection"
+                                                           FontSize="18"
+                                                           FontWeight="Bold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                <TextBlock Text="Configure external Odoo instance credentials for POS master data synchronization."
+                                                           FontSize="13"
+                                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Divider Line -->
+                                    <Border Height="1" Background="{StaticResource SubtleBorderLightBrush}" Margin="0,0,0,20"/>
+
+                                    <!-- Connection Form Inputs (2x2 Grid) -->
+                                    <Grid Margin="0,0,0,24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="18"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- Row 0, Col 0: Server URL -->
+                                        <StackPanel Grid.Row="0" Grid.Column="0">
+                                            <TextBlock Text="Server URL"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"
+                                                       Margin="0,0,0,6"/>
+                                            <Border Style="{StaticResource SettingsInputBoxStyle}">
+                                                <TextBox x:Name="CfgServerUrlTextBox"
+                                                         Text="https://demo.odoo.com"
+                                                         VerticalAlignment="Center"
+                                                         Background="Transparent"
+                                                         BorderThickness="0"
+                                                         FontSize="14"
+                                                         Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- Row 0, Col 2: Database Name -->
+                                        <StackPanel Grid.Row="0" Grid.Column="2">
+                                            <TextBlock Text="Database Name"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"
+                                                       Margin="0,0,0,6"/>
+                                            <Border Style="{StaticResource SettingsInputBoxStyle}">
+                                                <TextBox x:Name="CfgDatabaseTextBox"
+                                                         Text="demo"
+                                                         VerticalAlignment="Center"
+                                                         Background="Transparent"
+                                                         BorderThickness="0"
+                                                         FontSize="14"
+                                                         Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- Row 2, Col 0: Username / Email -->
+                                        <StackPanel Grid.Row="2" Grid.Column="0">
+                                            <TextBlock Text="Username / Email"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"
+                                                       Margin="0,0,0,6"/>
+                                            <Border Style="{StaticResource SettingsInputBoxStyle}">
+                                                <TextBox x:Name="CfgUsernameTextBox"
+                                                         Text="admin"
+                                                         VerticalAlignment="Center"
+                                                         Background="Transparent"
+                                                         BorderThickness="0"
+                                                         FontSize="14"
+                                                         Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- Row 2, Col 2: Password / API Key (Masked with Show/Hide Toggle) -->
+                                        <StackPanel Grid.Row="2" Grid.Column="2">
+                                            <TextBlock Text="Password / API Key"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"
+                                                       Margin="0,0,0,6"/>
+                                            <Border Style="{StaticResource SettingsInputBoxStyle}">
+                                                <Grid>
+                                                    <PasswordBox x:Name="CfgPasswordMasked"
+                                                                 PasswordChar="●"
+                                                                 FontSize="14"
+                                                                 VerticalAlignment="Center"
+                                                                 Background="Transparent"
+                                                                 BorderThickness="0"
+                                                                 Margin="0,0,36,0"/>
+                                                    <TextBox x:Name="CfgPasswordRevealed"
+                                                             FontSize="14"
+                                                             VerticalAlignment="Center"
+                                                             Background="Transparent"
+                                                             BorderThickness="0"
+                                                             Visibility="Collapsed"
+                                                             Margin="0,0,36,0"/>
+                                                    <Button x:Name="TogglePasswordViewBtn"
+                                                            Click="TogglePasswordView_Click"
+                                                            Width="32" Height="32"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            Cursor="Hand"
+                                                            ToolTip="Show / Hide Password">
+                                                        <Viewbox Width="16" Height="16">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path x:Name="EyeIconPath"
+                                                                      Data="M 1,12 C 1,12 5,4 12,4 C 19,4 23,12 23,12 C 23,12 19,20 12,20 C 5,20 1,12 1,12 Z"
+                                                                      Stroke="{StaticResource SecondaryTextBrush}"
+                                                                      StrokeThickness="2"
+                                                                      Fill="Transparent"/>
+                                                                <Ellipse x:Name="EyePupil"
+                                                                         Canvas.Left="9" Canvas.Top="9" Width="6" Height="6"
+                                                                         Fill="{StaticResource SecondaryTextBrush}"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Actions & Status Indicator -->
+                                    <Border Background="#F9FAFB"
+                                            BorderBrush="{StaticResource SubtleBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="16,14">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Action Buttons: Save & Test Connection -->
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <!-- Save Button (Primary Purple) -->
+                                                <Button x:Name="SaveConnectionBtn"
+                                                        Style="{StaticResource OdooPrimaryActionButtonStyle}"
+                                                        Click="SaveConnectionBtn_Click"
+                                                        Margin="0,0,12,0">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Viewbox Width="14" Height="14" Margin="0,0,8,0">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path Data="M 17,3 L 5,3 C 3.89,3 3,3.9 3,5 L 3,19 C 3,20.1 3.89,21 5,21 L 19,21 C 20.1,21 21,20.1 21,19 L 21,7 L 17,3 Z M 12,19 C 10.34,19 9,17.66 9,16 C 9,14.34 10.34,13 12,13 C 13.66,13 15,14.34 15,16 C 15,17.66 13.66,19 12,19 Z M 6,6 L 15,6 L 15,9 L 6,9 L 6,6 Z"
+                                                                      Fill="#FFFFFF"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <TextBlock Text="Save" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+
+                                                <!-- Test Connection Button (Secondary Teal) -->
+                                                <Button x:Name="TestConnectionBtn"
+                                                        Style="{StaticResource OdooTealActionButtonStyle}"
+                                                        Click="TestConnectionBtn_Click"
+                                                        Margin="0,0,18,0">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Viewbox Width="14" Height="14" Margin="0,0,8,0">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Path Data="M 12,2 C 6.48,2 2,6.48 2,12 C 2,17.52 6.48,22 12,22 C 17.52,22 22,17.52 22,12 M 12,6 L 12,12 L 16,14"
+                                                                      Stroke="#FFFFFF" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <TextBlock Text="Test Connection" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+
+                                            <!-- Status Badge & Loading Indicator -->
+                                            <StackPanel Grid.Column="1"
+                                                        Orientation="Horizontal"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Center">
+                                                <!-- Loading Spinner during Verification -->
+                                                <ProgressBar x:Name="TestConnectionProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Width="70" Height="4"
+                                                             Visibility="Collapsed"
+                                                             Margin="0,0,12,0"/>
+
+                                                <!-- Status Badge Container -->
+                                                <Border Background="#FFFFFF"
+                                                        BorderBrush="{StaticResource SubtleBorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="16"
+                                                        Padding="12,6">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <!-- Status Dot Indicator (Green / Red / Gray) -->
+                                                        <Ellipse x:Name="ConnectionStatusDot"
+                                                                 Width="9" Height="9"
+                                                                 Fill="{StaticResource MutedTextBrush}"
+                                                                 Margin="0,0,8,0"/>
+                                                        <TextBlock x:Name="ConnectionStatusText"
+                                                                   Text="Not Tested"
+                                                                   FontSize="13"
+                                                                   FontWeight="Medium"
+                                                                   Foreground="{StaticResource SecondaryTextBrush}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ===================================================== -->
+                            <!-- CARD 2: USER SYNCHRONIZATION SECTION                  -->
+                            <!-- ===================================================== -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="28,24"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <!-- Section Header -->
+                                    <Grid Margin="0,0,0,20">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Width="40" Height="40"
+                                                    CornerRadius="20"
+                                                    Background="{StaticResource OdooTealSoftBrush}"
+                                                    Margin="0,0,14,0">
+                                                <Viewbox Width="20" Height="20">
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z"
+                                                              Fill="{StaticResource OdooTealBrush}"/>
+                                                        <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z"
+                                                              Fill="{StaticResource OdooPurpleBrush}"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                            </Border>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="User Synchronization"
+                                                           FontSize="18"
+                                                           FontWeight="Bold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                <TextBlock Text="Pull users from Odoo's res.users model and upsert them into local SQLite database."
+                                                           FontSize="13"
+                                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                                           Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Divider Line -->
+                                    <Border Height="1" Background="{StaticResource SubtleBorderLightBrush}" Margin="0,0,0,20"/>
+
+                                    <!-- Sync Controls & Progress -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="20"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Sync Users Now Button -->
+                                        <Button Grid.Column="0"
+                                                x:Name="SyncUsersNowBtn"
+                                                Style="{StaticResource OdooPrimaryActionButtonStyle}"
+                                                Click="SyncUsersNowBtn_Click"
+                                                Height="44"
+                                                Padding="22,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Viewbox Width="16" Height="16" Margin="0,0,10,0">
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z"
+                                                              Fill="#FFFFFF"/>
+                                                        <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z"
+                                                              Fill="#FFFFFF"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock Text="Sync Users Now" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <!-- Progress & Sync Status Details -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <!-- Last Synced Date & Time Status Text -->
+                                                <TextBlock x:Name="LastSyncedStatusText"
+                                                           Text="Last Synced: Never"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+
+                                                <!-- Sync Progress Bar -->
+                                                <ProgressBar x:Name="SyncProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Width="140" Height="4"
+                                                             Visibility="Collapsed"
+                                                             Margin="16,0,0,0"/>
+                                            </StackPanel>
+
+                                            <!-- Detail feedback / summary message -->
+                                            <TextBlock x:Name="SyncDetailText"
+                                                       Text="Click 'Sync Users Now' to fetch and upsert users from Odoo."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- CLEAN EMPTY CONTAINER FOR OTHER TABS (LOCALE, PAYMENT, PERIPHERALS, SYSTEM OPTIONS) -->
+                    <Border x:Name="OtherTabsEmptyContainer"
+                            Visibility="Collapsed"
+                            Background="{StaticResource SurfaceCardBrush}"
+                            BorderBrush="{StaticResource SubtleBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Margin="32,24,32,32"
+                            Effect="{StaticResource CardShadowEffect}">
+                        <!-- Intentionally blank surface container for subsequent steps -->
+                        <Grid x:Name="EmptySettingsContentContainer">
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
 
-            <!-- VIEW B: USERS MANAGEMENT VIEW -->
+            <!-- ==================== VIEW B: USERS MANAGEMENT VIEW ==================== -->
             <local:UserManagementView x:Name="UsersViewControl"
                                       Visibility="Collapsed"/>
+
+            <!-- ==================== TOAST BANNER NOTIFICATION ==================== -->
+            <Border x:Name="ShellToastBanner"
+                    Visibility="Collapsed"
+                    VerticalAlignment="Bottom"
+                    HorizontalAlignment="Center"
+                    Margin="0,0,0,32"
+                    Background="{StaticResource PrimaryTextBrush}"
+                    CornerRadius="8"
+                    Padding="20,12"
+                    Effect="{StaticResource CardShadowEffect}">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse x:Name="ShellToastDot" Width="10" Height="10" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,12,0"/>
+                    <TextBlock x:Name="ShellToastMessageText"
+                               Text="Settings saved successfully."
+                               Foreground="#FFFFFF"
+                               FontSize="14"
+                               FontWeight="Medium"/>
+                </StackPanel>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

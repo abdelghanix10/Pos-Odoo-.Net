@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
 namespace OdooPosLogin;
@@ -44,12 +45,12 @@ public partial class MainShellView : UserControl
             {
                 if (isOnline)
                 {
-                    ConnectionStatusDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+                    ConnectionStatusDot.Fill = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
                     ConnectionStatusText.Text = "Odoo Online";
                 }
                 else
                 {
-                    ConnectionStatusDot.Fill = (Brush)FindResource("MutedTextBrush");
+                    ConnectionStatusDot.Fill = GetSafeBrush("MutedTextBrush", Color.FromRgb(0x9C, 0xA3, 0xAF));
                     ConnectionStatusText.Text = "Offline (Local Mode)";
                 }
             });
@@ -272,6 +273,39 @@ public partial class MainShellView : UserControl
         }
     }
 
+    private Brush GetSafeBrush(string resourceKey, Color fallbackColor)
+    {
+        if (TryFindResource(resourceKey) is Brush brush)
+            return brush;
+        return new SolidColorBrush(fallbackColor);
+    }
+
+    private void SetSettingsSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncUsersNowBtn.IsEnabled = false;
+            SettingsSyncButtonText.Text = "Syncing Users...";
+            SyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsSyncIconRotation.Angle = 0;
+            SettingsSyncButtonText.Text = "Sync Users Now";
+            SyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncUsersNowBtn.IsEnabled = true;
+        }
+    }
+
     private async void TestConnectionBtn_Click(object sender, RoutedEventArgs e)
     {
         var config = new OdooConfigRecord(
@@ -285,7 +319,7 @@ public partial class MainShellView : UserControl
 
         TestConnectionProgressBar.Visibility = Visibility.Visible;
         TestConnectionBtn.IsEnabled = false;
-        ConnectionStatusDot.Fill = (Brush)FindResource("MutedTextBrush");
+        ConnectionStatusDot.Fill = GetSafeBrush("MutedTextBrush", Color.FromRgb(0x9C, 0xA3, 0xAF));
         ConnectionStatusText.Text = "Verifying connection...";
 
         try
@@ -294,13 +328,13 @@ public partial class MainShellView : UserControl
 
             if (result.Success)
             {
-                ConnectionStatusDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+                ConnectionStatusDot.Fill = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
                 ConnectionStatusText.Text = result.Message;
                 ShowToast("Odoo connection verified successfully!");
             }
             else
             {
-                ConnectionStatusDot.Fill = (Brush)FindResource("DangerRedBrush");
+                ConnectionStatusDot.Fill = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
                 ConnectionStatusText.Text = result.Message;
                 ShowToast(result.Message, isError: true);
             }
@@ -311,7 +345,7 @@ public partial class MainShellView : UserControl
         }
         catch (Exception ex)
         {
-            ConnectionStatusDot.Fill = (Brush)FindResource("DangerRedBrush");
+            ConnectionStatusDot.Fill = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
             ConnectionStatusText.Text = $"Error: {ex.Message}";
             ShowToast(ex.Message, isError: true);
         }
@@ -327,21 +361,22 @@ public partial class MainShellView : UserControl
     // =========================================================================
     private async void SyncUsersNowBtn_Click(object sender, RoutedEventArgs e)
     {
-        // 1. Verify live Odoo Online reachability before initiating sync
-        bool isOnline = await OdooSyncService.Instance.CheckConnectivityAsync();
-        if (!isOnline)
-        {
-            SyncDetailText.Text = "Cannot synchronize: Odoo Online is unreachable (Offline Mode).";
-            ShowToast("Cannot synchronize: Odoo Online is unreachable. Operating in Offline (Local Mode).", isWarning: true);
-            return;
-        }
-
-        SyncUsersNowBtn.IsEnabled = false;
-        SyncProgressBar.Visibility = Visibility.Visible;
-        SyncDetailText.Text = "Connecting to Odoo & synchronizing res.users...";
-
         try
         {
+            SetSettingsSyncLoadingState(true);
+            SyncDetailText.Text = "Verifying connection & synchronizing res.users...";
+            SyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
+
+            // 1. Verify live Odoo Online reachability before initiating sync
+            bool isOnline = await OdooSyncService.Instance.CheckConnectivityAsync();
+            if (!isOnline)
+            {
+                SyncDetailText.Text = "Cannot synchronize: Odoo Online is unreachable (Offline Mode).";
+                SyncDetailText.Foreground = GetSafeBrush("WarningAmberBrush", Color.FromRgb(0xF5, 0x9E, 0x0B));
+                ShowToast("Cannot synchronize: Odoo Online is unreachable. Operating in Offline (Local Mode).", isWarning: true);
+                return;
+            }
+
             var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
 
             // Fetch users from Odoo
@@ -355,6 +390,7 @@ public partial class MainShellView : UserControl
 
             LastSyncedStatusText.Text = $"Last Synced: {syncTime}";
             SyncDetailText.Text = $"Sync Complete: {imported} new user(s) imported, {updated} user(s) updated.";
+            SyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             // Refresh the Users Kanban view and POS login cards
             await UsersViewControl.ReloadUsersFromDatabaseAsync();
@@ -364,12 +400,12 @@ public partial class MainShellView : UserControl
         catch (Exception ex)
         {
             SyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            SyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
             ShowToast($"Sync Failed: {ex.Message}", isError: true);
         }
         finally
         {
-            SyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncUsersNowBtn.IsEnabled = true;
+            SetSettingsSyncLoadingState(false);
         }
     }
 
@@ -378,15 +414,15 @@ public partial class MainShellView : UserControl
         ShellToastMessageText.Text = message;
         if (isWarning)
         {
-            ShellToastDot.Fill = (Brush)FindResource("WarningAmberBrush");
+            ShellToastDot.Fill = GetSafeBrush("WarningAmberBrush", Color.FromRgb(0xF5, 0x9E, 0x0B));
         }
         else if (isError)
         {
-            ShellToastDot.Fill = (Brush)FindResource("DangerRedBrush");
+            ShellToastDot.Fill = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
         }
         else
         {
-            ShellToastDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+            ShellToastDot.Fill = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
         }
         ShellToastBanner.Visibility = Visibility.Visible;
         _toastTimer.Stop();

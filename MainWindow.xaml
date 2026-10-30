@@ -40,6 +40,10 @@
         <SolidColorBrush x:Key="DangerRedBrush" Color="#DC2626"/>
         <SolidColorBrush x:Key="DangerRedSoftHoverBrush" Color="#FEF2F2"/>
         <SolidColorBrush x:Key="DangerRedBorderHoverBrush" Color="#FECACA"/>
+        <SolidColorBrush x:Key="ActiveGreenBrush" Color="#10B981"/>
+        <SolidColorBrush x:Key="ActiveGreenSoftBrush" Color="#ECFDF5"/>
+        <SolidColorBrush x:Key="WarningAmberBrush" Color="#F59E0B"/>
+        <SolidColorBrush x:Key="WarningAmberSoftBrush" Color="#FFFBEB"/>
 
         <!-- ==================== SHADOW EFFECTS ==================== -->
         <DropShadowEffect x:Key="CardShadowEffect"

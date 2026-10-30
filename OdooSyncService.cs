@@ -25,8 +25,9 @@ public class OdooSyncService
         };
     }
 
-    private static string NormalizeUrl(string url)
+    private static string NormalizeUrl(string? url)
     {
+        if (string.IsNullOrWhiteSpace(url)) return "https://localhost";
         url = url.Trim();
         if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
@@ -68,7 +69,14 @@ public class OdooSyncService
         ConnectionStatusLabel = label;
         if (changed)
         {
-            OnlineStatusChanged?.Invoke(online);
+            try
+            {
+                OnlineStatusChanged?.Invoke(online);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[OnlineStatusChanged error] {ex}");
+            }
         }
     }
 

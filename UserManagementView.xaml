@@ -84,8 +84,8 @@
                                 <Setter TargetName="BtnBorder" Property="Opacity" Value="0.9"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="BtnBorder" Property="Opacity" Value="0.5"/>
-                                <Setter Property="Cursor" Value="Arrow"/>
+                                <Setter TargetName="BtnBorder" Property="Opacity" Value="0.8"/>
+                                <Setter Property="Cursor" Value="Wait"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -209,14 +209,17 @@
 
                 <!-- LEFT: "Sync from Odoo" Button (Replaces "New") + Breadcrumb + Save/Discard -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Primary Purple "Sync from Odoo" Button -->
+                    <!-- Primary Purple "Sync from Odoo" Button with Loading Spinner Support -->
                     <Button x:Name="TopSyncFromOdooBtn"
                             Style="{StaticResource OdooPrimaryButtonStyle}"
                             Click="SyncUsersButton_Click"
                             ToolTip="Synchronize users from Odoo Online"
                             Margin="0,0,18,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Viewbox Width="16" Height="16" Margin="0,0,8,0">
+                            <Viewbox x:Name="UserSyncIconBox" Width="16" Height="16" Margin="0,0,8,0" RenderTransformOrigin="0.5,0.5">
+                                <Viewbox.RenderTransform>
+                                    <RotateTransform x:Name="UserSyncIconRotation" Angle="0"/>
+                                </Viewbox.RenderTransform>
                                 <Canvas Width="24" Height="24">
                                     <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z"
                                           Fill="#FFFFFF"/>
@@ -224,7 +227,8 @@
                                           Fill="#FFFFFF"/>
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock Text="Sync from Odoo"
+                            <TextBlock x:Name="TopSyncButtonText"
+                                       Text="Sync from Odoo"
                                        FontSize="13.5"
                                        FontWeight="SemiBold"
                                        Foreground="#FFFFFF"

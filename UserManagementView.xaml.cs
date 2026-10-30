@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 
 namespace OdooPosLogin;
@@ -44,20 +45,27 @@ public partial class UserManagementView : UserControl
         RefreshPosLoginUsers();
     }
 
+    private Brush GetSafeBrush(string resourceKey, Color fallbackColor)
+    {
+        if (TryFindResource(resourceKey) is Brush brush)
+            return brush;
+        return new SolidColorBrush(fallbackColor);
+    }
+
     public void ShowToast(string message, bool isError = false, bool isWarning = false)
     {
         UserActionToastText.Text = message;
         if (isWarning)
         {
-            ToastIndicatorDot.Fill = (Brush)FindResource("WarningAmberBrush");
+            ToastIndicatorDot.Fill = GetSafeBrush("WarningAmberBrush", Color.FromRgb(0xF5, 0x9E, 0x0B));
         }
         else if (isError)
         {
-            ToastIndicatorDot.Fill = (Brush)FindResource("DangerRedBrush");
+            ToastIndicatorDot.Fill = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
         }
         else
         {
-            ToastIndicatorDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+            ToastIndicatorDot.Fill = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
         }
         UserActionToastBanner.Visibility = Visibility.Visible;
         _toastTimer.Stop();
@@ -65,6 +73,30 @@ public partial class UserManagementView : UserControl
     }
 
     // ==================== ODOO SYNCHRONIZATION ====================
+    private void SetSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            TopSyncFromOdooBtn.IsEnabled = false;
+            TopSyncButtonText.Text = "Syncing...";
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            UserSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            UserSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            UserSyncIconRotation.Angle = 0;
+            TopSyncButtonText.Text = "Sync from Odoo";
+            TopSyncFromOdooBtn.IsEnabled = true;
+        }
+    }
+
     private async void SyncUsersButton_Click(object sender, RoutedEventArgs e)
     {
         await TriggerOdooSyncAsync();
@@ -72,17 +104,17 @@ public partial class UserManagementView : UserControl
 
     public async Task TriggerOdooSyncAsync()
     {
-        // 1. Verify live Odoo Online connectivity
-        bool isOnline = await OdooSyncService.Instance.CheckConnectivityAsync();
-        if (!isOnline)
-        {
-            ShowToast("Cannot synchronize: Odoo Online is unreachable. Operating in Offline (Local Mode).", isWarning: true);
-            return;
-        }
-
         try
         {
-            TopSyncFromOdooBtn.IsEnabled = false;
+            SetSyncLoadingState(true);
+
+            // 1. Verify live Odoo Online connectivity
+            bool isOnline = await OdooSyncService.Instance.CheckConnectivityAsync();
+            if (!isOnline)
+            {
+                ShowToast("Cannot synchronize: Odoo Online is unreachable. Operating in Offline (Local Mode).", isWarning: true);
+                return;
+            }
 
             var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
             var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: true);
@@ -101,7 +133,7 @@ public partial class UserManagementView : UserControl
         }
         finally
         {
-            TopSyncFromOdooBtn.IsEnabled = true;
+            SetSyncLoadingState(false);
         }
     }
 

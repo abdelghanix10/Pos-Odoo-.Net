@@ -1120,7 +1120,7 @@
 
                                         <Button Grid.Column="0"
                                                 x:Name="SyncAttributesNowBtn"
-                                                Style="{StaticResource OdooPurpleActionButtonStyle}"
+                                                Style="{StaticResource OdooPrimaryActionButtonStyle}"
                                                 Click="SyncAttributesNowBtn_Click"
                                                 Height="44"
                                                 Padding="22,0">

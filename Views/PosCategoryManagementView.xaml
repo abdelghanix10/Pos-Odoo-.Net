@@ -4,12 +4,17 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:local="clr-namespace:OdooPosLogin"
+             xmlns:vm="clr-namespace:OdooPosLogin.ViewModels"
              mc:Ignorable="d"
              d:DesignWidth="1280" d:DesignHeight="732"
              Background="#F9FAFB"
              FontFamily="Segoe UI Variable Text, Inter, Segoe UI"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
+
+    <UserControl.DataContext>
+        <vm:PosCategoriesViewModel/>
+    </UserControl.DataContext>
 
     <UserControl.Resources>
         <!-- Design Palette Brushes -->
@@ -42,13 +47,6 @@
                           Color="#111827"
                           Opacity="0.05"/>
 
-        <DropShadowEffect x:Key="DropdownShadow"
-                          BlurRadius="18"
-                          ShadowDepth="4"
-                          Direction="270"
-                          Color="#111827"
-                          Opacity="0.10"/>
-
         <!-- Primary Purple Button Style -->
         <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
@@ -77,67 +75,6 @@
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="BtnBorder" Property="Opacity" Value="0.8"/>
                                 <Setter Property="Cursor" Value="Wait"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Secondary White/Border Button Style -->
-        <Style x:Key="OdooSecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="13.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Height" Value="38"/>
-            <Setter Property="Padding" Value="14,0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="BtnBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="BtnBorder" Property="Background" Value="#F9FAFB"/>
-                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="BtnBorder" Property="Background" Value="#F3F4F6"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- View Switcher Icon Button Style -->
-        <Style x:Key="ViewSwitcherButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Width" Value="34"/>
-            <Setter Property="Height" Value="34"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Border"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#E5E7EB"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -181,60 +118,49 @@
 
     <Grid Background="{StaticResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
-            <!-- Row 0: Top Control Bar (Search, Buttons, Breadcrumbs, View Switchers) -->
+            <!-- Row 0: Top Control Bar -->
             <RowDefinition Height="64"/>
-            <!-- Row 1: Workspace Content (List View OR Detail/Form View) -->
+            <!-- Row 1: Workspace Content -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- ======================================================================= -->
-        <!-- 1. TOP CONTROL BAR (ODOO 20 HEADER)                                     -->
+        <!-- 1. TOP CONTROL BAR                                                      -->
         <!-- ======================================================================= -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="32,0">
+                Padding="24,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <!-- Left: Action Buttons + Breadcrumb Title -->
-                    <ColumnDefinition Width="Auto"/>
-                    <!-- Center: Search Input Bar -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Right: Pager & View Switchers -->
+                    <!-- Center: Search Input Bar -->
                     <ColumnDefinition Width="Auto"/>
+                    <!-- Right: Pager & Controls -->
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT CONTROLS: "Sync from Odoo", "New", Breadcrumb, Save/Discard -->
+                <!-- LEFT CONTROLS: "Sync from Odoo", Breadcrumbs -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- "Sync from Odoo" Button with Animated Spinner -->
-                    <Button x:Name="TopSyncCategoriesBtn"
-                            Style="{StaticResource OdooPrimaryButtonStyle}"
-                            Click="SyncCategoriesBtn_Click"
-                            ToolTip="Synchronize POS Product Categories from Odoo Online"
-                            Margin="0,0,12,0">
+                    <Button Style="{StaticResource OdooPrimaryButtonStyle}"
+                            Command="{Binding SyncFromOdooCommand}"
+                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                            Margin="0,0,14,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Viewbox x:Name="SyncIconBox" Width="16" Height="16" Margin="0,0,8,0" RenderTransformOrigin="0.5,0.5">
-                                <Viewbox.RenderTransform>
-                                    <RotateTransform x:Name="CategorySyncIconRotation" Angle="0"/>
-                                </Viewbox.RenderTransform>
+                            <Viewbox Width="15" Height="15" Margin="0,0,8,0">
                                 <Canvas Width="24" Height="24">
                                     <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
                                     <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock x:Name="SyncButtonText"
-                                       Text="Sync from Odoo"
-                                       FontSize="13.5"
-                                       FontWeight="SemiBold"
-                                       Foreground="#FFFFFF"
-                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding SyncButtonText}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 
                     <!-- Breadcrumb: "PoS Product Categories" -->
-                    <Button x:Name="BreadcrumbRootButton"
-                            Click="BreadcrumbRoot_Click"
+                    <Button Command="{Binding BackToListCommand}"
                             Cursor="Hand"
                             Background="Transparent"
                             BorderThickness="0"
@@ -257,25 +183,25 @@
                     </Button>
 
                     <!-- Breadcrumb Sub-Path (when viewing Detail/Form View) -->
-                    <StackPanel x:Name="BreadcrumbDetailSubPanel"
-                                Orientation="Horizontal"
-                                Visibility="Collapsed"
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 VerticalAlignment="Center">
                         <TextBlock Text="  /  "
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    FontSize="18"
                                    VerticalAlignment="Center"/>
-                        <TextBlock x:Name="BreadcrumbCurrentCategoryName"
-                                   Text="Misc"
+                        <TextBlock Text="{Binding SelectedCategory.Name}"
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    FontSize="18"
                                    FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="360"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- CENTER: SEARCH BAR -->
-                <Grid Grid.Column="1" HorizontalAlignment="Center" Width="360" Height="36" VerticalAlignment="Center">
+                <Grid Grid.Column="1" HorizontalAlignment="Center" MinWidth="220" MaxWidth="380" Width="320" Height="36" VerticalAlignment="Center">
                     <Border Background="#F3F4F6"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -287,7 +213,6 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Magnifying Glass Icon -->
                             <Viewbox Grid.Column="0" Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center">
                                 <Canvas Width="24" Height="24">
                                     <Path Data="M 15.5,14 L 14.71,14 L 14.43,13.73 C 15.41,12.59 16,11.11 16,9.5 C 16,5.91 13.09,3 9.5,3 C 5.91,3 3,5.91 3,9.5 C 3,13.09 5.91,16 9.5,16 C 11.11,16 12.59,15.41 13.73,14.43 L 14,14.71 L 14,15.5 L 19,20.49 L 20.49,19 L 15.5,14 Z M 9.5,14 C 7.01,14 5,11.99 5,9.5 C 5,7.01 7.01,5 9.5,5 C 11.99,5 14,7.01 14,9.5 C 14,11.99 11.99,14 9.5,14 Z"
@@ -295,30 +220,25 @@
                                 </Canvas>
                             </Viewbox>
 
-                            <!-- Placeholder Text -->
                             <TextBlock Grid.Column="1"
-                                       x:Name="SearchPlaceholderText"
                                        Text="Search Categories..."
                                        Foreground="{StaticResource PlaceholderTextBrush}"
                                        FontSize="13"
                                        VerticalAlignment="Center"
-                                       IsHitTestVisible="False"/>
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
 
-                            <!-- Real Search TextBox -->
                             <TextBox Grid.Column="1"
-                                     x:Name="SearchCategoriesTextBox"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                      Background="Transparent"
                                      BorderThickness="0"
                                      FontSize="13"
                                      Foreground="{StaticResource PrimaryTextBrush}"
-                                     VerticalAlignment="Center"
-                                     TextChanged="SearchCategoriesTextBox_TextChanged"/>
+                                     VerticalAlignment="Center"/>
 
-                            <!-- Clear Search Button -->
                             <Button Grid.Column="2"
-                                    x:Name="ClearSearchButton"
-                                    Click="ClearSearchButton_Click"
-                                    Visibility="Collapsed"
+                                    Command="{Binding ClearSearchCommand}"
+                                    Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
                                     Cursor="Hand"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -331,23 +251,21 @@
                 </Grid>
 
                 <!-- RIGHT: DETAIL RECORD SWITCHER (VISIBLE ONLY IN DETAIL VIEW) -->
-                <StackPanel x:Name="DetailRecordPagerPanel"
-                            Grid.Column="2"
+                <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
-                            Visibility="Collapsed">
-                    <TextBlock x:Name="DetailPagerCounterText"
-                               Text="1 / 8"
+                            Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="{Binding PagerText}"
                                Foreground="{StaticResource SecondaryTextBrush}"
                                FontSize="13.5"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
                                Margin="0,0,12,0"/>
 
-                    <Button x:Name="DetailPrevRecordBtn"
-                            Style="{StaticResource DetailPagerChevronButtonStyle}"
-                            Click="DetailPrevRecord_Click"
+                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
+                            Command="{Binding PreviousRecordCommand}"
+                            IsEnabled="{Binding HasPreviousRecord}"
                             ToolTip="Previous category"
                             Margin="0,0,4,0">
                         <Path Data="M 17,7 L 10,14 L 17,21"
@@ -360,9 +278,9 @@
                               Stretch="Uniform"/>
                     </Button>
 
-                    <Button x:Name="DetailNextRecordBtn"
-                            Style="{StaticResource DetailPagerChevronButtonStyle}"
-                            Click="DetailNextRecord_Click"
+                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
+                            Command="{Binding NextRecordCommand}"
+                            IsEnabled="{Binding HasNextRecord}"
                             ToolTip="Next category">
                         <Path Data="M 10,7 L 17,14 L 10,21"
                               Stroke="{StaticResource PrimaryTextBrush}"
@@ -384,7 +302,8 @@
             <!-- =================================================================== -->
             <!-- VIEW 1: POS PRODUCT CATEGORIES LIST VIEW (TABLE)                    -->
             <!-- =================================================================== -->
-            <Grid x:Name="CategoryListViewContainer" Visibility="Visible" Margin="32,24,32,32">
+            <Grid Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                  Margin="24,20,24,28">
                 <Border Background="{StaticResource SurfaceCardBrush}"
                         BorderBrush="{StaticResource SubtleBorderBrush}"
                         BorderThickness="1"
@@ -407,60 +326,26 @@
                                 Padding="16,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <!-- PoS Product Category -->
                                     <ColumnDefinition Width="2.5*"/>
-                                    <!-- Parent Category -->
                                     <ColumnDefinition Width="1.8*"/>
-                                    <!-- Linked PoS Configurations -->
                                     <ColumnDefinition Width="3*"/>
-                                    <!-- Color Dot Column (Right-aligned) -->
                                     <ColumnDefinition Width="80"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Column 0: PoS Product Category Header -->
-                                <TextBlock Grid.Column="0"
-                                           Text="PoS Product Category"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-
-                                <!-- Column 1: Parent Category Header -->
-                                <TextBlock Grid.Column="1"
-                                           Text="Parent Category"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-
-                                <!-- Column 2: Linked PoS Configurations Header -->
-                                <TextBlock Grid.Column="2"
-                                           Text="Linked PoS Configurations"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-
-                                <!-- Column 3: Color Header -->
-                                <TextBlock Grid.Column="3"
-                                           Text="Color"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"
-                                           HorizontalAlignment="Right"
-                                           Margin="0,0,12,0"/>
+                                <TextBlock Grid.Column="0" Text="PoS Product Category" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="Parent Category" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="Linked PoS Configurations" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="Color" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,12,0"/>
                             </Grid>
                         </Border>
 
                         <!-- TABLE DATA ROWS -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl x:Name="CategoriesListItemsControl">
+                            <ItemsControl ItemsSource="{Binding FilteredCategories}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:PosCategoryRecord}">
-                                        <!-- Clickable Table Row Button -->
-                                        <Button Click="CategoryRow_Click"
-                                                Tag="{Binding}"
+                                        <Button Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
                                                 Cursor="Hand"
                                                 Background="Transparent"
                                                 BorderThickness="0"
@@ -477,17 +362,13 @@
                                                             MinHeight="48">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
-                                                                <!-- Category Name -->
                                                                 <ColumnDefinition Width="2.5*"/>
-                                                                <!-- Parent Category -->
                                                                 <ColumnDefinition Width="1.8*"/>
-                                                                <!-- Linked POS Configs -->
                                                                 <ColumnDefinition Width="3*"/>
-                                                                <!-- Color Dot (Right-aligned) -->
                                                                 <ColumnDefinition Width="80"/>
                                                             </Grid.ColumnDefinitions>
 
-                                                            <!-- Col 0: Category Name (Bold/Clean text) -->
+                                                            <!-- Col 0: Category Name -->
                                                             <TextBlock Grid.Column="0"
                                                                        Text="{Binding Name}"
                                                                        FontSize="14"
@@ -502,7 +383,7 @@
                                                                        Foreground="{StaticResource SecondaryTextBrush}"
                                                                        VerticalAlignment="Center"/>
 
-                                                            <!-- Col 2: Linked PoS Configurations as Rounded Light-Gray Pill Badges -->
+                                                            <!-- Col 2: Linked PoS Configurations -->
                                                             <ItemsControl Grid.Column="2"
                                                                           ItemsSource="{Binding LinkedShopsList}"
                                                                           VerticalAlignment="Center">
@@ -529,7 +410,7 @@
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
 
-                                                            <!-- Col 3: Color Dot (Right-aligned, 20x20) -->
+                                                            <!-- Col 3: Color Dot -->
                                                             <Ellipse Grid.Column="3"
                                                                      Width="20" Height="20"
                                                                      Fill="{Binding ColorBrush}"
@@ -537,11 +418,7 @@
                                                                      StrokeThickness="1"
                                                                      HorizontalAlignment="Right"
                                                                      VerticalAlignment="Center"
-                                                                     Margin="0,0,12,0">
-                                                                <Ellipse.Effect>
-                                                                    <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Color="#000000" Opacity="0.12"/>
-                                                                </Ellipse.Effect>
-                                                            </Ellipse>
+                                                                     Margin="0,0,12,0"/>
                                                         </Grid>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
@@ -566,12 +443,10 @@
             <!-- =================================================================== -->
             <!-- VIEW 2: POS PRODUCT CATEGORY DETAIL VIEW (STRICTLY READ-ONLY)       -->
             <!-- =================================================================== -->
-            <ScrollViewer x:Name="CategoryDetailViewContainer"
-                          Visibility="Collapsed"
+            <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Margin="32,24,32,48">
-                    <!-- SLEEK HORIZONTAL WHITE CARD CONTAINER (8px CORNERS, SUBTLE BORDER) -->
+                <StackPanel Margin="28,24,28,48">
                     <Border Background="{StaticResource SurfaceCardBrush}"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -580,66 +455,56 @@
                             Effect="{StaticResource SubtleCardShadow}">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <!-- Left Details Column -->
                                 <ColumnDefinition Width="*"/>
-                                <!-- Right Image Container Column (88x88) -->
                                 <ColumnDefinition Width="120"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- ==================== LEFT: READ-ONLY CATEGORY FIELDS ==================== -->
+                            <!-- LEFT: CATEGORY FIELDS -->
                             <Grid Grid.Column="0" Margin="0,0,24,0">
                                 <Grid.RowDefinitions>
-                                    <!-- Top-Left: Category Name Display -->
                                     <RowDefinition Height="Auto"/>
-                                    <!-- Spacing -->
                                     <RowDefinition Height="24"/>
-                                    <!-- Bottom Row: Parent Category, Color Dot, and Linked Configurations -->
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- TOP-LEFT: CATEGORY NAME (LARGE PROMINENT READ-ONLY HEADER) -->
+                                <!-- Top-Left: Category Name Display -->
                                 <StackPanel Grid.Row="0">
                                     <TextBlock Text="PoS Category"
                                                FontSize="12"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource SecondaryTextBrush}"
                                                Margin="0,0,0,6"/>
-                                    <TextBlock x:Name="FormCategoryNameDisplay"
-                                               Text="Misc"
+                                    <TextBlock Text="{Binding SelectedCategory.Name}"
                                                FontSize="24"
                                                FontWeight="Bold"
                                                Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </StackPanel>
 
-                                <!-- BOTTOM ROW: PARENT CATEGORY + COLOR + LINKED CONFIGS -->
+                                <!-- Bottom Row: Parent Category + Color + Linked Configs -->
                                 <Grid Grid.Row="2">
                                     <Grid.ColumnDefinitions>
-                                        <!-- Bottom-Left: Parent Category -->
                                         <ColumnDefinition Width="180"/>
                                         <ColumnDefinition Width="28"/>
-                                        <!-- Bottom-Center: Color -->
                                         <ColumnDefinition Width="160"/>
                                         <ColumnDefinition Width="28"/>
-                                        <!-- Bottom-Right: Linked PoS Configurations -->
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- PARENT CATEGORY DISPLAY -->
+                                    <!-- Parent Category -->
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="Parent Category"
                                                    FontSize="12.5"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource SecondaryTextBrush}"
                                                    Margin="0,0,0,6"/>
-                                        <TextBlock x:Name="FormParentCategoryDisplay"
-                                                   Text="None"
+                                        <TextBlock Text="{Binding SelectedCategory.ParentCategoryDisplay}"
                                                    FontSize="14"
                                                    FontWeight="Medium"
                                                    Foreground="{StaticResource PrimaryTextBrush}"
                                                    VerticalAlignment="Center"/>
                                     </StackPanel>
 
-                                    <!-- COLOR DISPLAY -->
+                                    <!-- Color -->
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="Color"
                                                    FontSize="12.5"
@@ -647,15 +512,13 @@
                                                    Foreground="{StaticResource SecondaryTextBrush}"
                                                    Margin="0,0,0,6"/>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Ellipse x:Name="FormCurrentColorDot"
-                                                     Width="22" Height="22"
-                                                     Fill="#D6145F"
+                                            <Ellipse Width="22" Height="22"
+                                                     Fill="{Binding SelectedCategory.ColorBrush}"
                                                      Stroke="{StaticResource SubtleBorderBrush}"
                                                      StrokeThickness="1"
                                                      VerticalAlignment="Center"
                                                      Margin="0,0,10,0"/>
-                                            <TextBlock x:Name="FormColorNameDisplay"
-                                                       Text="Color 9"
+                                            <TextBlock Text="{Binding SelectedCategory.ColorNameDisplay}"
                                                        FontSize="13.5"
                                                        FontWeight="Medium"
                                                        Foreground="{StaticResource PrimaryTextBrush}"
@@ -663,14 +526,14 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <!-- LINKED POS CONFIGURATIONS -->
+                                    <!-- Linked PoS Configurations -->
                                     <StackPanel Grid.Column="4">
                                         <TextBlock Text="Linked PoS Configurations"
                                                    FontSize="12.5"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource SecondaryTextBrush}"
                                                    Margin="0,0,0,6"/>
-                                        <ItemsControl x:Name="FormLinkedShopsItemsControl" VerticalAlignment="Center">
+                                        <ItemsControl ItemsSource="{Binding SelectedCategory.LinkedShopsList}" VerticalAlignment="Center">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
                                                     <WrapPanel Orientation="Horizontal"/>
@@ -697,35 +560,31 @@
                                 </Grid>
                             </Grid>
 
-                            <!-- ==================== FAR-RIGHT: 88x88 READ-ONLY IMAGE CONTAINER ==================== -->
+                            <!-- FAR-RIGHT: IMAGE -->
                             <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                <Border x:Name="FormImageContainerBorder"
-                                        Width="88" Height="88"
+                                <Border Width="88" Height="88"
                                         Background="#F9FAFB"
                                         BorderBrush="{StaticResource InputBorderBrush}"
                                         BorderThickness="1"
                                         CornerRadius="8">
                                     <Grid>
-                                        <!-- Category Image if available -->
-                                        <Image x:Name="FormPreviewImage"
+                                        <Image Source="{Binding SelectedCategory.ImageBitmap}"
                                                Stretch="UniformToFill"
-                                               Visibility="Collapsed">
+                                               Visibility="{Binding SelectedCategory.HasImage, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <Image.Clip>
                                                 <RectangleGeometry Rect="0,0,86,86" RadiusX="7" RadiusY="7"/>
                                             </Image.Clip>
                                         </Image>
 
-                                        <!-- Camera placeholder when no image is set -->
-                                        <StackPanel x:Name="FormPlaceholderIcon"
-                                                    VerticalAlignment="Center"
-                                                    HorizontalAlignment="Center">
-                                            <Viewbox Width="30" Height="30">
-                                                <Canvas Width="24" Height="24">
-                                                    <Path Data="M 9,3 L 7.17,5 L 4,5 C 2.9,5 2,5.9 2,7 L 2,19 C 2,20.1 2.9,21 4,21 L 20,21 C 21.1,21 22,20.1 22,19 L 22,7 C 22,5.9 21.1,5 20,5 L 16.83,5 L 15,3 L 9,3 Z M 12,18 C 8.69,18 6,15.31 6,12 C 6,8.69 8.69,6 12,6 C 15.31,6 18,8.69 18,12 C 18,15.31 15.31,18 12,18 Z"
-                                                          Fill="{StaticResource PlaceholderTextBrush}"/>
-                                                </Canvas>
-                                            </Viewbox>
-                                        </StackPanel>
+                                        <Viewbox Width="30" Height="30"
+                                                 VerticalAlignment="Center"
+                                                 HorizontalAlignment="Center"
+                                                 Visibility="{Binding SelectedCategory.HasNoImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Data="M 9,3 L 7.17,5 L 4,5 C 2.9,5 2,5.9 2,7 L 2,19 C 2,20.1 2.9,21 4,21 L 20,21 C 21.1,21 22,20.1 22,19 L 22,7 C 22,5.9 21.1,5 20,5 L 16.83,5 L 15,3 L 9,3 Z M 12,18 C 8.69,18 6,15.31 6,12 C 6,8.69 8.69,6 12,6 C 15.31,6 18,8.69 18,12 C 18,15.31 15.31,18 12,18 Z"
+                                                      Fill="{StaticResource PlaceholderTextBrush}"/>
+                                            </Canvas>
+                                        </Viewbox>
                                     </Grid>
                                 </Border>
                             </StackPanel>
@@ -738,9 +597,8 @@
         <!-- ======================================================================= -->
         <!-- 3. TOAST BANNER NOTIFICATION                                            -->
         <!-- ======================================================================= -->
-        <Border x:Name="CategoryToastBanner"
+        <Border Visibility="{Binding IsToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                 Grid.Row="1"
-                Visibility="Collapsed"
                 VerticalAlignment="Bottom"
                 HorizontalAlignment="Center"
                 Margin="0,0,0,32"
@@ -749,9 +607,8 @@
                 Padding="20,12"
                 Effect="{StaticResource SubtleCardShadow}">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Ellipse x:Name="CategoryToastDot" Width="10" Height="10" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,12,0"/>
-                <TextBlock x:Name="CategoryToastText"
-                           Text="Categories synchronized successfully."
+                <Ellipse Width="10" Height="10" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding ToastMessage}"
                            Foreground="#FFFFFF"
                            FontSize="14"
                            FontWeight="Medium"/>

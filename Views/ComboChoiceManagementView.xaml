@@ -4,12 +4,17 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:local="clr-namespace:OdooPosLogin"
+             xmlns:vm="clr-namespace:OdooPosLogin.ViewModels"
              mc:Ignorable="d"
              d:DesignWidth="1280" d:DesignHeight="732"
              Background="#F9FAFB"
              FontFamily="Segoe UI Variable Text, Inter, Segoe UI"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
+
+    <UserControl.DataContext>
+        <vm:ComboChoicesViewModel/>
+    </UserControl.DataContext>
 
     <UserControl.Resources>
         <!-- Design Palette Brushes -->
@@ -139,27 +144,23 @@
 
                 <!-- LEFT: Sync from Odoo Button + Breadcrumbs -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="TopSyncCombosBtn"
-                            Style="{StaticResource OdooPrimaryButtonStyle}"
-                            Click="TopSyncCombosBtn_Click"
+                    <Button Style="{StaticResource OdooPrimaryButtonStyle}"
+                            Command="{Binding SyncFromOdooCommand}"
+                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                             Margin="0,0,18,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Viewbox x:Name="TopSyncIconBox" Width="15" Height="15" Margin="0,0,8,0" RenderTransformOrigin="0.5,0.5">
-                                <Viewbox.RenderTransform>
-                                    <RotateTransform x:Name="TopSyncIconRotation" Angle="0"/>
-                                </Viewbox.RenderTransform>
+                            <Viewbox Width="15" Height="15" Margin="0,0,8,0">
                                 <Canvas Width="24" Height="24">
                                     <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
                                     <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock x:Name="SyncButtonText" Text="Sync from Odoo" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding SyncButtonText}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 
                     <!-- Breadcrumb Root: "Combo Choices" -->
-                    <Button x:Name="BreadcrumbRootButton"
-                            Click="BreadcrumbRoot_Click"
+                    <Button Command="{Binding BackToListCommand}"
                             Cursor="Hand"
                             Background="Transparent"
                             BorderThickness="0"
@@ -182,27 +183,25 @@
                     </Button>
 
                     <!-- Breadcrumb Sub-Path (when viewing Detail View) -->
-                    <StackPanel x:Name="BreadcrumbDetailSubPanel"
-                                Orientation="Horizontal"
-                                Visibility="Collapsed"
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 VerticalAlignment="Center">
                         <TextBlock Text="  /  "
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    FontSize="18"
                                    VerticalAlignment="Center"/>
-                        <TextBlock x:Name="BreadcrumbCurrentComboName"
-                                   Text="Burger Choice"
+                        <TextBlock Text="{Binding SelectedCombo.Name}"
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    FontSize="18"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
-                                   MaxWidth="380"/>
+                                   MaxWidth="360"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- CENTER: SEARCH BAR -->
-                <Grid Grid.Column="1" HorizontalAlignment="Center" Width="360" Height="36" VerticalAlignment="Center">
+                <Grid Grid.Column="1" HorizontalAlignment="Center" MinWidth="220" MaxWidth="380" Width="320" Height="36" VerticalAlignment="Center">
                     <Border Background="#F3F4F6"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -222,26 +221,24 @@
                             </Viewbox>
 
                             <TextBlock Grid.Column="1"
-                                       x:Name="SearchPlaceholderText"
                                        Text="Search Combo Choices..."
                                        Foreground="{StaticResource PlaceholderTextBrush}"
                                        FontSize="13"
                                        VerticalAlignment="Center"
-                                       IsHitTestVisible="False"/>
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
 
                             <TextBox Grid.Column="1"
-                                     x:Name="SearchCombosTextBox"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                      Background="Transparent"
                                      BorderThickness="0"
                                      FontSize="13"
                                      Foreground="{StaticResource PrimaryTextBrush}"
-                                     VerticalAlignment="Center"
-                                     TextChanged="SearchCombosTextBox_TextChanged"/>
+                                     VerticalAlignment="Center"/>
 
                             <Button Grid.Column="2"
-                                    x:Name="ClearSearchButton"
-                                    Click="ClearSearchButton_Click"
-                                    Visibility="Collapsed"
+                                    Command="{Binding ClearSearchCommand}"
+                                    Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
                                     Cursor="Hand"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -254,23 +251,21 @@
                 </Grid>
 
                 <!-- RIGHT: DETAIL RECORD SWITCHER (VISIBLE ONLY IN DETAIL VIEW) -->
-                <StackPanel x:Name="DetailRecordPagerPanel"
-                            Grid.Column="2"
+                <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
-                            Visibility="Collapsed">
-                    <TextBlock x:Name="DetailPagerCounterText"
-                               Text="1 / 4"
+                            Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="{Binding PagerText}"
                                Foreground="{StaticResource SecondaryTextBrush}"
                                FontSize="13.5"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
                                Margin="0,0,12,0"/>
 
-                    <Button x:Name="DetailPrevRecordBtn"
-                            Style="{StaticResource DetailPagerChevronButtonStyle}"
-                            Click="DetailPrevRecord_Click"
+                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
+                            Command="{Binding PreviousRecordCommand}"
+                            IsEnabled="{Binding HasPreviousRecord}"
                             ToolTip="Previous combo choice"
                             Margin="0,0,4,0">
                         <Path Data="M 17,7 L 10,14 L 17,21"
@@ -283,9 +278,9 @@
                               Stretch="Uniform"/>
                     </Button>
 
-                    <Button x:Name="DetailNextRecordBtn"
-                            Style="{StaticResource DetailPagerChevronButtonStyle}"
-                            Click="DetailNextRecord_Click"
+                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
+                            Command="{Binding NextRecordCommand}"
+                            IsEnabled="{Binding HasNextRecord}"
                             ToolTip="Next combo choice">
                         <Path Data="M 10,7 L 17,14 L 10,21"
                               Stroke="{StaticResource PrimaryTextBrush}"
@@ -307,7 +302,8 @@
             <!-- =================================================================== -->
             <!-- VIEW 1: COMBO CHOICES LIST VIEW (TABLE)                             -->
             <!-- =================================================================== -->
-            <Grid x:Name="ComboListViewContainer" Visibility="Visible" Margin="32,24,32,32">
+            <Grid Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                  Margin="24,20,24,28">
                 <Border Background="{StaticResource SurfaceCardBrush}"
                         BorderBrush="{StaticResource SubtleBorderBrush}"
                         BorderThickness="1"
@@ -361,12 +357,12 @@
 
                         <!-- TABLE BODY -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl x:Name="ComboListItemsControl">
+                            <ItemsControl ItemsSource="{Binding FilteredCombos}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:ComboChoiceRecord}">
                                         <Button Cursor="Hand"
-                                                Click="ComboRow_Click"
-                                                Tag="{Binding}"
+                                                Command="{Binding DataContext.SelectComboCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
                                                 Background="Transparent"
                                                 BorderThickness="0"
                                                 HorizontalContentAlignment="Stretch">
@@ -454,11 +450,10 @@
             <!-- =================================================================== -->
             <!-- VIEW 2: COMBO CHOICE DETAIL / FORM VIEW (STRICTLY READ-ONLY)         -->
             <!-- =================================================================== -->
-            <ScrollViewer x:Name="ComboDetailViewContainer"
-                          Visibility="Collapsed"
+            <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Margin="32,24,32,48">
+                <StackPanel Margin="28,24,28,48">
                     <Border Background="{StaticResource SurfaceCardBrush}"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -474,8 +469,7 @@
                                            Foreground="{StaticResource SecondaryTextBrush}"
                                            Margin="0,0,0,4"/>
 
-                                <TextBlock x:Name="FormComboNameDisplay"
-                                           Text="Burger Choice"
+                                <TextBlock Text="{Binding SelectedCombo.Name}"
                                            FontSize="26"
                                            FontWeight="Bold"
                                            Foreground="{StaticResource PrimaryTextBrush}"/>
@@ -509,7 +503,7 @@
                             </Border>
 
                             <!-- TABLE ROWS -->
-                            <ItemsControl x:Name="FormComboLinesItemsControl">
+                            <ItemsControl ItemsSource="{Binding SelectedCombo.Lines}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:ComboChoiceLineRecord}">
                                         <Border BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -539,9 +533,8 @@
         <!-- ======================================================================= -->
         <!-- 3. TOAST NOTIFICATION BANNER                                            -->
         <!-- ======================================================================= -->
-        <Border x:Name="ComboToastBanner"
+        <Border Visibility="{Binding IsToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                 Grid.Row="1"
-                Visibility="Collapsed"
                 VerticalAlignment="Bottom"
                 HorizontalAlignment="Center"
                 Margin="0,0,0,24"
@@ -550,9 +543,8 @@
                 Padding="20,12"
                 Effect="{StaticResource SubtleCardShadow}">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Ellipse x:Name="ComboToastDot" Width="10" Height="10" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,12,0"/>
-                <TextBlock x:Name="ComboToastText"
-                           Text="Sync completed."
+                <Ellipse Width="10" Height="10" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding ToastMessage}"
                            Foreground="#FFFFFF"
                            FontSize="13.5"
                            FontWeight="Medium"/>

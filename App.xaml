@@ -1,8 +1,18 @@
 <Application x:Class="OdooPosLogin.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             StartupUri="MainWindow.xaml">
+             xmlns:conv="clr-namespace:OdooPosLogin.Converters"
+             StartupUri="Views/MainWindow.xaml">
     <Application.Resources>
+        <!-- Converters -->
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
+        <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <conv:InverseNullToVisibilityConverter x:Key="InverseNullToVisibilityConverter"/>
+        <conv:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibilityConverter"/>
+        <conv:StringEmptyToVisibilityConverter x:Key="StringEmptyToVisibilityConverter"/>
+        <conv:IntEqualToVisibilityConverter x:Key="IntEqualToVisibilityConverter"/>
+
         <!-- Global Odoo 20 Design System Brushes -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>

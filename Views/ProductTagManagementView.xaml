@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:local="clr-namespace:OdooPosLogin"
+             xmlns:vm="clr-namespace:OdooPosLogin.ViewModels"
              mc:Ignorable="d"
              d:DesignWidth="1280" d:DesignHeight="732"
              Background="#F9FAFB"
@@ -11,8 +12,12 @@
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
 
+    <UserControl.DataContext>
+        <vm:ProductTagsViewModel/>
+    </UserControl.DataContext>
+
     <UserControl.Resources>
-        <!-- ==================== COLOR PALETTE ==================== -->
+        <!-- Design Palette Brushes -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
@@ -30,10 +35,10 @@
         <SolidColorBrush x:Key="PlaceholderTextBrush" Color="#9CA3AF"/>
         
         <SolidColorBrush x:Key="ActiveGreenBrush" Color="#10B981"/>
+        <SolidColorBrush x:Key="ActiveGreenSoftBrush" Color="#ECFDF5"/>
         <SolidColorBrush x:Key="WarningAmberBrush" Color="#F59E0B"/>
         <SolidColorBrush x:Key="DangerRedBrush" Color="#DC2626"/>
 
-        <!-- ==================== SHADOW EFFECTS ==================== -->
         <DropShadowEffect x:Key="SubtleCardShadow"
                           BlurRadius="12"
                           ShadowDepth="1"
@@ -41,7 +46,7 @@
                           Color="#111827"
                           Opacity="0.04"/>
 
-        <!-- ==================== PRIMARY PURPLE BUTTON ("Sync from Odoo") ==================== -->
+        <!-- Primary Purple Button Style -->
         <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -110,11 +115,11 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid>
+    <Grid Background="{StaticResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
-            <!-- 1. Top Control Bar -->
-            <RowDefinition Height="68"/>
-            <!-- 2. Workspace Content Area -->
+            <!-- Row 0: Top Control Bar -->
+            <RowDefinition Height="64"/>
+            <!-- Row 1: Workspace Content -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -125,47 +130,36 @@
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="32,0">
+                Padding="24,0">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <!-- Left: "Sync from Odoo" Button + Breadcrumb -->
-                    <ColumnDefinition Width="Auto"/>
-                    <!-- Center: Search Bar -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Right: Empty -->
+                    <!-- Center: Search Bar -->
                     <ColumnDefinition Width="Auto"/>
+                    <!-- Right: Pager -->
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- LEFT: "Sync from Odoo" Button + Breadcrumb -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Primary Purple "Sync from Odoo" Button -->
-                    <Button x:Name="TopSyncTagsBtn"
-                            Style="{StaticResource OdooPrimaryButtonStyle}"
-                            Click="SyncTagsBtn_Click"
-                            ToolTip="Synchronize product tags from Odoo Online"
+                    <Button Style="{StaticResource OdooPrimaryButtonStyle}"
+                            Command="{Binding SyncFromOdooCommand}"
+                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                             Margin="0,0,18,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Viewbox x:Name="TagSyncIconBox" Width="16" Height="16" Margin="0,0,8,0" RenderTransformOrigin="0.5,0.5">
-                                <Viewbox.RenderTransform>
-                                    <RotateTransform x:Name="TagSyncIconRotation" Angle="0"/>
-                                </Viewbox.RenderTransform>
+                            <Viewbox Width="15" Height="15" Margin="0,0,8,0">
                                 <Canvas Width="24" Height="24">
                                     <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
                                     <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock x:Name="SyncButtonText"
-                                       Text="Sync from Odoo"
-                                       FontSize="13.5"
-                                       FontWeight="SemiBold"
-                                       Foreground="#FFFFFF"
-                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding SyncButtonText}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
 
                     <!-- Breadcrumb Root: "Product Tags" -->
-                    <Button x:Name="BreadcrumbRootButton"
-                            Click="BreadcrumbRoot_Click"
+                    <Button Command="{Binding BackToListCommand}"
                             Cursor="Hand"
                             Background="Transparent"
                             BorderThickness="0"
@@ -188,25 +182,25 @@
                     </Button>
 
                     <!-- Breadcrumb Sub-Path (when viewing Detail View) -->
-                    <StackPanel x:Name="BreadcrumbDetailSubPanel"
-                                Orientation="Horizontal"
-                                Visibility="Collapsed"
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 VerticalAlignment="Center">
                         <TextBlock Text="  /  "
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    FontSize="18"
                                    VerticalAlignment="Center"/>
-                        <TextBlock x:Name="BreadcrumbCurrentTagName"
-                                   Text="Bestseller"
+                        <TextBlock Text="{Binding SelectedTag.Name}"
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    FontSize="18"
                                    FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="360"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- CENTER: SEARCH BAR -->
-                <Grid Grid.Column="1" HorizontalAlignment="Center" Width="360" Height="36" VerticalAlignment="Center">
+                <Grid Grid.Column="1" HorizontalAlignment="Center" MinWidth="220" MaxWidth="380" Width="320" Height="36" VerticalAlignment="Center">
                     <Border Background="#F3F4F6"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -218,7 +212,6 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Magnifying Glass Icon -->
                             <Viewbox Grid.Column="0" Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center">
                                 <Canvas Width="24" Height="24">
                                     <Path Data="M 15.5,14 L 14.71,14 L 14.43,13.73 C 15.41,12.59 16,11.11 16,9.5 C 16,5.91 13.09,3 9.5,3 C 5.91,3 3,5.91 3,9.5 C 3,13.09 5.91,16 9.5,16 C 11.11,16 12.59,15.41 13.73,14.43 L 14,14.71 L 14,15.5 L 19,20.49 L 20.49,19 L 15.5,14 Z M 9.5,14 C 7.01,14 5,11.99 5,9.5 C 5,7.01 7.01,5 9.5,5 C 11.99,5 14,7.01 14,9.5 C 14,11.99 11.99,14 9.5,14 Z"
@@ -226,30 +219,25 @@
                                 </Canvas>
                             </Viewbox>
 
-                            <!-- Placeholder Text -->
                             <TextBlock Grid.Column="1"
-                                       x:Name="SearchPlaceholderText"
                                        Text="Search Tags..."
                                        Foreground="{StaticResource PlaceholderTextBrush}"
                                        FontSize="13"
                                        VerticalAlignment="Center"
-                                       IsHitTestVisible="False"/>
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
 
-                            <!-- Real Search TextBox -->
                             <TextBox Grid.Column="1"
-                                     x:Name="SearchTagsTextBox"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                      Background="Transparent"
                                      BorderThickness="0"
                                      FontSize="13"
                                      Foreground="{StaticResource PrimaryTextBrush}"
-                                     VerticalAlignment="Center"
-                                     TextChanged="SearchTagsTextBox_TextChanged"/>
+                                     VerticalAlignment="Center"/>
 
-                            <!-- Clear Search Button -->
                             <Button Grid.Column="2"
-                                    x:Name="ClearSearchButton"
-                                    Click="ClearSearchButton_Click"
-                                    Visibility="Collapsed"
+                                    Command="{Binding ClearSearchCommand}"
+                                    Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
                                     Cursor="Hand"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -262,23 +250,21 @@
                 </Grid>
 
                 <!-- RIGHT: DETAIL RECORD SWITCHER (VISIBLE ONLY IN DETAIL VIEW) -->
-                <StackPanel x:Name="DetailRecordPagerPanel"
-                            Grid.Column="2"
+                <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
-                            Visibility="Collapsed">
-                    <TextBlock x:Name="DetailPagerCounterText"
-                               Text="1 / 5"
+                            Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="{Binding PagerText}"
                                Foreground="{StaticResource SecondaryTextBrush}"
                                FontSize="13.5"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"
                                Margin="0,0,12,0"/>
 
-                    <Button x:Name="DetailPrevRecordBtn"
-                            Style="{StaticResource DetailPagerChevronButtonStyle}"
-                            Click="DetailPrevRecord_Click"
+                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
+                            Command="{Binding PreviousRecordCommand}"
+                            IsEnabled="{Binding HasPreviousRecord}"
                             ToolTip="Previous tag"
                             Margin="0,0,4,0">
                         <Path Data="M 17,7 L 10,14 L 17,21"
@@ -291,9 +277,9 @@
                               Stretch="Uniform"/>
                     </Button>
 
-                    <Button x:Name="DetailNextRecordBtn"
-                            Style="{StaticResource DetailPagerChevronButtonStyle}"
-                            Click="DetailNextRecord_Click"
+                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
+                            Command="{Binding NextRecordCommand}"
+                            IsEnabled="{Binding HasNextRecord}"
                             ToolTip="Next tag">
                         <Path Data="M 10,7 L 17,14 L 10,21"
                               Stroke="{StaticResource PrimaryTextBrush}"
@@ -315,7 +301,8 @@
             <!-- =================================================================== -->
             <!-- VIEW 1: PRODUCT TAGS LIST VIEW (TABLE)                              -->
             <!-- =================================================================== -->
-            <Grid x:Name="TagListViewContainer" Visibility="Visible" Margin="32,24,32,32">
+            <Grid Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                  Margin="24,20,24,28">
                 <Border Background="{StaticResource SurfaceCardBrush}"
                         BorderBrush="{StaticResource SubtleBorderBrush}"
                         BorderThickness="1"
@@ -338,48 +325,24 @@
                                 Padding="20,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <!-- Tag Name -->
                                     <ColumnDefinition Width="2.5*"/>
-                                    <!-- Color (Badge / Dot) -->
                                     <ColumnDefinition Width="2*"/>
-                                    <!-- Linked Products Count -->
                                     <ColumnDefinition Width="1.5*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Column 0: Tag Name Header -->
-                                <TextBlock Grid.Column="0"
-                                           Text="Tag Name"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-
-                                <!-- Column 1: Color Header -->
-                                <TextBlock Grid.Column="1"
-                                           Text="Color"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-
-                                <!-- Column 2: Linked Products Header -->
-                                <TextBlock Grid.Column="2"
-                                           Text="Linked Products"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="0" Text="Tag Name" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="Color" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="Linked Products" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
 
                         <!-- TABLE DATA ROWS -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl x:Name="TagsListItemsControl">
+                            <ItemsControl ItemsSource="{Binding FilteredTags}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:ProductTagRecord}">
-                                        <!-- Clickable Table Row Button -->
-                                        <Button Click="TagRow_Click"
-                                                Tag="{Binding}"
+                                        <Button Command="{Binding DataContext.SelectTagCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
                                                 Cursor="Hand"
                                                 Background="Transparent"
                                                 BorderThickness="0"
@@ -396,15 +359,12 @@
                                                             MinHeight="48">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
-                                                                <!-- Tag Name -->
                                                                 <ColumnDefinition Width="2.5*"/>
-                                                                <!-- Color Badge -->
                                                                 <ColumnDefinition Width="2*"/>
-                                                                <!-- Linked Products Count -->
                                                                 <ColumnDefinition Width="1.5*"/>
                                                             </Grid.ColumnDefinitions>
 
-                                                            <!-- Col 0: Tag Name (Bold/Clean text) -->
+                                                            <!-- Col 0: Tag Name -->
                                                             <TextBlock Grid.Column="0"
                                                                        Text="{Binding Name}"
                                                                        FontSize="14"
@@ -461,12 +421,10 @@
             <!-- =================================================================== -->
             <!-- VIEW 2: PRODUCT TAG DETAIL VIEW (STRICTLY READ-ONLY CARD)           -->
             <!-- =================================================================== -->
-            <ScrollViewer x:Name="TagDetailViewContainer"
-                          Visibility="Collapsed"
+            <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Margin="32,24,32,48">
-                    <!-- SLEEK HORIZONTAL WHITE CARD (8px CORNERS, SUBTLE BORDER) -->
+                <StackPanel Margin="28,24,28,48">
                     <Border Background="{StaticResource SurfaceCardBrush}"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -488,8 +446,7 @@
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource SecondaryTextBrush}"
                                                Margin="0,0,0,4"/>
-                                    <TextBlock x:Name="FormTagNameDisplay"
-                                               Text="Bestseller"
+                                    <TextBlock Text="{Binding SelectedTag.Name}"
                                                FontSize="26"
                                                FontWeight="Bold"
                                                Foreground="{StaticResource PrimaryTextBrush}"/>
@@ -504,7 +461,6 @@
                                         Padding="16,8"
                                         VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <!-- Product Cube Icon -->
                                         <Viewbox Width="18" Height="18" Margin="0,0,8,0">
                                             <Canvas Width="24" Height="24">
                                                 <Path Data="M 12,2 L 21,7 L 21,17 L 12,22 L 3,17 L 3,7 Z"
@@ -517,8 +473,7 @@
                                                       StrokeLineJoin="Round"/>
                                             </Canvas>
                                         </Viewbox>
-                                        <TextBlock x:Name="FormRelatedProductsCountText"
-                                                   Text="12 Products"
+                                        <TextBlock Text="{Binding SelectedTag.ProductsCountDisplay}"
                                                    FontSize="13.5"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource OdooTealBrush}"
@@ -530,10 +485,8 @@
                             <!-- DETAILS GRID: COLOR INDICATOR & BADGE DISPLAY -->
                             <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
-                                    <!-- Color Indicator Column -->
                                     <ColumnDefinition Width="220"/>
                                     <ColumnDefinition Width="48"/>
-                                    <!-- Tag Badge Preview Column -->
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
@@ -545,15 +498,13 @@
                                                Foreground="{StaticResource SecondaryTextBrush}"
                                                Margin="0,0,0,8"/>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Ellipse x:Name="FormColorDot"
-                                                 Width="22" Height="22"
-                                                 Fill="#EF4444"
+                                        <Ellipse Width="22" Height="22"
+                                                 Fill="{Binding SelectedTag.ColorBrush}"
                                                  Stroke="{StaticResource SubtleBorderBrush}"
                                                  StrokeThickness="1"
                                                  Margin="0,0,10,0"
                                                  VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="FormColorNameDisplay"
-                                                   Text="Color 1"
+                                        <TextBlock Text="{Binding SelectedTag.ColorNameDisplay}"
                                                    FontSize="14"
                                                    FontWeight="Medium"
                                                    Foreground="{StaticResource PrimaryTextBrush}"
@@ -568,20 +519,18 @@
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource SecondaryTextBrush}"
                                                Margin="0,0,0,8"/>
-                                    <Border x:Name="FormBadgePreviewBorder"
-                                            HorizontalAlignment="Left"
-                                            Background="#FEE2E2"
-                                            BorderBrush="#EF4444"
+                                    <Border HorizontalAlignment="Left"
+                                            Background="{Binding SelectedTag.SoftBackgroundBrush}"
+                                            BorderBrush="{Binding SelectedTag.ColorBrush}"
                                             BorderThickness="1"
                                             CornerRadius="14"
                                             Padding="14,6">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Ellipse x:Name="FormBadgePreviewDot" Width="10" Height="10" Fill="#EF4444" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                            <TextBlock x:Name="FormBadgePreviewText"
-                                                       Text="Bestseller"
+                                            <Ellipse Width="10" Height="10" Fill="{Binding SelectedTag.ColorBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding SelectedTag.Name}"
                                                        FontSize="13"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#EF4444"
+                                                       Foreground="{Binding SelectedTag.ColorBrush}"
                                                        VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Border>
@@ -596,9 +545,8 @@
         <!-- ======================================================================= -->
         <!-- 3. TOAST BANNER NOTIFICATION                                            -->
         <!-- ======================================================================= -->
-        <Border x:Name="TagToastBanner"
+        <Border Visibility="{Binding IsToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                 Grid.Row="1"
-                Visibility="Collapsed"
                 VerticalAlignment="Bottom"
                 HorizontalAlignment="Center"
                 Margin="0,0,0,32"
@@ -607,9 +555,8 @@
                 Padding="20,12"
                 Effect="{StaticResource SubtleCardShadow}">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Ellipse x:Name="TagToastDot" Width="10" Height="10" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,12,0"/>
-                <TextBlock x:Name="TagToastText"
-                           Text="Tags synchronized successfully."
+                <Ellipse Width="10" Height="10" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding ToastMessage}"
                            Foreground="#FFFFFF"
                            FontSize="14"
                            FontWeight="Medium"/>

@@ -357,7 +357,7 @@
             </Border>
 
             <!-- 2. MAIN WORKSPACE AREA -->
-            <Grid Grid.Row="1" Margin="48">
+            <Grid Grid.Row="1" Margin="32,20">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto" MinWidth="388"/>
@@ -458,7 +458,7 @@
                         <ItemsControl x:Name="PosLoginUsersItemsControl">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <UniformGrid Columns="2" HorizontalAlignment="Center"/>
+                                    <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>

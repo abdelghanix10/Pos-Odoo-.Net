@@ -597,4 +597,333 @@ public class OdooSyncService
             new PosCategoryDto(8, "Pastries", null, null, "Bakery Shop", 8, PosCategoryRecord.GetOdooColorHex(8), 8, null)
         ];
     }
+
+    /// <summary>
+    /// Fetches product attributes and their values from Odoo Online (product.attribute & product.attribute.value)
+    /// </summary>
+    public async Task<(List<ProductAttributeDto> attributes, List<ProductAttributeValueDto> values)> FetchOdooAttributesAsync(
+        OdooConfigRecord config,
+        bool allowOfflineSimulation = false)
+    {
+        string baseUrl = NormalizeUrl(config.ServerUrl);
+        string endpoint = $"{baseUrl}/jsonrpc";
+
+        try
+        {
+            var test = await TestConnectionAsync(config);
+            if (!test.Success || !test.Uid.HasValue)
+            {
+                if (allowOfflineSimulation)
+                {
+                    return GetSimulatedOdooAttributes();
+                }
+                throw new InvalidOperationException(test.Message);
+            }
+
+            int uid = test.Uid.Value;
+
+            // 1. Fetch product.attribute records
+            var attrPayload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "product.attribute",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new
+                        {
+                            fields = new[] { "id", "name", "display_type", "create_variant", "number_related_products", "value_ids" }
+                        }
+                    }
+                },
+                id = 21
+            };
+
+            var attrReq = new StringContent(JsonSerializer.Serialize(attrPayload), Encoding.UTF8, "application/json");
+            var attrResp = await _httpClient.PostAsync(endpoint, attrReq);
+            attrResp.EnsureSuccessStatusCode();
+
+            string attrStr = await attrResp.Content.ReadAsStringAsync();
+            using var attrDoc = JsonDocument.Parse(attrStr);
+
+            if (attrDoc.RootElement.TryGetProperty("error", out var err1))
+            {
+                string msg = err1.TryGetProperty("data", out var d1) && d1.TryGetProperty("message", out var m1)
+                    ? m1.GetString() ?? "Odoo RPC Error"
+                    : err1.GetProperty("message").GetString() ?? "Odoo RPC Error";
+                throw new InvalidOperationException($"product.attribute RPC error: {msg}");
+            }
+
+            var attributes = new List<ProductAttributeDto>();
+            if (attrDoc.RootElement.TryGetProperty("result", out var attrList) && attrList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in attrList.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+                    string displayType = item.TryGetProperty("display_type", out var dt) && dt.ValueKind == JsonValueKind.String ? dt.GetString() ?? "radio" : "radio";
+                    string createVariant = item.TryGetProperty("create_variant", out var cv) && cv.ValueKind == JsonValueKind.String ? cv.GetString() ?? "always" : "always";
+                    int relatedCount = item.TryGetProperty("number_related_products", out var nr) && nr.ValueKind == JsonValueKind.Number ? nr.GetInt32() : 0;
+
+                    var valIds = new List<int>();
+                    if (item.TryGetProperty("value_ids", out var vids) && vids.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var vid in vids.EnumerateArray())
+                        {
+                            if (vid.ValueKind == JsonValueKind.Number) valIds.Add(vid.GetInt32());
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        attributes.Add(new ProductAttributeDto(odooId, name, displayType, createVariant, relatedCount, valIds));
+                    }
+                }
+            }
+
+            // 2. Fetch product.attribute.value records
+            var valPayload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "product.attribute.value",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new
+                        {
+                            fields = new[] { "id", "attribute_id", "name", "is_custom", "html_color", "image", "default_extra_price" }
+                        }
+                    }
+                },
+                id = 22
+            };
+
+            var valReq = new StringContent(JsonSerializer.Serialize(valPayload), Encoding.UTF8, "application/json");
+            var valResp = await _httpClient.PostAsync(endpoint, valReq);
+            valResp.EnsureSuccessStatusCode();
+
+            string valStr = await valResp.Content.ReadAsStringAsync();
+            using var valDoc = JsonDocument.Parse(valStr);
+
+            var values = new List<ProductAttributeValueDto>();
+            if (valDoc.RootElement.TryGetProperty("result", out var valList) && valList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in valList.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+
+                    int attrId = 0;
+                    if (item.TryGetProperty("attribute_id", out var aProp))
+                    {
+                        if (aProp.ValueKind == JsonValueKind.Array && aProp.GetArrayLength() > 0)
+                            attrId = aProp[0].GetInt32();
+                        else if (aProp.ValueKind == JsonValueKind.Number)
+                            attrId = aProp.GetInt32();
+                    }
+
+                    bool isCustom = item.TryGetProperty("is_custom", out var ic) && (ic.ValueKind == JsonValueKind.True || (ic.ValueKind == JsonValueKind.Number && ic.GetInt32() == 1));
+
+                    string? htmlColor = null;
+                    if (item.TryGetProperty("html_color", out var hc) && hc.ValueKind == JsonValueKind.String)
+                    {
+                        htmlColor = hc.GetString();
+                    }
+
+                    string? imageBase64 = null;
+                    if (item.TryGetProperty("image", out var img) && img.ValueKind == JsonValueKind.String)
+                    {
+                        imageBase64 = img.GetString();
+                    }
+
+                    double extraPrice = 0.0;
+                    if (item.TryGetProperty("default_extra_price", out var ep) && ep.ValueKind == JsonValueKind.Number)
+                    {
+                        extraPrice = ep.GetDouble();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(name) && attrId > 0)
+                    {
+                        values.Add(new ProductAttributeValueDto(odooId, attrId, name, isCustom, htmlColor, imageBase64, extraPrice));
+                    }
+                }
+            }
+
+            UpdateStatus(true, "Odoo Online");
+            return (attributes, values);
+        }
+        catch
+        {
+            if (allowOfflineSimulation)
+            {
+                return GetSimulatedOdooAttributes();
+            }
+            UpdateStatus(false, "Offline (Local Mode)");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Fetches product tags from Odoo Online (product.tag)
+    /// </summary>
+    public async Task<List<ProductTagDto>> FetchOdooTagsAsync(
+        OdooConfigRecord config,
+        bool allowOfflineSimulation = false)
+    {
+        string baseUrl = NormalizeUrl(config.ServerUrl);
+        string endpoint = $"{baseUrl}/jsonrpc";
+
+        try
+        {
+            var test = await TestConnectionAsync(config);
+            if (!test.Success || !test.Uid.HasValue)
+            {
+                if (allowOfflineSimulation)
+                {
+                    return GetSimulatedOdooTags();
+                }
+                throw new InvalidOperationException(test.Message);
+            }
+
+            int uid = test.Uid.Value;
+
+            var tagPayload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "product.tag",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new
+                        {
+                            fields = new[] { "id", "name", "color", "product_template_ids" }
+                        }
+                    }
+                },
+                id = 23
+            };
+
+            var tagReq = new StringContent(JsonSerializer.Serialize(tagPayload), Encoding.UTF8, "application/json");
+            var tagResp = await _httpClient.PostAsync(endpoint, tagReq);
+            tagResp.EnsureSuccessStatusCode();
+
+            string tagStr = await tagResp.Content.ReadAsStringAsync();
+            using var tagDoc = JsonDocument.Parse(tagStr);
+
+            var tags = new List<ProductTagDto>();
+            if (tagDoc.RootElement.TryGetProperty("result", out var tagList) && tagList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in tagList.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+                    int color = item.TryGetProperty("color", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : 0;
+
+                    int productsCount = 0;
+                    if (item.TryGetProperty("product_template_ids", out var pt) && pt.ValueKind == JsonValueKind.Array)
+                    {
+                        productsCount = pt.GetArrayLength();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        tags.Add(new ProductTagDto(odooId, name, color, productsCount));
+                    }
+                }
+            }
+
+            UpdateStatus(true, "Odoo Online");
+            return tags;
+        }
+        catch
+        {
+            if (allowOfflineSimulation)
+            {
+                return GetSimulatedOdooTags();
+            }
+            UpdateStatus(false, "Offline (Local Mode)");
+            throw;
+        }
+    }
+
+    public static (List<ProductAttributeDto>, List<ProductAttributeValueDto>) GetSimulatedOdooAttributes()
+    {
+        var attrs = new List<ProductAttributeDto>
+        {
+            new(1, "Brand", "radio", "always", 0, [1, 2, 3, 4, 5, 6]),
+            new(2, "Size", "pills", "always", 5, [41, 42, 43, 44, 45]),
+            new(3, "Color", "color", "always", 3, [50, 51, 52, 53, 54]),
+            new(4, "Material", "radio", "always", 0, [70, 71, 72]),
+            new(13, "Shoes size", "pills", "no_variant", 2, [97, 98, 99, 100, 101])
+        };
+
+        var vals = new List<ProductAttributeValueDto>
+        {
+            new(1, 1, "Adidas", false, null, null, 0.0),
+            new(2, 1, "Apple", false, null, null, 0.0),
+            new(3, 1, "Ariel", false, null, null, 0.0),
+            new(4, 1, "Canon", false, null, null, 0.0),
+            new(5, 1, "Coca-Cola", false, null, null, 0.0),
+            new(6, 1, "Nike", false, null, null, 0.0),
+            new(41, 2, "XS", false, null, null, 0.0),
+            new(42, 2, "S", false, null, null, 0.0),
+            new(43, 2, "M", false, null, null, 0.0),
+            new(44, 2, "L", false, null, null, 0.0),
+            new(45, 2, "XL", false, null, null, 0.0),
+            new(50, 3, "White", false, "#FFFFFF", null, 0.0),
+            new(51, 3, "Black", false, "#000000", null, 0.0),
+            new(52, 3, "Red", false, "#EF4444", null, 2.50),
+            new(53, 3, "Blue", false, "#3B82F6", null, 2.50),
+            new(54, 3, "Green", false, "#10B981", null, 0.0),
+            new(70, 4, "Cotton", false, null, null, 0.0),
+            new(71, 4, "Leather", false, null, null, 15.0),
+            new(72, 4, "Wood", false, null, null, 0.0),
+            new(97, 13, "38", false, null, null, 0.0),
+            new(98, 13, "39", false, null, null, 0.0),
+            new(99, 13, "40", false, null, null, 0.0),
+            new(100, 13, "41", false, null, null, 0.0),
+            new(101, 13, "42", false, null, null, 0.0)
+        };
+
+        return (attrs, vals);
+    }
+
+    public static List<ProductTagDto> GetSimulatedOdooTags()
+    {
+        return
+        [
+            new(1, "Bestseller", 1, 12),
+            new(2, "New Arrival", 10, 8),
+            new(3, "Organic", 7, 5),
+            new(4, "Featured", 5, 4),
+            new(5, "Special Offer", 2, 9)
+        ];
+    }
 }

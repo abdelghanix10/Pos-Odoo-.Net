@@ -33,6 +33,32 @@ public record PosCategoryDto(
     string? ImageBase64
 );
 
+public record ProductAttributeDto(
+    int OdooId,
+    string Name,
+    string DisplayType,
+    string CreateVariant,
+    int NumberRelatedProducts,
+    List<int> ValueIds
+);
+
+public record ProductAttributeValueDto(
+    int OdooId,
+    int AttributeOdooId,
+    string Name,
+    bool IsCustom,
+    string? HtmlColor,
+    string? ImageBase64,
+    double DefaultExtraPrice
+);
+
+public record ProductTagDto(
+    int OdooId,
+    string Name,
+    int ColorIndex,
+    int ProductsCount
+);
+
 public class SqliteDatabaseService
 {
     private static readonly Lazy<SqliteDatabaseService> _instance = new(() => new SqliteDatabaseService());
@@ -97,6 +123,37 @@ public class SqliteDatabaseService
                 ImageBase64 TEXT,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS ProductAttributes (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OdooId INTEGER UNIQUE,
+                Name TEXT NOT NULL,
+                DisplayType TEXT DEFAULT 'radio',
+                CreateVariant TEXT DEFAULT 'always',
+                NumberRelatedProducts INTEGER DEFAULT 0,
+                UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS ProductAttributeValues (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OdooId INTEGER UNIQUE,
+                AttributeOdooId INTEGER NOT NULL,
+                Name TEXT NOT NULL,
+                IsCustom INTEGER DEFAULT 0,
+                HtmlColor TEXT,
+                ImageBase64 TEXT,
+                DefaultExtraPrice REAL DEFAULT 0.0,
+                UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS ProductTags (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OdooId INTEGER UNIQUE,
+                Name TEXT NOT NULL,
+                ColorIndex INTEGER DEFAULT 0,
+                ProductsCount INTEGER DEFAULT 0,
+                UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
             """;
         command.ExecuteNonQuery();
 
@@ -104,6 +161,22 @@ public class SqliteDatabaseService
         {
             using var alterCmd = connection.CreateCommand();
             alterCmd.CommandText = "ALTER TABLE OdooConfig ADD COLUMN LastCategoriesSyncedAt TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+        catch { /* Column already exists */ }
+
+        try
+        {
+            using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE OdooConfig ADD COLUMN LastAttributesSyncedAt TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+        catch { /* Column already exists */ }
+
+        try
+        {
+            using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE OdooConfig ADD COLUMN LastTagsSyncedAt TEXT;";
             alterCmd.ExecuteNonQuery();
         }
         catch { /* Column already exists */ }
@@ -138,6 +211,24 @@ public class SqliteDatabaseService
         if (catCount == 0)
         {
             SeedDefaultCategories(connection);
+        }
+
+        // Seed initial attributes if table is empty
+        using var checkAttrs = connection.CreateCommand();
+        checkAttrs.CommandText = "SELECT COUNT(*) FROM ProductAttributes;";
+        long attrCount = (long)(checkAttrs.ExecuteScalar() ?? 0L);
+        if (attrCount == 0)
+        {
+            SeedDefaultAttributes(connection);
+        }
+
+        // Seed initial tags if table is empty
+        using var checkTags = connection.CreateCommand();
+        checkTags.CommandText = "SELECT COUNT(*) FROM ProductTags;";
+        long tagCount = (long)(checkTags.ExecuteScalar() ?? 0L);
+        if (tagCount == 0)
+        {
+            SeedDefaultTags(connection);
         }
     }
 
@@ -200,6 +291,108 @@ public class SqliteDatabaseService
             insert.Parameters.AddWithValue("@colorHex", PosCategoryRecord.GetOdooColorHex(c.colorIndex));
             insert.Parameters.AddWithValue("@sequence", c.sequence);
             insert.ExecuteNonQuery();
+        }
+    }
+
+    private static void SeedDefaultAttributes(SqliteConnection connection)
+    {
+        var attributes = new (int odooId, string name, string displayType, string createVariant, int relatedProducts)[]
+        {
+            (1, "Brand", "radio", "always", 0),
+            (2, "Size", "pills", "always", 5),
+            (3, "Color", "color", "always", 3),
+            (4, "Material", "radio", "always", 0),
+            (13, "Shoes size", "pills", "no_variant", 2)
+        };
+
+        foreach (var a in attributes)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO ProductAttributes (OdooId, Name, DisplayType, CreateVariant, NumberRelatedProducts)
+                VALUES (@odooId, @name, @displayType, @createVariant, @relatedProducts);
+                """;
+            cmd.Parameters.AddWithValue("@odooId", a.odooId);
+            cmd.Parameters.AddWithValue("@name", a.name);
+            cmd.Parameters.AddWithValue("@displayType", a.displayType);
+            cmd.Parameters.AddWithValue("@createVariant", a.createVariant);
+            cmd.Parameters.AddWithValue("@relatedProducts", a.relatedProducts);
+            cmd.ExecuteNonQuery();
+        }
+
+        var values = new (int odooId, int attrOdooId, string name, bool isCustom, string? htmlColor, double extraPrice)[]
+        {
+            // Brand (1)
+            (1, 1, "Adidas", false, null, 0.0),
+            (2, 1, "Apple", false, null, 0.0),
+            (3, 1, "Ariel", false, null, 0.0),
+            (4, 1, "Canon", false, null, 0.0),
+            (5, 1, "Coca-Cola", false, null, 0.0),
+            (6, 1, "Nike", false, null, 0.0),
+            // Size (2)
+            (41, 2, "XS", false, null, 0.0),
+            (42, 2, "S", false, null, 0.0),
+            (43, 2, "M", false, null, 0.0),
+            (44, 2, "L", false, null, 0.0),
+            (45, 2, "XL", false, null, 0.0),
+            // Color (3)
+            (50, 3, "White", false, "#FFFFFF", 0.0),
+            (51, 3, "Black", false, "#000000", 0.0),
+            (52, 3, "Red", false, "#EF4444", 2.50),
+            (53, 3, "Blue", false, "#3B82F6", 2.50),
+            (54, 3, "Green", false, "#10B981", 0.0),
+            // Material (4)
+            (70, 4, "Cotton", false, null, 0.0),
+            (71, 4, "Leather", false, null, 15.0),
+            (72, 4, "Wood", false, null, 0.0),
+            // Shoes size (13)
+            (97, 13, "38", false, null, 0.0),
+            (98, 13, "39", false, null, 0.0),
+            (99, 13, "40", false, null, 0.0),
+            (100, 13, "41", false, null, 0.0),
+            (101, 13, "42", false, null, 0.0)
+        };
+
+        foreach (var v in values)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO ProductAttributeValues (OdooId, AttributeOdooId, Name, IsCustom, HtmlColor, DefaultExtraPrice)
+                VALUES (@odooId, @attrId, @name, @custom, @color, @extra);
+                """;
+            cmd.Parameters.AddWithValue("@odooId", v.odooId);
+            cmd.Parameters.AddWithValue("@attrId", v.attrOdooId);
+            cmd.Parameters.AddWithValue("@name", v.name);
+            cmd.Parameters.AddWithValue("@custom", v.isCustom ? 1 : 0);
+            cmd.Parameters.AddWithValue("@color", (object?)v.htmlColor ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@extra", v.extraPrice);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static void SeedDefaultTags(SqliteConnection connection)
+    {
+        var tags = new (int odooId, string name, int colorIndex, int productsCount)[]
+        {
+            (1, "Bestseller", 1, 12),
+            (2, "New Arrival", 10, 8),
+            (3, "Organic", 7, 5),
+            (4, "Featured", 5, 4),
+            (5, "Special Offer", 2, 9)
+        };
+
+        foreach (var t in tags)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO ProductTags (OdooId, Name, ColorIndex, ProductsCount)
+                VALUES (@odooId, @name, @colorIndex, @productsCount);
+                """;
+            cmd.Parameters.AddWithValue("@odooId", t.odooId);
+            cmd.Parameters.AddWithValue("@name", t.name);
+            cmd.Parameters.AddWithValue("@colorIndex", t.colorIndex);
+            cmd.Parameters.AddWithValue("@productsCount", t.productsCount);
+            cmd.ExecuteNonQuery();
         }
     }
 
@@ -802,6 +995,432 @@ public class SqliteDatabaseService
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT LastCategoriesSyncedAt FROM OdooConfig WHERE Id = 1;";
+        var res = await cmd.ExecuteScalarAsync();
+        return res is DBNull or null ? null : res.ToString();
+    }
+
+    // =========================================================================
+    // PRODUCT ATTRIBUTES & VALUES REPOSITORY
+    // =========================================================================
+    public async Task<List<ProductAttributeRecord>> LoadAllAttributesAsync()
+    {
+        var result = new List<ProductAttributeRecord>();
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, OdooId, Name, DisplayType, CreateVariant, NumberRelatedProducts
+            FROM ProductAttributes
+            ORDER BY Id ASC;
+            """;
+
+        await using (var reader = await cmd.ExecuteReaderAsync())
+        {
+            while (await reader.ReadAsync())
+            {
+                var attr = new ProductAttributeRecord
+                {
+                    Id = reader.GetInt64(0),
+                    OdooId = reader.GetInt32(1),
+                    Name = reader.GetString(2),
+                    DisplayType = reader.IsDBNull(3) ? "radio" : reader.GetString(3),
+                    CreateVariant = reader.IsDBNull(4) ? "always" : reader.GetString(4),
+                    NumberRelatedProducts = reader.IsDBNull(5) ? 0 : reader.GetInt32(5)
+                };
+                result.Add(attr);
+            }
+        }
+
+        // Load values for each attribute
+        foreach (var attr in result)
+        {
+            attr.Values = await LoadAttributeValuesInternalAsync(connection, attr.OdooId);
+        }
+
+        return result;
+    }
+
+    private static async Task<List<ProductAttributeValueRecord>> LoadAttributeValuesInternalAsync(SqliteConnection connection, int attributeOdooId)
+    {
+        var values = new List<ProductAttributeValueRecord>();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, OdooId, AttributeOdooId, Name, IsCustom, HtmlColor, ImageBase64, DefaultExtraPrice
+            FROM ProductAttributeValues
+            WHERE AttributeOdooId = @attrId
+            ORDER BY Id ASC;
+            """;
+        cmd.Parameters.AddWithValue("@attrId", attributeOdooId);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var val = new ProductAttributeValueRecord
+            {
+                Id = reader.GetInt64(0),
+                OdooId = reader.GetInt32(1),
+                AttributeOdooId = reader.GetInt32(2),
+                Name = reader.GetString(3),
+                IsCustom = !reader.IsDBNull(4) && reader.GetInt32(4) == 1,
+                HtmlColor = reader.IsDBNull(5) ? null : reader.GetString(5),
+                ImageBase64 = reader.IsDBNull(6) ? null : reader.GetString(6),
+                DefaultExtraPrice = reader.IsDBNull(7) ? 0.0 : reader.GetDouble(7)
+            };
+            values.Add(val);
+        }
+
+        return values;
+    }
+
+    public async Task<List<ProductAttributeValueRecord>> LoadAttributeValuesAsync(int attributeOdooId)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        return await LoadAttributeValuesInternalAsync(connection, attributeOdooId);
+    }
+
+    public async Task<(int attrsImported, int attrsUpdated, int attrsDeleted, int valsImported, int valsUpdated, int valsDeleted)>
+        UpsertOdooAttributesAsync(List<ProductAttributeDto> attributes, List<ProductAttributeValueDto> values)
+    {
+        int attrsImported = 0, attrsUpdated = 0, attrsDeleted = 0;
+        int valsImported = 0, valsUpdated = 0, valsDeleted = 0;
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        var odooAttrIds = attributes.Select(a => a.OdooId).ToHashSet();
+        var odooValIds = values.Select(v => v.OdooId).ToHashSet();
+
+        // 1. Upsert Attributes
+        foreach (var attr in attributes)
+        {
+            await using var checkCmd = connection.CreateCommand();
+            checkCmd.Transaction = transaction;
+            checkCmd.CommandText = "SELECT Id FROM ProductAttributes WHERE OdooId = @odooId LIMIT 1;";
+            checkCmd.Parameters.AddWithValue("@odooId", attr.OdooId);
+            var existingId = await checkCmd.ExecuteScalarAsync();
+
+            if (existingId != null)
+            {
+                await using var updateCmd = connection.CreateCommand();
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = """
+                    UPDATE ProductAttributes
+                    SET Name = @name,
+                        DisplayType = @displayType,
+                        CreateVariant = @createVariant,
+                        NumberRelatedProducts = @relatedProducts,
+                        UpdatedAt = CURRENT_TIMESTAMP
+                    WHERE OdooId = @odooId;
+                    """;
+                updateCmd.Parameters.AddWithValue("@name", attr.Name);
+                updateCmd.Parameters.AddWithValue("@displayType", attr.DisplayType);
+                updateCmd.Parameters.AddWithValue("@createVariant", attr.CreateVariant);
+                updateCmd.Parameters.AddWithValue("@relatedProducts", attr.NumberRelatedProducts);
+                updateCmd.Parameters.AddWithValue("@odooId", attr.OdooId);
+                await updateCmd.ExecuteNonQueryAsync();
+                attrsUpdated++;
+            }
+            else
+            {
+                await using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = """
+                    INSERT INTO ProductAttributes (OdooId, Name, DisplayType, CreateVariant, NumberRelatedProducts)
+                    VALUES (@odooId, @name, @displayType, @createVariant, @relatedProducts);
+                    """;
+                insertCmd.Parameters.AddWithValue("@odooId", attr.OdooId);
+                insertCmd.Parameters.AddWithValue("@name", attr.Name);
+                insertCmd.Parameters.AddWithValue("@displayType", attr.DisplayType);
+                insertCmd.Parameters.AddWithValue("@createVariant", attr.CreateVariant);
+                insertCmd.Parameters.AddWithValue("@relatedProducts", attr.NumberRelatedProducts);
+                await insertCmd.ExecuteNonQueryAsync();
+                attrsImported++;
+            }
+        }
+
+        // 2. Upsert Attribute Values
+        foreach (var val in values)
+        {
+            await using var checkCmd = connection.CreateCommand();
+            checkCmd.Transaction = transaction;
+            checkCmd.CommandText = "SELECT Id FROM ProductAttributeValues WHERE OdooId = @odooId LIMIT 1;";
+            checkCmd.Parameters.AddWithValue("@odooId", val.OdooId);
+            var existingId = await checkCmd.ExecuteScalarAsync();
+
+            if (existingId != null)
+            {
+                await using var updateCmd = connection.CreateCommand();
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = """
+                    UPDATE ProductAttributeValues
+                    SET AttributeOdooId = @attrId,
+                        Name = @name,
+                        IsCustom = @custom,
+                        HtmlColor = @color,
+                        ImageBase64 = COALESCE(@image, ImageBase64),
+                        DefaultExtraPrice = @extra,
+                        UpdatedAt = CURRENT_TIMESTAMP
+                    WHERE OdooId = @odooId;
+                    """;
+                updateCmd.Parameters.AddWithValue("@attrId", val.AttributeOdooId);
+                updateCmd.Parameters.AddWithValue("@name", val.Name);
+                updateCmd.Parameters.AddWithValue("@custom", val.IsCustom ? 1 : 0);
+                updateCmd.Parameters.AddWithValue("@color", (object?)val.HtmlColor ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@image", (object?)val.ImageBase64 ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@extra", val.DefaultExtraPrice);
+                updateCmd.Parameters.AddWithValue("@odooId", val.OdooId);
+                await updateCmd.ExecuteNonQueryAsync();
+                valsUpdated++;
+            }
+            else
+            {
+                await using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = """
+                    INSERT INTO ProductAttributeValues (OdooId, AttributeOdooId, Name, IsCustom, HtmlColor, ImageBase64, DefaultExtraPrice)
+                    VALUES (@odooId, @attrId, @name, @custom, @color, @image, @extra);
+                    """;
+                insertCmd.Parameters.AddWithValue("@odooId", val.OdooId);
+                insertCmd.Parameters.AddWithValue("@attrId", val.AttributeOdooId);
+                insertCmd.Parameters.AddWithValue("@name", val.Name);
+                insertCmd.Parameters.AddWithValue("@custom", val.IsCustom ? 1 : 0);
+                insertCmd.Parameters.AddWithValue("@color", (object?)val.HtmlColor ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@image", (object?)val.ImageBase64 ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@extra", val.DefaultExtraPrice);
+                await insertCmd.ExecuteNonQueryAsync();
+                valsImported++;
+            }
+        }
+
+        // 3. Reconcile / Delete attributes not in Odoo
+        if (attributes.Count > 0)
+        {
+            var delAttrs = new List<int>();
+            await using (var fetchCmd = connection.CreateCommand())
+            {
+                fetchCmd.Transaction = transaction;
+                fetchCmd.CommandText = "SELECT OdooId FROM ProductAttributes;";
+                await using var reader = await fetchCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    int oId = reader.GetInt32(0);
+                    if (!odooAttrIds.Contains(oId)) delAttrs.Add(oId);
+                }
+            }
+
+            foreach (var delId in delAttrs)
+            {
+                await using var delCmd = connection.CreateCommand();
+                delCmd.Transaction = transaction;
+                delCmd.CommandText = "DELETE FROM ProductAttributes WHERE OdooId = @id;";
+                delCmd.Parameters.AddWithValue("@id", delId);
+                await delCmd.ExecuteNonQueryAsync();
+                attrsDeleted++;
+            }
+        }
+
+        // 4. Reconcile / Delete values not in Odoo
+        if (values.Count > 0)
+        {
+            var delVals = new List<int>();
+            await using (var fetchCmd = connection.CreateCommand())
+            {
+                fetchCmd.Transaction = transaction;
+                fetchCmd.CommandText = "SELECT OdooId FROM ProductAttributeValues;";
+                await using var reader = await fetchCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    int oId = reader.GetInt32(0);
+                    if (!odooValIds.Contains(oId)) delVals.Add(oId);
+                }
+            }
+
+            foreach (var delId in delVals)
+            {
+                await using var delCmd = connection.CreateCommand();
+                delCmd.Transaction = transaction;
+                delCmd.CommandText = "DELETE FROM ProductAttributeValues WHERE OdooId = @id;";
+                delCmd.Parameters.AddWithValue("@id", delId);
+                await delCmd.ExecuteNonQueryAsync();
+                valsDeleted++;
+            }
+        }
+
+        await transaction.CommitAsync();
+        return (attrsImported, attrsUpdated, attrsDeleted, valsImported, valsUpdated, valsDeleted);
+    }
+
+    public async Task UpdateAttributeSyncStatusAsync(DateTime syncedAt, string status)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            UPDATE OdooConfig
+            SET LastAttributesSyncedAt = @syncedAt
+            WHERE Id = 1;
+            """;
+        cmd.Parameters.AddWithValue("@syncedAt", syncedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<string?> GetLastAttributeSyncStatusAsync()
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT LastAttributesSyncedAt FROM OdooConfig WHERE Id = 1;";
+        var res = await cmd.ExecuteScalarAsync();
+        return res is DBNull or null ? null : res.ToString();
+    }
+
+    // =========================================================================
+    // PRODUCT TAGS REPOSITORY
+    // =========================================================================
+    public async Task<List<ProductTagRecord>> LoadAllTagsAsync()
+    {
+        var result = new List<ProductTagRecord>();
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, OdooId, Name, ColorIndex, ProductsCount
+            FROM ProductTags
+            ORDER BY Id ASC;
+            """;
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var tag = new ProductTagRecord
+            {
+                Id = reader.GetInt64(0),
+                OdooId = reader.GetInt32(1),
+                Name = reader.GetString(2),
+                ColorIndex = reader.IsDBNull(3) ? 0 : reader.GetInt32(3),
+                ProductsCount = reader.IsDBNull(4) ? 0 : reader.GetInt32(4)
+            };
+            result.Add(tag);
+        }
+
+        return result;
+    }
+
+    public async Task<(int imported, int updated, int deleted)> UpsertOdooTagsAsync(List<ProductTagDto> tags)
+    {
+        int imported = 0, updated = 0, deleted = 0;
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        var odooTagIds = tags.Select(t => t.OdooId).ToHashSet();
+
+        foreach (var tag in tags)
+        {
+            await using var checkCmd = connection.CreateCommand();
+            checkCmd.Transaction = transaction;
+            checkCmd.CommandText = "SELECT Id FROM ProductTags WHERE OdooId = @odooId LIMIT 1;";
+            checkCmd.Parameters.AddWithValue("@odooId", tag.OdooId);
+            var existingId = await checkCmd.ExecuteScalarAsync();
+
+            if (existingId != null)
+            {
+                await using var updateCmd = connection.CreateCommand();
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = """
+                    UPDATE ProductTags
+                    SET Name = @name,
+                        ColorIndex = @color,
+                        ProductsCount = @count,
+                        UpdatedAt = CURRENT_TIMESTAMP
+                    WHERE OdooId = @odooId;
+                    """;
+                updateCmd.Parameters.AddWithValue("@name", tag.Name);
+                updateCmd.Parameters.AddWithValue("@color", tag.ColorIndex);
+                updateCmd.Parameters.AddWithValue("@count", tag.ProductsCount);
+                updateCmd.Parameters.AddWithValue("@odooId", tag.OdooId);
+                await updateCmd.ExecuteNonQueryAsync();
+                updated++;
+            }
+            else
+            {
+                await using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = """
+                    INSERT INTO ProductTags (OdooId, Name, ColorIndex, ProductsCount)
+                    VALUES (@odooId, @name, @color, @count);
+                    """;
+                insertCmd.Parameters.AddWithValue("@odooId", tag.OdooId);
+                insertCmd.Parameters.AddWithValue("@name", tag.Name);
+                insertCmd.Parameters.AddWithValue("@color", tag.ColorIndex);
+                insertCmd.Parameters.AddWithValue("@count", tag.ProductsCount);
+                await insertCmd.ExecuteNonQueryAsync();
+                imported++;
+            }
+        }
+
+        // Reconcile / Delete tags not in Odoo Online
+        if (tags.Count > 0)
+        {
+            var delIds = new List<int>();
+            await using (var fetchCmd = connection.CreateCommand())
+            {
+                fetchCmd.Transaction = transaction;
+                fetchCmd.CommandText = "SELECT OdooId FROM ProductTags;";
+                await using var reader = await fetchCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    int oId = reader.GetInt32(0);
+                    if (!odooTagIds.Contains(oId)) delIds.Add(oId);
+                }
+            }
+
+            foreach (var delId in delIds)
+            {
+                await using var delCmd = connection.CreateCommand();
+                delCmd.Transaction = transaction;
+                delCmd.CommandText = "DELETE FROM ProductTags WHERE OdooId = @id;";
+                delCmd.Parameters.AddWithValue("@id", delId);
+                await delCmd.ExecuteNonQueryAsync();
+                deleted++;
+            }
+        }
+
+        await transaction.CommitAsync();
+        return (imported, updated, deleted);
+    }
+
+    public async Task UpdateTagSyncStatusAsync(DateTime syncedAt, string status)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            UPDATE OdooConfig
+            SET LastTagsSyncedAt = @syncedAt
+            WHERE Id = 1;
+            """;
+        cmd.Parameters.AddWithValue("@syncedAt", syncedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<string?> GetLastTagSyncStatusAsync()
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT LastTagsSyncedAt FROM OdooConfig WHERE Id = 1;";
         var res = await cmd.ExecuteScalarAsync();
         return res is DBNull or null ? null : res.ToString();
     }

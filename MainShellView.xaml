@@ -445,6 +445,59 @@
                             </StackPanel>
                         </Button>
 
+                        <!-- ==================== ATTRIBUTES ITEM ==================== -->
+                        <Button x:Name="NavAttributesBtn"
+                                Style="{StaticResource SidebarItemButtonStyle}"
+                                Click="NavAttributes_Click"
+                                ToolTip="Product Attributes"
+                                Margin="0,2,0,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M 4,6 L 20,6 M 4,12 L 20,12 M 4,18 L 20,18"
+                                              Stroke="{StaticResource OdooTealBrush}"
+                                              StrokeThickness="2"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"/>
+                                        <Ellipse Canvas.Left="7" Canvas.Top="4" Width="4" Height="4" Fill="{StaticResource OdooPurpleBrush}"/>
+                                        <Ellipse Canvas.Left="15" Canvas.Top="10" Width="4" Height="4" Fill="{StaticResource OdooPurpleBrush}"/>
+                                        <Ellipse Canvas.Left="10" Canvas.Top="16" Width="4" Height="4" Fill="{StaticResource OdooPurpleBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock x:Name="AttributesLabel"
+                                           Text="Attributes"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- ==================== PRODUCT TAGS ITEM ==================== -->
+                        <Button x:Name="NavProductTagsBtn"
+                                Style="{StaticResource SidebarItemButtonStyle}"
+                                Click="NavProductTags_Click"
+                                ToolTip="Product Tags"
+                                Margin="0,2,0,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M 19.5,12.5 L 12.5,19.5 C 11.7,20.3 10.4,20.3 9.6,19.5 L 3.5,13.4 C 3.2,13.1 3,12.6 3,12.2 L 3,5 C 3,3.9 3.9,3 5,3 L 12.2,3 C 12.6,3 13.1,3.2 13.4,3.5 L 19.5,9.6 C 20.3,10.4 20.3,11.7 19.5,12.5 Z"
+                                              Stroke="{StaticResource OdooPurpleBrush}"
+                                              StrokeThickness="1.8"
+                                              Fill="{StaticResource OdooTealSoftBrush}"/>
+                                        <Ellipse Canvas.Left="6.5" Canvas.Top="6.5" Width="3" Height="3" Fill="{StaticResource OdooTealBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock x:Name="ProductTagsLabel"
+                                           Text="Product Tags"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
                         <!-- ==================== SETTINGS (CONFIGURATION) ITEM ==================== -->
                         <Button x:Name="NavSettingsBtn"
                                 Style="{StaticResource ActiveSidebarItemButtonStyle}"
@@ -1030,6 +1083,162 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- ==================== CARD 4: PRODUCT ATTRIBUTES SYNCHRONIZATION ==================== -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="28,24"
+                                    Margin="0,0,0,24"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                        <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,16,0">
+                                            <Viewbox Width="20" Height="20">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M 4,6 L 20,6 M 4,12 L 20,12 M 4,18 L 20,18" Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                    <Ellipse Canvas.Left="7" Canvas.Top="4" Width="4" Height="4" Fill="{StaticResource OdooTealBrush}"/>
+                                                    <Ellipse Canvas.Left="15" Canvas.Top="10" Width="4" Height="4" Fill="{StaticResource OdooTealBrush}"/>
+                                                    <Ellipse Canvas.Left="10" Canvas.Top="16" Width="4" Height="4" Fill="{StaticResource OdooTealBrush}"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Product Attributes Synchronization" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Fetch attributes and attribute values from Odoo (product.attribute &amp; product.attribute.value)." FontSize="13" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,16"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                                x:Name="SyncAttributesNowBtn"
+                                                Style="{StaticResource OdooPurpleActionButtonStyle}"
+                                                Click="SyncAttributesNowBtn_Click"
+                                                Height="44"
+                                                Padding="22,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Viewbox x:Name="SettingsAttrSyncIconBox" Width="16" Height="16" Margin="0,0,10,0" RenderTransformOrigin="0.5,0.5">
+                                                    <Viewbox.RenderTransform>
+                                                        <RotateTransform x:Name="SettingsAttrSyncIconRotation" Angle="0"/>
+                                                    </Viewbox.RenderTransform>
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
+                                                        <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock x:Name="SettingsAttrSyncButtonText" Text="Sync Attributes Now" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="LastAttributesSyncedStatusText"
+                                                           Text="Last Synced: Never"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                <ProgressBar x:Name="AttributesSyncProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Width="140" Height="4"
+                                                             Visibility="Collapsed"
+                                                             Margin="16,0,0,0"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="AttributesSyncDetailText"
+                                                       Text="Click 'Sync Attributes Now' to fetch product.attribute and values from Odoo."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ==================== CARD 5: PRODUCT TAGS SYNCHRONIZATION ==================== -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="28,24"
+                                    Margin="0,0,0,24"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                        <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource OdooTealSoftBrush}" Margin="0,0,16,0">
+                                            <Viewbox Width="20" Height="20">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M 19.5,12.5 L 12.5,19.5 C 11.7,20.3 10.4,20.3 9.6,19.5 L 3.5,13.4 C 3.2,13.1 3,12.6 3,12.2 L 3,5 C 3,3.9 3.9,3 5,3 L 12.2,3 C 12.6,3 13.1,3.2 13.4,3.5 L 19.5,9.6 C 20.3,10.4 20.3,11.7 19.5,12.5 Z"
+                                                          Stroke="{StaticResource OdooTealBrush}"
+                                                          StrokeThickness="1.8"
+                                                          Fill="Transparent"/>
+                                                    <Ellipse Canvas.Left="6.5" Canvas.Top="6.5" Width="3" Height="3" Fill="{StaticResource OdooTealBrush}"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Product Tags Synchronization" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Fetch product tags from Odoo's product.tag model and upsert them locally." FontSize="13" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,16"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                                x:Name="SyncTagsNowBtn"
+                                                Style="{StaticResource OdooTealActionButtonStyle}"
+                                                Click="SyncTagsNowBtn_Click"
+                                                Height="44"
+                                                Padding="22,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Viewbox x:Name="SettingsTagSyncIconBox" Width="16" Height="16" Margin="0,0,10,0" RenderTransformOrigin="0.5,0.5">
+                                                    <Viewbox.RenderTransform>
+                                                        <RotateTransform x:Name="SettingsTagSyncIconRotation" Angle="0"/>
+                                                    </Viewbox.RenderTransform>
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
+                                                        <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock x:Name="SettingsTagSyncButtonText" Text="Sync Tags Now" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="LastTagsSyncedStatusText"
+                                                           Text="Last Synced: Never"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                <ProgressBar x:Name="TagsSyncProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Width="140" Height="4"
+                                                             Visibility="Collapsed"
+                                                             Margin="16,0,0,0"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="TagsSyncDetailText"
+                                                       Text="Click 'Sync Tags Now' to fetch product.tag records from Odoo."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
 
@@ -1056,6 +1265,14 @@
             <!-- ==================== VIEW C: POS CATEGORIES MANAGEMENT VIEW ==================== -->
             <local:PosCategoryManagementView x:Name="CategoriesViewControl"
                                              Visibility="Collapsed"/>
+
+            <!-- ==================== VIEW D: ATTRIBUTES MANAGEMENT VIEW ==================== -->
+            <local:ProductAttributeManagementView x:Name="AttributesViewControl"
+                                                  Visibility="Collapsed"/>
+
+            <!-- ==================== VIEW E: PRODUCT TAGS MANAGEMENT VIEW ==================== -->
+            <local:ProductTagManagementView x:Name="TagsViewControl"
+                                            Visibility="Collapsed"/>
 
             <!-- ==================== TOAST BANNER NOTIFICATION ==================== -->
             <Border x:Name="ShellToastBanner"

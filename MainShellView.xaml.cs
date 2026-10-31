@@ -81,6 +81,18 @@ public partial class MainShellView : UserControl
                 LastCategoriesSyncedStatusText.Text = $"Last Synced: {lastCatSync}";
             }
 
+            var lastAttrSync = await SqliteDatabaseService.Instance.GetLastAttributeSyncStatusAsync();
+            if (!string.IsNullOrEmpty(lastAttrSync))
+            {
+                LastAttributesSyncedStatusText.Text = $"Last Synced: {lastAttrSync}";
+            }
+
+            var lastTagSync = await SqliteDatabaseService.Instance.GetLastTagSyncStatusAsync();
+            if (!string.IsNullOrEmpty(lastTagSync))
+            {
+                LastTagsSyncedStatusText.Text = $"Last Synced: {lastTagSync}";
+            }
+
             if (!string.IsNullOrEmpty(config.LastStatus))
             {
                 ConnectionStatusText.Text = config.LastStatus;
@@ -115,6 +127,8 @@ public partial class MainShellView : UserControl
             SidebarMenuColumn.Width = new GridLength(_collapsedSidebarWidth);
             UsersLabel.Visibility = Visibility.Collapsed;
             CategoriesLabel.Visibility = Visibility.Collapsed;
+            AttributesLabel.Visibility = Visibility.Collapsed;
+            ProductTagsLabel.Visibility = Visibility.Collapsed;
             SettingsLabel.Visibility = Visibility.Collapsed;
             LogoutLabel.Visibility = Visibility.Collapsed;
 
@@ -127,6 +141,8 @@ public partial class MainShellView : UserControl
             SidebarMenuColumn.Width = new GridLength(_expandedSidebarWidth);
             UsersLabel.Visibility = Visibility.Visible;
             CategoriesLabel.Visibility = Visibility.Visible;
+            AttributesLabel.Visibility = Visibility.Visible;
+            ProductTagsLabel.Visibility = Visibility.Visible;
             SettingsLabel.Visibility = Visibility.Visible;
             LogoutLabel.Visibility = Visibility.Visible;
 
@@ -136,86 +152,79 @@ public partial class MainShellView : UserControl
     }
 
     // =========================================================================
-    // 2. PRIMARY NAVIGATION (USERS, CATEGORIES, SETTINGS)
+    // 2. PRIMARY NAVIGATION (USERS, CATEGORIES, ATTRIBUTES, TAGS, SETTINGS)
     // =========================================================================
-    private void NavUsers_Click(object sender, RoutedEventArgs e)
+    private void NavUsers_Click(object sender, RoutedEventArgs e) => SwitchToUsers();
+    private void NavCategories_Click(object sender, RoutedEventArgs e) => SwitchToCategories();
+    private void NavAttributes_Click(object sender, RoutedEventArgs e) => SwitchToAttributes();
+    private void NavProductTags_Click(object sender, RoutedEventArgs e) => SwitchToTags();
+    private void NavSettings_Click(object sender, RoutedEventArgs e) => SwitchToSettings();
+
+    private void HideAllMainViews()
     {
-        SwitchToUsers();
+        SettingsViewPanel.Visibility = Visibility.Collapsed;
+        UsersViewControl.Visibility = Visibility.Collapsed;
+        CategoriesViewControl.Visibility = Visibility.Collapsed;
+        AttributesViewControl.Visibility = Visibility.Collapsed;
+        TagsViewControl.Visibility = Visibility.Collapsed;
     }
 
-    private void NavCategories_Click(object sender, RoutedEventArgs e)
+    private void SetActiveSidebarButton(Button activeButton, TextBlock activeLabel)
     {
-        SwitchToCategories();
-    }
+        Style activeStyle = (Style)FindResource("ActiveSidebarItemButtonStyle");
+        Style defaultStyle = (Style)FindResource("SidebarItemButtonStyle");
+        Brush purpleBrush = (Brush)FindResource("OdooPurpleBrush");
+        Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
 
-    private void NavSettings_Click(object sender, RoutedEventArgs e)
-    {
-        SwitchToSettings();
+        NavUsersBtn.Style = NavUsersBtn == activeButton ? activeStyle : defaultStyle;
+        NavCategoriesBtn.Style = NavCategoriesBtn == activeButton ? activeStyle : defaultStyle;
+        NavAttributesBtn.Style = NavAttributesBtn == activeButton ? activeStyle : defaultStyle;
+        NavProductTagsBtn.Style = NavProductTagsBtn == activeButton ? activeStyle : defaultStyle;
+        NavSettingsBtn.Style = NavSettingsBtn == activeButton ? activeStyle : defaultStyle;
+
+        UsersLabel.Foreground = UsersLabel == activeLabel ? purpleBrush : primaryTextBrush;
+        CategoriesLabel.Foreground = CategoriesLabel == activeLabel ? purpleBrush : primaryTextBrush;
+        AttributesLabel.Foreground = AttributesLabel == activeLabel ? purpleBrush : primaryTextBrush;
+        ProductTagsLabel.Foreground = ProductTagsLabel == activeLabel ? purpleBrush : primaryTextBrush;
+        SettingsLabel.Foreground = SettingsLabel == activeLabel ? purpleBrush : primaryTextBrush;
     }
 
     public void SwitchToUsers()
     {
-        SettingsViewPanel.Visibility = Visibility.Collapsed;
-        CategoriesViewControl.Visibility = Visibility.Collapsed;
+        HideAllMainViews();
         UsersViewControl.Visibility = Visibility.Visible;
-
-        // Visual Active Highlights
-        Style activeStyle = (Style)FindResource("ActiveSidebarItemButtonStyle");
-        Style defaultStyle = (Style)FindResource("SidebarItemButtonStyle");
-        Brush purpleBrush = (Brush)FindResource("OdooPurpleBrush");
-        Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
-
-        NavUsersBtn.Style = activeStyle;
-        NavCategoriesBtn.Style = defaultStyle;
-        NavSettingsBtn.Style = defaultStyle;
-
-        UsersLabel.Foreground = purpleBrush;
-        CategoriesLabel.Foreground = primaryTextBrush;
-        SettingsLabel.Foreground = primaryTextBrush;
+        SetActiveSidebarButton(NavUsersBtn, UsersLabel);
     }
 
     public void SwitchToCategories()
     {
-        SettingsViewPanel.Visibility = Visibility.Collapsed;
-        UsersViewControl.Visibility = Visibility.Collapsed;
+        HideAllMainViews();
         CategoriesViewControl.Visibility = Visibility.Visible;
-
-        // Visual Active Highlights
-        Style activeStyle = (Style)FindResource("ActiveSidebarItemButtonStyle");
-        Style defaultStyle = (Style)FindResource("SidebarItemButtonStyle");
-        Brush purpleBrush = (Brush)FindResource("OdooPurpleBrush");
-        Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
-
-        NavCategoriesBtn.Style = activeStyle;
-        NavUsersBtn.Style = defaultStyle;
-        NavSettingsBtn.Style = defaultStyle;
-
-        CategoriesLabel.Foreground = purpleBrush;
-        UsersLabel.Foreground = primaryTextBrush;
-        SettingsLabel.Foreground = primaryTextBrush;
-
+        SetActiveSidebarButton(NavCategoriesBtn, CategoriesLabel);
         _ = CategoriesViewControl.ReloadCategoriesFromDatabaseAsync();
+    }
+
+    public void SwitchToAttributes()
+    {
+        HideAllMainViews();
+        AttributesViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavAttributesBtn, AttributesLabel);
+        _ = AttributesViewControl.ReloadAttributesFromDatabaseAsync();
+    }
+
+    public void SwitchToTags()
+    {
+        HideAllMainViews();
+        TagsViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavProductTagsBtn, ProductTagsLabel);
+        _ = TagsViewControl.ReloadTagsFromDatabaseAsync();
     }
 
     public void SwitchToSettings()
     {
-        UsersViewControl.Visibility = Visibility.Collapsed;
-        CategoriesViewControl.Visibility = Visibility.Collapsed;
+        HideAllMainViews();
         SettingsViewPanel.Visibility = Visibility.Visible;
-
-        // Visual Active Highlights
-        Style activeStyle = (Style)FindResource("ActiveSidebarItemButtonStyle");
-        Style defaultStyle = (Style)FindResource("SidebarItemButtonStyle");
-        Brush purpleBrush = (Brush)FindResource("OdooPurpleBrush");
-        Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
-
-        NavSettingsBtn.Style = activeStyle;
-        NavCategoriesBtn.Style = defaultStyle;
-        NavUsersBtn.Style = defaultStyle;
-
-        SettingsLabel.Foreground = purpleBrush;
-        CategoriesLabel.Foreground = primaryTextBrush;
-        UsersLabel.Foreground = primaryTextBrush;
+        SetActiveSidebarButton(NavSettingsBtn, SettingsLabel);
     }
 
     private void LogoutItem_Click(object sender, RoutedEventArgs e)
@@ -554,6 +563,147 @@ public partial class MainShellView : UserControl
             SettingsCatSyncButtonText.Text = "Sync Categories Now";
             CategoriesSyncProgressBar.Visibility = Visibility.Collapsed;
             SyncCategoriesNowBtn.IsEnabled = true;
+        }
+    }
+
+    // =========================================================================
+    // 6. ATTRIBUTES & PRODUCT TAGS SYNCHRONIZATION FROM SETTINGS
+    // =========================================================================
+    private async void SyncAttributesNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetAttributesSyncLoadingState(true);
+
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
+                return;
+            }
+
+            var (odooAttrs, odooVals) = await OdooSyncService.Instance.FetchOdooAttributesAsync(config, allowOfflineSimulation: false);
+            var (aImp, aUpd, aDel, vImp, vUpd, vDel) = await SqliteDatabaseService.Instance.UpsertOdooAttributesAsync(odooAttrs, odooVals);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            string statusMsg = $"Sync Complete: {aImp + aUpd} attributes, {vImp + vUpd} values synced.";
+            if (aDel > 0 || vDel > 0)
+            {
+                statusMsg += $" ({aDel} attributes, {vDel} values removed)";
+            }
+
+            await SqliteDatabaseService.Instance.UpdateAttributeSyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastAttributesSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            AttributesSyncDetailText.Text = statusMsg;
+            AttributesSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await AttributesViewControl.ReloadAttributesFromDatabaseAsync();
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            AttributesSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            AttributesSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetAttributesSyncLoadingState(false);
+        }
+    }
+
+    private void SetAttributesSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncAttributesNowBtn.IsEnabled = false;
+            SettingsAttrSyncButtonText.Text = "Syncing Attributes...";
+            AttributesSyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsAttrSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsAttrSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsAttrSyncIconRotation.Angle = 0;
+            SettingsAttrSyncButtonText.Text = "Sync Attributes Now";
+            AttributesSyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncAttributesNowBtn.IsEnabled = true;
+        }
+    }
+
+    private async void SyncTagsNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetTagsSyncLoadingState(true);
+
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
+                return;
+            }
+
+            var odooTags = await OdooSyncService.Instance.FetchOdooTagsAsync(config, allowOfflineSimulation: false);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooTagsAsync(odooTags);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated ({odooTags.Count} tags).";
+
+            await SqliteDatabaseService.Instance.UpdateTagSyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastTagsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            TagsSyncDetailText.Text = statusMsg;
+            TagsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await TagsViewControl.ReloadTagsFromDatabaseAsync();
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            TagsSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            TagsSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetTagsSyncLoadingState(false);
+        }
+    }
+
+    private void SetTagsSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncTagsNowBtn.IsEnabled = false;
+            SettingsTagSyncButtonText.Text = "Syncing Tags...";
+            TagsSyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsTagSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsTagSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsTagSyncIconRotation.Angle = 0;
+            SettingsTagSyncButtonText.Text = "Sync Tags Now";
+            TagsSyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncTagsNowBtn.IsEnabled = true;
         }
     }
 

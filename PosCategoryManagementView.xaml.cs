@@ -2,12 +2,10 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using Microsoft.Win32;
 
 namespace OdooPosLogin;
 
@@ -19,13 +17,7 @@ public partial class PosCategoryManagementView : UserControl
     public event EventHandler? CategoriesUpdated;
 
     private readonly DispatcherTimer _toastTimer;
-    private PosCategoryRecord? _editingCategory;
-    private bool _isCreatingNew = false;
-    private int _selectedColorIndex = 0;
-    private string? _stagedImageBase64;
-    private BitmapImage? _stagedImageBitmap;
-
-    public record ColorSwatchItem(int Index, string Name, Brush Brush);
+    private PosCategoryRecord? _selectedCategory;
 
     public PosCategoryManagementView()
     {
@@ -40,24 +32,8 @@ public partial class PosCategoryManagementView : UserControl
 
         CategoriesListItemsControl.ItemsSource = _filteredCategories;
 
-        // Initialize 12 Odoo Color Swatches
-        PopulateColorSwatches();
-
         // Load Categories from local SQLite database
         _ = ReloadCategoriesFromDatabaseAsync();
-    }
-
-    private void PopulateColorSwatches()
-    {
-        var swatches = new List<ColorSwatchItem>();
-        for (int i = 0; i <= 11; i++)
-        {
-            string hex = PosCategoryRecord.GetOdooColorHex(i);
-            string name = i == 0 ? "Default Gray" : $"Color {i}";
-            var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-            swatches.Add(new ColorSwatchItem(i, name, brush));
-        }
-        ColorSwatchesItemsControl.ItemsSource = swatches;
     }
 
     public async Task ReloadCategoriesFromDatabaseAsync()
@@ -66,35 +42,6 @@ public partial class PosCategoryManagementView : UserControl
         _allCategories.Clear();
         _allCategories.AddRange(categories);
         RefreshFilter();
-        PopulateParentCategoryComboBox();
-    }
-
-    private void PopulateParentCategoryComboBox()
-    {
-        string? currentSelection = FormParentCategoryComboBox.SelectedItem as string;
-
-        FormParentCategoryComboBox.Items.Clear();
-        FormParentCategoryComboBox.Items.Add("(None)");
-
-        foreach (var cat in _allCategories)
-        {
-            if (_editingCategory != null && cat.Id == _editingCategory.Id)
-                continue; // Cannot be parent of itself
-
-            if (!string.IsNullOrWhiteSpace(cat.Name) && !FormParentCategoryComboBox.Items.Contains(cat.Name))
-            {
-                FormParentCategoryComboBox.Items.Add(cat.Name);
-            }
-        }
-
-        if (!string.IsNullOrEmpty(currentSelection) && FormParentCategoryComboBox.Items.Contains(currentSelection))
-        {
-            FormParentCategoryComboBox.SelectedItem = currentSelection;
-        }
-        else
-        {
-            FormParentCategoryComboBox.SelectedIndex = 0;
-        }
     }
 
     private Brush GetSafeBrush(string resourceKey, Color fallbackColor)
@@ -145,31 +92,6 @@ public partial class PosCategoryManagementView : UserControl
         {
             _filteredCategories.Add(item);
         }
-
-        UpdatePagerDisplay();
-    }
-
-    private void UpdatePagerDisplay()
-    {
-        if (CategoryDetailViewContainer.Visibility == Visibility.Visible)
-        {
-            if (_editingCategory != null)
-            {
-                int index = _filteredCategories.IndexOf(_editingCategory);
-                CategoriesPagerText.Text = index >= 0
-                    ? $"{index + 1} / {_filteredCategories.Count}"
-                    : $"1 / {_filteredCategories.Count}";
-            }
-            else
-            {
-                CategoriesPagerText.Text = $"New / {_filteredCategories.Count}";
-            }
-        }
-        else
-        {
-            int count = _filteredCategories.Count;
-            CategoriesPagerText.Text = count > 0 ? $"1-{count} / {count}" : "0 / 0";
-        }
     }
 
     private void SearchCategoriesTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -186,300 +108,55 @@ public partial class PosCategoryManagementView : UserControl
     }
 
     // =========================================================================
-    // VIEW SWITCHING (LIST VIEW <-> DETAIL/FORM VIEW)
+    // VIEW SWITCHING (LIST VIEW <-> DETAIL VIEW)
     // =========================================================================
     public void SwitchToListView()
     {
         CategoryDetailViewContainer.Visibility = Visibility.Collapsed;
         CategoryListViewContainer.Visibility = Visibility.Visible;
-
         BreadcrumbDetailSubPanel.Visibility = Visibility.Collapsed;
-        FormActionButtonsPanel.Visibility = Visibility.Collapsed;
-
-        ViewListButton.Background = (Brush)FindResource("OdooPurpleSoftBrush");
-        ViewFormButton.Background = Brushes.Transparent;
-
-        UpdatePagerDisplay();
     }
 
-    public void SwitchToFormView(PosCategoryRecord? categoryToEdit = null)
+    public void SwitchToDetailView(PosCategoryRecord category)
     {
-        _editingCategory = categoryToEdit;
-        _isCreatingNew = categoryToEdit == null;
+        _selectedCategory = category;
 
-        PopulateParentCategoryComboBox();
+        BreadcrumbCurrentCategoryName.Text = category.Name;
+        FormCategoryNameDisplay.Text = category.Name;
+        FormParentCategoryDisplay.Text = category.ParentCategoryDisplay;
+        FormCurrentColorDot.Fill = category.ColorBrush;
+        FormColorNameDisplay.Text = category.ColorIndex == 0 ? "Default Gray" : $"Color {category.ColorIndex}";
+        FormLinkedShopsItemsControl.ItemsSource = category.LinkedShopsList;
 
-        if (categoryToEdit != null)
+        if (category.ImageBitmap != null)
         {
-            BreadcrumbCurrentCategoryName.Text = categoryToEdit.Name;
-            FormCategoryNameTextBox.Text = categoryToEdit.Name;
-
-            if (!string.IsNullOrEmpty(categoryToEdit.ParentCategoryName) && FormParentCategoryComboBox.Items.Contains(categoryToEdit.ParentCategoryName))
-            {
-                FormParentCategoryComboBox.SelectedItem = categoryToEdit.ParentCategoryName;
-            }
-            else
-            {
-                FormParentCategoryComboBox.SelectedIndex = 0;
-            }
-
-            _selectedColorIndex = categoryToEdit.ColorIndex;
-            FormCurrentColorDot.Fill = categoryToEdit.ColorBrush;
-
-            FormSequenceTextBox.Text = categoryToEdit.Sequence.ToString();
-            FormLinkedConfigsTextBox.Text = categoryToEdit.LinkedPosConfigs ?? "";
-
-            _stagedImageBase64 = categoryToEdit.ImageBase64;
-            _stagedImageBitmap = categoryToEdit.ImageBitmap;
-            UpdateImagePreview();
-
-            DeleteCategoryButton.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            BreadcrumbCurrentCategoryName.Text = "New Category";
-            FormCategoryNameTextBox.Text = string.Empty;
-            FormParentCategoryComboBox.SelectedIndex = 0;
-
-            _selectedColorIndex = 0;
-            FormCurrentColorDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(PosCategoryRecord.GetOdooColorHex(0)));
-
-            FormSequenceTextBox.Text = "10";
-            FormLinkedConfigsTextBox.Text = "Furniture Shop";
-
-            _stagedImageBase64 = null;
-            _stagedImageBitmap = null;
-            UpdateImagePreview();
-
-            DeleteCategoryButton.Visibility = Visibility.Collapsed;
-        }
-
-        CategoryListViewContainer.Visibility = Visibility.Collapsed;
-        CategoryDetailViewContainer.Visibility = Visibility.Visible;
-
-        BreadcrumbDetailSubPanel.Visibility = Visibility.Visible;
-        FormActionButtonsPanel.Visibility = Visibility.Visible;
-
-        ViewFormButton.Background = (Brush)FindResource("OdooPurpleSoftBrush");
-        ViewListButton.Background = Brushes.Transparent;
-
-        UpdatePagerDisplay();
-    }
-
-    private void CategoryRow_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: PosCategoryRecord selectedCategory })
-        {
-            SwitchToFormView(selectedCategory);
-        }
-    }
-
-    private void NewCategoryButton_Click(object sender, RoutedEventArgs e)
-    {
-        SwitchToFormView(null);
-    }
-
-    private void BreadcrumbRoot_Click(object sender, RoutedEventArgs e)
-    {
-        SwitchToListView();
-    }
-
-    private void ViewListButton_Click(object sender, RoutedEventArgs e)
-    {
-        SwitchToListView();
-    }
-
-    private void ViewFormButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_filteredCategories.Count > 0)
-        {
-            SwitchToFormView(_editingCategory ?? _filteredCategories.First());
-        }
-        else
-        {
-            SwitchToFormView(null);
-        }
-    }
-
-    // =========================================================================
-    // COLOR PALETTE SELECTION
-    // =========================================================================
-    private void ColorSwatch_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: int index })
-        {
-            _selectedColorIndex = index;
-            string hex = PosCategoryRecord.GetOdooColorHex(index);
-            FormCurrentColorDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-        }
-    }
-
-    // =========================================================================
-    // IMAGE UPLOADER (88x88)
-    // =========================================================================
-    private void FormImageContainer_Click(object sender, MouseButtonEventArgs e)
-    {
-        UploadCategoryImage();
-    }
-
-    private void FormImageContainer_Click(object sender, RoutedEventArgs e)
-    {
-        UploadCategoryImage();
-    }
-
-    private void UploadCategoryImage()
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Select Category Image",
-            Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp"
-        };
-
-        if (dialog.ShowDialog() == true)
-        {
-            try
-            {
-                byte[] bytes = File.ReadAllBytes(dialog.FileName);
-                _stagedImageBase64 = Convert.ToBase64String(bytes);
-                _stagedImageBitmap = PosImageUtils.Base64ToBitmapImage(_stagedImageBase64);
-                UpdateImagePreview();
-            }
-            catch (Exception ex)
-            {
-                ShowToast($"Failed to load image: {ex.Message}", isError: true);
-            }
-        }
-    }
-
-    private void FormRemoveImage_Click(object sender, RoutedEventArgs e)
-    {
-        _stagedImageBase64 = null;
-        _stagedImageBitmap = null;
-        UpdateImagePreview();
-    }
-
-    private void UpdateImagePreview()
-    {
-        if (_stagedImageBitmap != null)
-        {
-            FormPreviewImage.Source = _stagedImageBitmap;
+            FormPreviewImage.Source = category.ImageBitmap;
             FormPreviewImage.Visibility = Visibility.Visible;
             FormPlaceholderIcon.Visibility = Visibility.Collapsed;
-            FormRemoveImageButton.Visibility = Visibility.Visible;
         }
         else
         {
             FormPreviewImage.Source = null;
             FormPreviewImage.Visibility = Visibility.Collapsed;
             FormPlaceholderIcon.Visibility = Visibility.Visible;
-            FormRemoveImageButton.Visibility = Visibility.Collapsed;
         }
+
+        CategoryListViewContainer.Visibility = Visibility.Collapsed;
+        CategoryDetailViewContainer.Visibility = Visibility.Visible;
+        BreadcrumbDetailSubPanel.Visibility = Visibility.Visible;
     }
 
-    // =========================================================================
-    // PAGER NAVIGATION
-    // =========================================================================
-    private void PagerPrevButton_Click(object sender, RoutedEventArgs e)
+    private void CategoryRow_Click(object sender, RoutedEventArgs e)
     {
-        if (CategoryDetailViewContainer.Visibility == Visibility.Visible && _filteredCategories.Count > 0)
+        if (sender is Button { Tag: PosCategoryRecord selectedCategory })
         {
-            int currentIdx = _editingCategory != null ? _filteredCategories.IndexOf(_editingCategory) : 0;
-            if (currentIdx > 0)
-            {
-                SwitchToFormView(_filteredCategories[currentIdx - 1]);
-            }
+            SwitchToDetailView(selectedCategory);
         }
     }
 
-    private void PagerNextButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (CategoryDetailViewContainer.Visibility == Visibility.Visible && _filteredCategories.Count > 0)
-        {
-            int currentIdx = _editingCategory != null ? _filteredCategories.IndexOf(_editingCategory) : -1;
-            if (currentIdx < _filteredCategories.Count - 1)
-            {
-                SwitchToFormView(_filteredCategories[currentIdx + 1]);
-            }
-        }
-    }
-
-    // =========================================================================
-    // FORM SAVE / DISCARD / DELETE
-    // =========================================================================
-    private async void SaveCategoryButton_Click(object sender, RoutedEventArgs e)
-    {
-        string name = FormCategoryNameTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            ShowToast("Category Name is required.", isWarning: true);
-            return;
-        }
-
-        string? parentName = FormParentCategoryComboBox.SelectedItem as string;
-        if (parentName == "(None)") parentName = null;
-
-        int? parentId = null;
-        if (!string.IsNullOrEmpty(parentName))
-        {
-            var pCat = _allCategories.FirstOrDefault(c => c.Name.Equals(parentName, StringComparison.OrdinalIgnoreCase));
-            parentId = pCat?.OdooId ?? (int?)pCat?.Id;
-        }
-
-        int sequence = 10;
-        int.TryParse(FormSequenceTextBox.Text.Trim(), out sequence);
-
-        string linkedConfigs = FormLinkedConfigsTextBox.Text.Trim();
-        string colorHex = PosCategoryRecord.GetOdooColorHex(_selectedColorIndex);
-
-        var record = _editingCategory ?? new PosCategoryRecord();
-        record.Name = name;
-        record.ParentCategoryId = parentId;
-        record.ParentCategoryName = parentName;
-        record.LinkedPosConfigs = linkedConfigs;
-        record.ColorIndex = _selectedColorIndex;
-        record.ColorHex = colorHex;
-        record.Sequence = sequence;
-        record.ImageBase64 = _stagedImageBase64;
-        record.ImageBitmap = _stagedImageBitmap;
-
-        try
-        {
-            await SqliteDatabaseService.Instance.SaveCategoryAsync(record);
-            await ReloadCategoriesFromDatabaseAsync();
-            CategoriesUpdated?.Invoke(this, EventArgs.Empty);
-
-            ShowToast($"Category \"{name}\" saved successfully.");
-            SwitchToListView();
-        }
-        catch (Exception ex)
-        {
-            ShowToast($"Failed to save: {ex.Message}", isError: true);
-        }
-    }
-
-    private void DiscardCategoryButton_Click(object sender, RoutedEventArgs e)
+    private void BreadcrumbRoot_Click(object sender, RoutedEventArgs e)
     {
         SwitchToListView();
-    }
-
-    private async void DeleteCategoryButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_editingCategory == null) return;
-
-        string deletedName = _editingCategory.Name;
-        try
-        {
-            await SqliteDatabaseService.Instance.DeleteCategoryAsync(_editingCategory.Id);
-            await ReloadCategoriesFromDatabaseAsync();
-            CategoriesUpdated?.Invoke(this, EventArgs.Empty);
-
-            ShowToast($"Category \"{deletedName}\" deleted.");
-            SwitchToListView();
-        }
-        catch (Exception ex)
-        {
-            ShowToast($"Failed to delete: {ex.Message}", isError: true);
-        }
     }
 
     // =========================================================================

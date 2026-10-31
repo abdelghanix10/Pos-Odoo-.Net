@@ -177,8 +177,6 @@ public partial class UserManagementView : UserControl
         {
             _filteredUsers.Add(user);
         }
-
-        UserCountText.Text = $"{_filteredUsers.Count} Users";
     }
 
     private void SearchUsersTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -200,7 +198,14 @@ public partial class UserManagementView : UserControl
 
     private void BreadcrumbUsers_Click(object sender, RoutedEventArgs e)
     {
-        SwitchToKanbanView();
+        if (FormViewContainer.Visibility == Visibility.Visible)
+        {
+            SwitchToKanbanView();
+        }
+        else
+        {
+            RequestCloseToPos?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void OpenUserForm(PosUserRecord userToEdit)
@@ -231,13 +236,9 @@ public partial class UserManagementView : UserControl
         FormPinPasswordBox.Password = userToEdit.Pin;
         FormVisibleInPosCheckBox.IsChecked = userToEdit.IsVisibleInPos;
 
-        UpdateFormUserPager();
-
         // Toggle Top Control Bar elements
         BreadcrumbFormSubPanel.Visibility = Visibility.Visible;
         FormSaveDiscardPanel.Visibility = Visibility.Visible;
-        FormPagerContainer.Visibility = Visibility.Visible;
-        BackToPosButton.Visibility = Visibility.Collapsed;
         TopSyncFromOdooBtn.Visibility = Visibility.Collapsed;
         KanbanSearchBarContainer.Visibility = Visibility.Collapsed;
 
@@ -250,8 +251,6 @@ public partial class UserManagementView : UserControl
     {
         BreadcrumbFormSubPanel.Visibility = Visibility.Collapsed;
         FormSaveDiscardPanel.Visibility = Visibility.Collapsed;
-        FormPagerContainer.Visibility = Visibility.Collapsed;
-        BackToPosButton.Visibility = Visibility.Visible;
         TopSyncFromOdooBtn.Visibility = Visibility.Visible;
         KanbanSearchBarContainer.Visibility = Visibility.Visible;
 
@@ -320,73 +319,6 @@ public partial class UserManagementView : UserControl
         {
             e.CancelCommand();
         }
-    }
-
-    // ==================== USER RECORD PAGER NAVIGATION ====================
-    private IList<PosUserRecord> GetCurrentNavigationList()
-    {
-        if (_editingUser is not null && _filteredUsers.Contains(_editingUser))
-            return _filteredUsers;
-        if (_filteredUsers.Count > 0)
-            return _filteredUsers;
-        return _allUsers;
-    }
-
-    private void UpdateFormUserPager()
-    {
-        var list = GetCurrentNavigationList();
-        int total = list.Count;
-
-        if (_editingUser is null)
-        {
-            FormPagerCountText.Text = total > 0 ? $"1 / {total}" : "-";
-            FormPrevUserButton.IsEnabled = false;
-            FormNextUserButton.IsEnabled = false;
-            return;
-        }
-
-        int index = list.IndexOf(_editingUser);
-        if (index >= 0)
-        {
-            FormPagerCountText.Text = $"{index + 1} / {total}";
-            FormPrevUserButton.IsEnabled = index > 0;
-            FormNextUserButton.IsEnabled = index < total - 1;
-        }
-        else
-        {
-            FormPagerCountText.Text = $"- / {total}";
-            FormPrevUserButton.IsEnabled = false;
-            FormNextUserButton.IsEnabled = false;
-        }
-    }
-
-    private void FormPrevUserButton_Click(object sender, RoutedEventArgs e)
-    {
-        var list = GetCurrentNavigationList();
-        if (list.Count == 0 || _editingUser is null) return;
-
-        int index = list.IndexOf(_editingUser);
-        if (index > 0)
-        {
-            OpenUserForm(list[index - 1]);
-        }
-    }
-
-    private void FormNextUserButton_Click(object sender, RoutedEventArgs e)
-    {
-        var list = GetCurrentNavigationList();
-        if (list.Count == 0 || _editingUser is null) return;
-
-        int index = list.IndexOf(_editingUser);
-        if (index >= 0 && index < list.Count - 1)
-        {
-            OpenUserForm(list[index + 1]);
-        }
-    }
-
-    private void BackToPosButton_Click(object sender, RoutedEventArgs e)
-    {
-        RequestCloseToPos?.Invoke(this, EventArgs.Empty);
     }
 }
 

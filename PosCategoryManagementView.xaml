@@ -199,18 +199,6 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- "New" Button (Creates a new category) -->
-                    <Button x:Name="NewCategoryButton"
-                            Style="{StaticResource OdooSecondaryButtonStyle}"
-                            Click="NewCategoryButton_Click"
-                            ToolTip="Create New PoS Category"
-                            Margin="0,0,18,0">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="+" FontSize="16" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}" Margin="0,-1,6,0"/>
-                            <TextBlock Text="New" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                        </StackPanel>
-                    </Button>
-
                     <!-- Breadcrumb: "PoS Product Categories" -->
                     <Button x:Name="BreadcrumbRootButton"
                             Click="BreadcrumbRoot_Click"
@@ -250,54 +238,6 @@
                                    FontSize="18"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center"/>
-                    </StackPanel>
-
-                    <!-- Form View Action Buttons: Save & Discard -->
-                    <StackPanel x:Name="FormActionButtonsPanel"
-                                Orientation="Horizontal"
-                                Visibility="Collapsed"
-                                Margin="20,0,0,0"
-                                VerticalAlignment="Center">
-                        <!-- Save Button -->
-                        <Button x:Name="SaveCategoryButton"
-                                Style="{StaticResource OdooPrimaryButtonStyle}"
-                                Click="SaveCategoryButton_Click"
-                                Height="34"
-                                Padding="14,0"
-                                Margin="0,0,8,0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Viewbox Width="13" Height="13" Margin="0,0,6,0">
-                                    <Canvas Width="24" Height="24">
-                                        <Path Data="M 17,3 L 5,3 C 3.89,3 3,3.9 3,5 L 3,19 C 3,20.1 3.89,21 5,21 L 19,21 C 20.1,21 21,20.1 21,19 L 21,7 L 17,3 Z M 12,19 C 10.34,19 9,17.66 9,16 C 9,14.34 10.34,13 12,13 C 13.66,13 15,14.34 15,16 C 15,17.66 13.66,19 12,19 Z M 6,6 L 15,6 L 15,9 L 6,9 L 6,6 Z" Fill="#FFFFFF"/>
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock Text="Save" FontSize="13"/>
-                            </StackPanel>
-                        </Button>
-
-                        <!-- Discard Button -->
-                        <Button x:Name="DiscardCategoryButton"
-                                Style="{StaticResource OdooSecondaryButtonStyle}"
-                                Click="DiscardCategoryButton_Click"
-                                Height="34"
-                                Padding="14,0"
-                                Margin="0,0,8,0">
-                            <TextBlock Text="Discard" FontSize="13"/>
-                        </Button>
-
-                        <!-- Delete Button (Only for existing records) -->
-                        <Button x:Name="DeleteCategoryButton"
-                                Style="{StaticResource OdooSecondaryButtonStyle}"
-                                Click="DeleteCategoryButton_Click"
-                                Height="34"
-                                Padding="10,0"
-                                ToolTip="Delete Category">
-                            <Viewbox Width="14" Height="14">
-                                <Canvas Width="24" Height="24">
-                                    <Path Data="M 6,19 C 6,20.1 6.9,21 8,21 L 16,21 C 17.1,21 18,20.1 18,19 L 18,7 L 6,7 L 6,19 Z M 19,4 L 15.5,4 L 14.5,3 L 9.5,3 L 8.5,4 L 5,4 L 5,6 L 19,6 L 19,4 Z" Fill="{StaticResource DangerRedBrush}"/>
-                                </Canvas>
-                            </Viewbox>
-                        </Button>
                     </StackPanel>
                 </StackPanel>
 
@@ -357,67 +297,8 @@
                     </Border>
                 </Grid>
 
-                <!-- RIGHT CONTROLS: PAGER & VIEW SWITCHERS (LIST / CARD) -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Record Count & Pager Text -->
-                    <TextBlock x:Name="CategoriesPagerText"
-                               Text="1-8 / 8"
-                               FontSize="13"
-                               FontWeight="Medium"
-                               Foreground="{StaticResource SecondaryTextBrush}"
-                               VerticalAlignment="Center"
-                               Margin="0,0,12,0"/>
-
-                    <!-- Previous Page Button -->
-                    <Button x:Name="PagerPrevButton"
-                            Style="{StaticResource ViewSwitcherButtonStyle}"
-                            Click="PagerPrevButton_Click"
-                            ToolTip="Previous Record"
-                            Margin="0,0,4,0">
-                        <TextBlock Text="‹" FontSize="18" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,-2,0,0"/>
-                    </Button>
-
-                    <!-- Next Page Button -->
-                    <Button x:Name="PagerNextButton"
-                            Style="{StaticResource ViewSwitcherButtonStyle}"
-                            Click="PagerNextButton_Click"
-                            ToolTip="Next Record"
-                            Margin="0,0,16,0">
-                        <TextBlock Text="›" FontSize="18" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,-2,0,0"/>
-                    </Button>
-
-                    <Border Width="1" Height="20" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,16,0"/>
-
-                    <!-- View Switcher: List View Button (Active by default) -->
-                    <Button x:Name="ViewListButton"
-                            Style="{StaticResource ViewSwitcherButtonStyle}"
-                            Click="ViewListButton_Click"
-                            ToolTip="List View (Table)"
-                            Background="#F3ECF1"
-                            Margin="0,0,6,0">
-                        <!-- Table Rows Icon -->
-                        <Viewbox Width="16" Height="16">
-                            <Canvas Width="24" Height="24">
-                                <Path Data="M 4,6 L 20,6 L 20,8 L 4,8 L 4,6 Z M 4,11 L 20,11 L 20,13 L 4,13 L 4,11 Z M 4,16 L 20,16 L 20,18 L 4,18 L 4,16 Z"
-                                      Fill="{StaticResource OdooPurpleBrush}"/>
-                            </Canvas>
-                        </Viewbox>
-                    </Button>
-
-                    <!-- View Switcher: Form/Card View Button -->
-                    <Button x:Name="ViewFormButton"
-                            Style="{StaticResource ViewSwitcherButtonStyle}"
-                            Click="ViewFormButton_Click"
-                            ToolTip="Form View (Card)">
-                        <!-- Card/Form Icon -->
-                        <Viewbox Width="16" Height="16">
-                            <Canvas Width="24" Height="24">
-                                <Path Data="M 3,5 C 3,3.9 3.9,3 5,3 L 19,3 C 20.1,3 21,3.9 21,5 L 21,19 C 21,20.1 20.1,21 19,21 L 5,21 C 3.9,21 3,20.1 3,19 L 3,5 Z M 5,5 L 19,5 L 19,8 L 5,8 L 5,5 Z M 5,10 L 12,10 L 12,19 L 5,19 L 5,10 Z M 14,10 L 19,10 L 19,19 L 14,19 L 14,10 Z"
-                                      Fill="{StaticResource SecondaryTextBrush}"/>
-                            </Canvas>
-                        </Viewbox>
-                    </Button>
-                </StackPanel>
+                <!-- RIGHT: Standardized Clean Empty Panel -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
@@ -451,8 +332,6 @@
                                 Padding="16,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <!-- Reorder Handle (⋮⋮) -->
-                                    <ColumnDefinition Width="48"/>
                                     <!-- PoS Product Category -->
                                     <ColumnDefinition Width="2.5*"/>
                                     <!-- Parent Category -->
@@ -463,41 +342,32 @@
                                     <ColumnDefinition Width="80"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Column 0: Reorder Icon Header -->
+                                <!-- Column 0: PoS Product Category Header -->
                                 <TextBlock Grid.Column="0"
-                                           Text="⋮⋮"
-                                           FontSize="14"
-                                           FontWeight="Bold"
-                                           Foreground="{StaticResource PlaceholderTextBrush}"
-                                           VerticalAlignment="Center"
-                                           HorizontalAlignment="Center"/>
-
-                                <!-- Column 1: PoS Product Category Header -->
-                                <TextBlock Grid.Column="1"
                                            Text="PoS Product Category"
                                            FontSize="13"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource SecondaryTextBrush}"
                                            VerticalAlignment="Center"/>
 
-                                <!-- Column 2: Parent Category Header -->
-                                <TextBlock Grid.Column="2"
+                                <!-- Column 1: Parent Category Header -->
+                                <TextBlock Grid.Column="1"
                                            Text="Parent Category"
                                            FontSize="13"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource SecondaryTextBrush}"
                                            VerticalAlignment="Center"/>
 
-                                <!-- Column 3: Linked PoS Configurations Header -->
-                                <TextBlock Grid.Column="3"
+                                <!-- Column 2: Linked PoS Configurations Header -->
+                                <TextBlock Grid.Column="2"
                                            Text="Linked PoS Configurations"
                                            FontSize="13"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource SecondaryTextBrush}"
                                            VerticalAlignment="Center"/>
 
-                                <!-- Column 4: Color Header -->
-                                <TextBlock Grid.Column="4"
+                                <!-- Column 3: Color Header -->
+                                <TextBlock Grid.Column="3"
                                            Text="Color"
                                            FontSize="13"
                                            FontWeight="SemiBold"
@@ -532,8 +402,6 @@
                                                             MinHeight="48">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
-                                                                <!-- Reorder Handle (⋮⋮) -->
-                                                                <ColumnDefinition Width="48"/>
                                                                 <!-- Category Name -->
                                                                 <ColumnDefinition Width="2.5*"/>
                                                                 <!-- Parent Category -->
@@ -544,36 +412,23 @@
                                                                 <ColumnDefinition Width="80"/>
                                                             </Grid.ColumnDefinitions>
 
-                                                            <!-- Col 0: Reorder Handle Icon (⋮⋮) -->
-                                                            <Viewbox Grid.Column="0" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                                <Canvas Width="24" Height="24">
-                                                                    <!-- 6-dot drag reorder handle -->
-                                                                    <Ellipse Canvas.Left="8" Canvas.Top="4" Width="3" Height="3" Fill="#9CA3AF"/>
-                                                                    <Ellipse Canvas.Left="14" Canvas.Top="4" Width="3" Height="3" Fill="#9CA3AF"/>
-                                                                    <Ellipse Canvas.Left="8" Canvas.Top="11" Width="3" Height="3" Fill="#9CA3AF"/>
-                                                                    <Ellipse Canvas.Left="14" Canvas.Top="11" Width="3" Height="3" Fill="#9CA3AF"/>
-                                                                    <Ellipse Canvas.Left="8" Canvas.Top="18" Width="3" Height="3" Fill="#9CA3AF"/>
-                                                                    <Ellipse Canvas.Left="14" Canvas.Top="18" Width="3" Height="3" Fill="#9CA3AF"/>
-                                                                </Canvas>
-                                                            </Viewbox>
-
-                                                            <!-- Col 1: Category Name (Bold/Clean text) -->
-                                                            <TextBlock Grid.Column="1"
+                                                            <!-- Col 0: Category Name (Bold/Clean text) -->
+                                                            <TextBlock Grid.Column="0"
                                                                        Text="{Binding Name}"
                                                                        FontSize="14"
                                                                        FontWeight="SemiBold"
                                                                        Foreground="{StaticResource PrimaryTextBrush}"
                                                                        VerticalAlignment="Center"/>
 
-                                                            <!-- Col 2: Parent Category -->
-                                                            <TextBlock Grid.Column="2"
+                                                            <!-- Col 1: Parent Category -->
+                                                            <TextBlock Grid.Column="1"
                                                                        Text="{Binding ParentCategoryDisplay}"
                                                                        FontSize="13.5"
                                                                        Foreground="{StaticResource SecondaryTextBrush}"
                                                                        VerticalAlignment="Center"/>
 
-                                                            <!-- Col 3: Linked PoS Configurations as Rounded Light-Gray Pill Badges -->
-                                                            <ItemsControl Grid.Column="3"
+                                                            <!-- Col 2: Linked PoS Configurations as Rounded Light-Gray Pill Badges -->
+                                                            <ItemsControl Grid.Column="2"
                                                                           ItemsSource="{Binding LinkedShopsList}"
                                                                           VerticalAlignment="Center">
                                                                 <ItemsControl.ItemsPanel>
@@ -599,8 +454,8 @@
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
 
-                                                            <!-- Col 4: Color Dot (Right-aligned, 20x20) -->
-                                                            <Ellipse Grid.Column="4"
+                                                            <!-- Col 3: Color Dot (Right-aligned, 20x20) -->
+                                                            <Ellipse Grid.Column="3"
                                                                      Width="20" Height="20"
                                                                      Fill="{Binding ColorBrush}"
                                                                      Stroke="{StaticResource SubtleBorderBrush}"
@@ -634,7 +489,7 @@
             </Grid>
 
             <!-- =================================================================== -->
-            <!-- VIEW 2: POS PRODUCT CATEGORY DETAIL / FORM VIEW (CARD)              -->
+            <!-- VIEW 2: POS PRODUCT CATEGORY DETAIL VIEW (STRICTLY READ-ONLY)       -->
             <!-- =================================================================== -->
             <ScrollViewer x:Name="CategoryDetailViewContainer"
                           Visibility="Collapsed"
@@ -650,84 +505,66 @@
                             Effect="{StaticResource SubtleCardShadow}">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <!-- Left Form Fields Column -->
+                                <!-- Left Details Column -->
                                 <ColumnDefinition Width="*"/>
                                 <!-- Right Image Container Column (88x88) -->
                                 <ColumnDefinition Width="120"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- ==================== LEFT: CATEGORY FORM FIELDS ==================== -->
+                            <!-- ==================== LEFT: READ-ONLY CATEGORY FIELDS ==================== -->
                             <Grid Grid.Column="0" Margin="0,0,24,0">
                                 <Grid.RowDefinitions>
-                                    <!-- Top-Left: Category Name Field -->
+                                    <!-- Top-Left: Category Name Display -->
                                     <RowDefinition Height="Auto"/>
                                     <!-- Spacing -->
                                     <RowDefinition Height="24"/>
-                                    <!-- Bottom-Left & Bottom-Center Row: Parent Category & Color Dot -->
+                                    <!-- Bottom Row: Parent Category, Color Dot, and Linked Configurations -->
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- TOP-LEFT: CATEGORY NAME (LARGE PROMINENT TEXT FIELD / HEADER) -->
+                                <!-- TOP-LEFT: CATEGORY NAME (LARGE PROMINENT READ-ONLY HEADER) -->
                                 <StackPanel Grid.Row="0">
-                                    <TextBlock Text="Category Name"
+                                    <TextBlock Text="PoS Category"
                                                FontSize="12"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource SecondaryTextBrush}"
                                                Margin="0,0,0,6"/>
-                                    <TextBox x:Name="FormCategoryNameTextBox"
-                                             Text="Misc"
-                                             FontSize="24"
-                                             FontWeight="Bold"
-                                             Foreground="{StaticResource PrimaryTextBrush}"
-                                             Background="#F9FAFB"
-                                             BorderBrush="{StaticResource InputBorderBrush}"
-                                             BorderThickness="1"
-                                             Padding="14,8"
-                                             Height="48"
-                                             VerticalContentAlignment="Center">
-                                        <TextBox.Resources>
-                                            <Style TargetType="Border">
-                                                <Setter Property="CornerRadius" Value="8"/>
-                                            </Style>
-                                        </TextBox.Resources>
-                                    </TextBox>
+                                    <TextBlock x:Name="FormCategoryNameDisplay"
+                                               Text="Misc"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </StackPanel>
 
-                                <!-- BOTTOM ROW: PARENT CATEGORY + COLOR INDICATOR/PICKER -->
+                                <!-- BOTTOM ROW: PARENT CATEGORY + COLOR + LINKED CONFIGS -->
                                 <Grid Grid.Row="2">
                                     <Grid.ColumnDefinitions>
                                         <!-- Bottom-Left: Parent Category -->
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="32"/>
+                                        <ColumnDefinition Width="180"/>
+                                        <ColumnDefinition Width="28"/>
                                         <!-- Bottom-Center: Color -->
+                                        <ColumnDefinition Width="160"/>
+                                        <ColumnDefinition Width="28"/>
+                                        <!-- Bottom-Right: Linked PoS Configurations -->
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- BOTTOM-LEFT: PARENT CATEGORY SELECTOR -->
+                                    <!-- PARENT CATEGORY DISPLAY -->
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="Parent Category"
                                                    FontSize="12.5"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource SecondaryTextBrush}"
                                                    Margin="0,0,0,6"/>
-                                        <ComboBox x:Name="FormParentCategoryComboBox"
-                                                  Height="40"
-                                                  FontSize="13.5"
-                                                  Foreground="{StaticResource PrimaryTextBrush}"
-                                                  Background="#FFFFFF"
-                                                  BorderBrush="{StaticResource InputBorderBrush}"
-                                                  BorderThickness="1"
-                                                  VerticalContentAlignment="Center"
-                                                  Padding="12,0">
-                                            <ComboBox.Resources>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="CornerRadius" Value="8"/>
-                                                </Style>
-                                            </ComboBox.Resources>
-                                        </ComboBox>
+                                        <TextBlock x:Name="FormParentCategoryDisplay"
+                                                   Text="None"
+                                                   FontSize="14"
+                                                   FontWeight="Medium"
+                                                   Foreground="{StaticResource PrimaryTextBrush}"
+                                                   VerticalAlignment="Center"/>
                                     </StackPanel>
 
-                                    <!-- BOTTOM-CENTER: COLOR INDICATOR & PALETTE PICKER -->
+                                    <!-- COLOR DISPLAY -->
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="Color"
                                                    FontSize="12.5"
@@ -735,62 +572,66 @@
                                                    Foreground="{StaticResource SecondaryTextBrush}"
                                                    Margin="0,0,0,6"/>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <!-- Selected Color Circle Indicator -->
                                             <Ellipse x:Name="FormCurrentColorDot"
-                                                     Width="28" Height="28"
+                                                     Width="22" Height="22"
                                                      Fill="#D6145F"
                                                      Stroke="{StaticResource SubtleBorderBrush}"
-                                                     StrokeThickness="1.5"
+                                                     StrokeThickness="1"
                                                      VerticalAlignment="Center"
-                                                     Margin="0,0,14,0">
-                                                <Ellipse.Effect>
-                                                    <DropShadowEffect BlurRadius="6" ShadowDepth="1" Direction="270" Color="#000000" Opacity="0.15"/>
-                                                </Ellipse.Effect>
-                                            </Ellipse>
-
-                                            <!-- Odoo 20 Palette Quick Swatches (0 through 11) -->
-                                            <ItemsControl x:Name="ColorSwatchesItemsControl">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"/>
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Button Click="ColorSwatch_Click"
-                                                                Tag="{Binding Index}"
-                                                                ToolTip="{Binding Name}"
-                                                                Cursor="Hand"
-                                                                Background="Transparent"
-                                                                BorderThickness="0"
-                                                                Padding="2"
-                                                                Margin="0,0,4,0">
-                                                            <Ellipse Width="20" Height="20"
-                                                                     Fill="{Binding Brush}"
-                                                                     Stroke="#E5E7EB"
-                                                                     StrokeThickness="1"/>
-                                                        </Button>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
+                                                     Margin="0,0,10,0"/>
+                                            <TextBlock x:Name="FormColorNameDisplay"
+                                                       Text="Color 9"
+                                                       FontSize="13.5"
+                                                       FontWeight="Medium"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"
+                                                       VerticalAlignment="Center"/>
                                         </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- LINKED POS CONFIGURATIONS -->
+                                    <StackPanel Grid.Column="4">
+                                        <TextBlock Text="Linked PoS Configurations"
+                                                   FontSize="12.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                                   Margin="0,0,0,6"/>
+                                        <ItemsControl x:Name="FormLinkedShopsItemsControl" VerticalAlignment="Center">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="#F3F4F6"
+                                                            BorderBrush="{StaticResource SubtleBorderBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="12"
+                                                            Padding="10,3"
+                                                            Margin="0,2,8,2"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding}"
+                                                                   FontSize="12"
+                                                                   FontWeight="Medium"
+                                                                   Foreground="#374151"/>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                 </Grid>
                             </Grid>
 
-                            <!-- ==================== FAR-RIGHT: 88x88 IMAGE CONTAINER ==================== -->
+                            <!-- ==================== FAR-RIGHT: 88x88 READ-ONLY IMAGE CONTAINER ==================== -->
                             <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
                                 <Border x:Name="FormImageContainerBorder"
-                                        MouseLeftButtonUp="FormImageContainer_Click"
                                         Width="88" Height="88"
-                                        Cursor="Hand"
                                         Background="#F9FAFB"
                                         BorderBrush="{StaticResource InputBorderBrush}"
                                         BorderThickness="1"
-                                        CornerRadius="8"
-                                        ToolTip="Click to upload/change category image">
+                                        CornerRadius="8">
                                     <Grid>
-                                        <!-- Category Image if uploaded -->
+                                        <!-- Category Image if available -->
                                         <Image x:Name="FormPreviewImage"
                                                Stretch="UniformToFill"
                                                Visibility="Collapsed">
@@ -799,119 +640,19 @@
                                             </Image.Clip>
                                         </Image>
 
-                                        <!-- Camera-Plus (📷+) Placeholder Icon when no image is set -->
+                                        <!-- Camera placeholder when no image is set -->
                                         <StackPanel x:Name="FormPlaceholderIcon"
                                                     VerticalAlignment="Center"
                                                     HorizontalAlignment="Center">
-                                            <Viewbox Width="32" Height="32">
+                                            <Viewbox Width="30" Height="30">
                                                 <Canvas Width="24" Height="24">
-                                                    <!-- Camera body -->
                                                     <Path Data="M 9,3 L 7.17,5 L 4,5 C 2.9,5 2,5.9 2,7 L 2,19 C 2,20.1 2.9,21 4,21 L 20,21 C 21.1,21 22,20.1 22,19 L 22,7 C 22,5.9 21.1,5 20,5 L 16.83,5 L 15,3 L 9,3 Z M 12,18 C 8.69,18 6,15.31 6,12 C 6,8.69 8.69,6 12,6 C 15.31,6 18,8.69 18,12 C 18,15.31 15.31,18 12,18 Z"
                                                           Fill="{StaticResource PlaceholderTextBrush}"/>
-                                                    <!-- Center Plus (+) Icon -->
-                                                    <Path Data="M 12,9 L 12,15 M 9,12 L 15,12"
-                                                          Stroke="#FFFFFF"
-                                                          StrokeThickness="2"
-                                                          StrokeStartLineCap="Round"
-                                                          StrokeEndLineCap="Round"/>
                                                 </Canvas>
                                             </Viewbox>
-                                            <TextBlock Text="Add Image"
-                                                       FontSize="10"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{StaticResource SecondaryTextBrush}"
-                                                       HorizontalAlignment="Center"
-                                                       Margin="0,4,0,0"/>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
-
-                                <!-- Remove Image text link if image is loaded -->
-                                <Button x:Name="FormRemoveImageButton"
-                                        Click="FormRemoveImage_Click"
-                                        Visibility="Collapsed"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Cursor="Hand"
-                                        HorizontalAlignment="Center"
-                                        Margin="0,6,0,0">
-                                    <TextBlock Text="Remove" FontSize="11" Foreground="{StaticResource DangerRedBrush}"/>
-                                </Button>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <!-- ADDITIONAL SETTINGS CARD: SEQUENCE & LINKED POS CONFIGURATIONS -->
-                    <Border Background="{StaticResource SurfaceCardBrush}"
-                            BorderBrush="{StaticResource SubtleBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8"
-                            Padding="32,24"
-                            Margin="0,18,0,0"
-                            Effect="{StaticResource SubtleCardShadow}">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <!-- Sequence Column -->
-                                <ColumnDefinition Width="180"/>
-                                <ColumnDefinition Width="40"/>
-                                <!-- Linked PoS Configs Column -->
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Sequence Field -->
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Sequence (Ordering)"
-                                           FontSize="12.5"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           Margin="0,0,0,6"/>
-                                <TextBox x:Name="FormSequenceTextBox"
-                                         Text="10"
-                                         FontSize="14"
-                                         FontWeight="Medium"
-                                         Foreground="{StaticResource PrimaryTextBrush}"
-                                         Background="#F9FAFB"
-                                         BorderBrush="{StaticResource InputBorderBrush}"
-                                         BorderThickness="1"
-                                         Padding="12,0"
-                                         Height="38"
-                                         VerticalContentAlignment="Center">
-                                    <TextBox.Resources>
-                                        <Style TargetType="Border">
-                                            <Setter Property="CornerRadius" Value="8"/>
-                                        </Style>
-                                    </TextBox.Resources>
-                                </TextBox>
-                            </StackPanel>
-
-                            <!-- Linked PoS Configurations Selector -->
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Linked PoS Configurations"
-                                           FontSize="12.5"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           Margin="0,0,0,6"/>
-                                <TextBox x:Name="FormLinkedConfigsTextBox"
-                                         Text="Furniture Shop"
-                                         FontSize="14"
-                                         FontWeight="Medium"
-                                         Foreground="{StaticResource PrimaryTextBrush}"
-                                         Background="#F9FAFB"
-                                         BorderBrush="{StaticResource InputBorderBrush}"
-                                         BorderThickness="1"
-                                         Padding="12,0"
-                                         Height="38"
-                                         VerticalContentAlignment="Center">
-                                    <TextBox.Resources>
-                                        <Style TargetType="Border">
-                                            <Setter Property="CornerRadius" Value="8"/>
-                                        </Style>
-                                    </TextBox.Resources>
-                                </TextBox>
-                                <TextBlock Text="Comma-separated shop names (e.g. Furniture Shop, Clothes Shop, Bakery Shop)"
-                                           FontSize="11.5"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           Margin="0,4,0,0"/>
                             </StackPanel>
                         </Grid>
                     </Border>

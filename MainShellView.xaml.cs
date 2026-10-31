@@ -21,6 +21,8 @@ public partial class MainShellView : UserControl
     public string CurrentUser { get; private set; } = "Administrator";
     public UserManagementView UsersControl => UsersViewControl;
     public PosCategoryManagementView CategoriesControl => CategoriesViewControl;
+    public ProductManagementView ProductsControl => ProductsViewControl;
+    public ComboChoiceManagementView CombosControl => ComboChoicesViewControl;
 
     public MainShellView()
     {
@@ -93,6 +95,18 @@ public partial class MainShellView : UserControl
                 LastTagsSyncedStatusText.Text = $"Last Synced: {lastTagSync}";
             }
 
+            var lastProdSync = await SqliteDatabaseService.Instance.GetLastProductSyncStatusAsync();
+            if (!string.IsNullOrEmpty(lastProdSync))
+            {
+                LastProductsSyncedStatusText.Text = $"Last Synced: {lastProdSync}";
+            }
+
+            var lastComboSync = await SqliteDatabaseService.Instance.GetLastComboSyncStatusAsync();
+            if (!string.IsNullOrEmpty(lastComboSync))
+            {
+                LastCombosSyncedStatusText.Text = $"Last Synced: {lastComboSync}";
+            }
+
             if (!string.IsNullOrEmpty(config.LastStatus))
             {
                 ConnectionStatusText.Text = config.LastStatus;
@@ -126,6 +140,8 @@ public partial class MainShellView : UserControl
             // Collapse navigation panel into icon-only mode
             SidebarMenuColumn.Width = new GridLength(_collapsedSidebarWidth);
             UsersLabel.Visibility = Visibility.Collapsed;
+            ProductsLabel.Visibility = Visibility.Collapsed;
+            CombosLabel.Visibility = Visibility.Collapsed;
             CategoriesLabel.Visibility = Visibility.Collapsed;
             AttributesLabel.Visibility = Visibility.Collapsed;
             ProductTagsLabel.Visibility = Visibility.Collapsed;
@@ -140,6 +156,8 @@ public partial class MainShellView : UserControl
             // Expand navigation panel to show icons & labels
             SidebarMenuColumn.Width = new GridLength(_expandedSidebarWidth);
             UsersLabel.Visibility = Visibility.Visible;
+            ProductsLabel.Visibility = Visibility.Visible;
+            CombosLabel.Visibility = Visibility.Visible;
             CategoriesLabel.Visibility = Visibility.Visible;
             AttributesLabel.Visibility = Visibility.Visible;
             ProductTagsLabel.Visibility = Visibility.Visible;
@@ -152,9 +170,11 @@ public partial class MainShellView : UserControl
     }
 
     // =========================================================================
-    // 2. PRIMARY NAVIGATION (USERS, CATEGORIES, ATTRIBUTES, TAGS, SETTINGS)
+    // 2. PRIMARY NAVIGATION (USERS, PRODUCTS, COMBOS, CATEGORIES, ATTRIBUTES, TAGS, SETTINGS)
     // =========================================================================
     private void NavUsers_Click(object sender, RoutedEventArgs e) => SwitchToUsers();
+    private void NavProducts_Click(object sender, RoutedEventArgs e) => SwitchToProducts();
+    private void NavCombos_Click(object sender, RoutedEventArgs e) => SwitchToCombos();
     private void NavCategories_Click(object sender, RoutedEventArgs e) => SwitchToCategories();
     private void NavAttributes_Click(object sender, RoutedEventArgs e) => SwitchToAttributes();
     private void NavProductTags_Click(object sender, RoutedEventArgs e) => SwitchToTags();
@@ -164,6 +184,8 @@ public partial class MainShellView : UserControl
     {
         SettingsViewPanel.Visibility = Visibility.Collapsed;
         UsersViewControl.Visibility = Visibility.Collapsed;
+        ProductsViewControl.Visibility = Visibility.Collapsed;
+        ComboChoicesViewControl.Visibility = Visibility.Collapsed;
         CategoriesViewControl.Visibility = Visibility.Collapsed;
         AttributesViewControl.Visibility = Visibility.Collapsed;
         TagsViewControl.Visibility = Visibility.Collapsed;
@@ -177,12 +199,16 @@ public partial class MainShellView : UserControl
         Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
 
         NavUsersBtn.Style = NavUsersBtn == activeButton ? activeStyle : defaultStyle;
+        NavProductsBtn.Style = NavProductsBtn == activeButton ? activeStyle : defaultStyle;
+        NavCombosBtn.Style = NavCombosBtn == activeButton ? activeStyle : defaultStyle;
         NavCategoriesBtn.Style = NavCategoriesBtn == activeButton ? activeStyle : defaultStyle;
         NavAttributesBtn.Style = NavAttributesBtn == activeButton ? activeStyle : defaultStyle;
         NavProductTagsBtn.Style = NavProductTagsBtn == activeButton ? activeStyle : defaultStyle;
         NavSettingsBtn.Style = NavSettingsBtn == activeButton ? activeStyle : defaultStyle;
 
         UsersLabel.Foreground = UsersLabel == activeLabel ? purpleBrush : primaryTextBrush;
+        ProductsLabel.Foreground = ProductsLabel == activeLabel ? purpleBrush : primaryTextBrush;
+        CombosLabel.Foreground = CombosLabel == activeLabel ? purpleBrush : primaryTextBrush;
         CategoriesLabel.Foreground = CategoriesLabel == activeLabel ? purpleBrush : primaryTextBrush;
         AttributesLabel.Foreground = AttributesLabel == activeLabel ? purpleBrush : primaryTextBrush;
         ProductTagsLabel.Foreground = ProductTagsLabel == activeLabel ? purpleBrush : primaryTextBrush;
@@ -194,6 +220,22 @@ public partial class MainShellView : UserControl
         HideAllMainViews();
         UsersViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavUsersBtn, UsersLabel);
+    }
+
+    public void SwitchToProducts()
+    {
+        HideAllMainViews();
+        ProductsViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavProductsBtn, ProductsLabel);
+        _ = ProductsViewControl.ReloadProductsFromDatabaseAsync();
+    }
+
+    public void SwitchToCombos()
+    {
+        HideAllMainViews();
+        ComboChoicesViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavCombosBtn, CombosLabel);
+        _ = ComboChoicesViewControl.ReloadCombosFromDatabaseAsync();
     }
 
     public void SwitchToCategories()
@@ -704,6 +746,145 @@ public partial class MainShellView : UserControl
             SettingsTagSyncButtonText.Text = "Sync Tags Now";
             TagsSyncProgressBar.Visibility = Visibility.Collapsed;
             SyncTagsNowBtn.IsEnabled = true;
+        }
+    }
+
+    // =========================================================================
+    // 7. PRODUCTS & COMBO CHOICES SYNCHRONIZATION FROM SETTINGS
+    // =========================================================================
+    private async void SyncProductsNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetProductsSyncLoadingState(true);
+
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
+                return;
+            }
+
+            var odooProducts = await OdooSyncService.Instance.FetchOdooProductsAsync(config, allowOfflineSimulation: false);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooProductsAsync(odooProducts);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated ({odooProducts.Count} products).";
+
+            await SqliteDatabaseService.Instance.UpdateProductSyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastProductsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            ProductsSyncDetailText.Text = statusMsg;
+            ProductsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await ProductsViewControl.ReloadProductsFromDatabaseAsync();
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            ProductsSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            ProductsSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetProductsSyncLoadingState(false);
+        }
+    }
+
+    private void SetProductsSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncProductsNowBtn.IsEnabled = false;
+            SettingsProdSyncButtonText.Text = "Syncing Products...";
+            ProductsSyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsProdSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsProdSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsProdSyncIconRotation.Angle = 0;
+            SettingsProdSyncButtonText.Text = "Sync Products Now";
+            ProductsSyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncProductsNowBtn.IsEnabled = true;
+        }
+    }
+
+    private async void SyncCombosNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetCombosSyncLoadingState(true);
+
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
+                return;
+            }
+
+            var (combos, lines) = await OdooSyncService.Instance.FetchOdooComboChoicesAsync(config, allowOfflineSimulation: false);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooCombosAsync(combos, lines);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated ({combos.Count} combos, {lines.Count} lines).";
+
+            await SqliteDatabaseService.Instance.UpdateComboSyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastCombosSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            CombosSyncDetailText.Text = statusMsg;
+            CombosSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await ComboChoicesViewControl.ReloadCombosFromDatabaseAsync();
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            CombosSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            CombosSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetCombosSyncLoadingState(false);
+        }
+    }
+
+    private void SetCombosSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncCombosNowBtn.IsEnabled = false;
+            SettingsComboSyncButtonText.Text = "Syncing Combos...";
+            CombosSyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsComboSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsComboSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsComboSyncIconRotation.Angle = 0;
+            SettingsComboSyncButtonText.Text = "Sync Combos Now";
+            CombosSyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncCombosNowBtn.IsEnabled = true;
         }
     }
 

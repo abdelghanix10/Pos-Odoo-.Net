@@ -89,6 +89,11 @@ public partial class ProductAttributeManagementView : UserControl
         {
             _filteredAttributes.Add(item);
         }
+
+        if (AttributeDetailViewContainer.Visibility == Visibility.Visible)
+        {
+            UpdateDetailPagerVisual();
+        }
     }
 
     private void SearchAttributesTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -112,6 +117,7 @@ public partial class ProductAttributeManagementView : UserControl
         AttributeDetailViewContainer.Visibility = Visibility.Collapsed;
         AttributeListViewContainer.Visibility = Visibility.Visible;
         BreadcrumbDetailSubPanel.Visibility = Visibility.Collapsed;
+        DetailRecordPagerPanel.Visibility = Visibility.Collapsed;
     }
 
     public void SwitchToDetailView(ProductAttributeRecord attribute)
@@ -142,6 +148,52 @@ public partial class ProductAttributeManagementView : UserControl
         AttributeListViewContainer.Visibility = Visibility.Collapsed;
         AttributeDetailViewContainer.Visibility = Visibility.Visible;
         BreadcrumbDetailSubPanel.Visibility = Visibility.Visible;
+
+        UpdateDetailPagerVisual();
+    }
+
+    // =========================================================================
+    // DETAIL VIEW RECORD SWITCHER (< >)
+    // =========================================================================
+    private void UpdateDetailPagerVisual()
+    {
+        if (_filteredAttributes.Count == 0 || _selectedAttribute == null)
+        {
+            DetailRecordPagerPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        int index = _filteredAttributes.IndexOf(_selectedAttribute);
+        if (index < 0)
+        {
+            index = 0;
+            _selectedAttribute = _filteredAttributes[0];
+        }
+
+        DetailRecordPagerPanel.Visibility = Visibility.Visible;
+        DetailPagerCounterText.Text = $"{index + 1} / {_filteredAttributes.Count}";
+        DetailPrevRecordBtn.IsEnabled = index > 0;
+        DetailNextRecordBtn.IsEnabled = index < _filteredAttributes.Count - 1;
+    }
+
+    private void DetailPrevRecord_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedAttribute == null || _filteredAttributes.Count == 0) return;
+        int index = _filteredAttributes.IndexOf(_selectedAttribute);
+        if (index > 0)
+        {
+            SwitchToDetailView(_filteredAttributes[index - 1]);
+        }
+    }
+
+    private void DetailNextRecord_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedAttribute == null || _filteredAttributes.Count == 0) return;
+        int index = _filteredAttributes.IndexOf(_selectedAttribute);
+        if (index >= 0 && index < _filteredAttributes.Count - 1)
+        {
+            SwitchToDetailView(_filteredAttributes[index + 1]);
+        }
     }
 
     private void AttributeRow_Click(object sender, RoutedEventArgs e)

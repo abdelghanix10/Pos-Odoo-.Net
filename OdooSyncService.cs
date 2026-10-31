@@ -926,4 +926,301 @@ public class OdooSyncService
             new(5, "Special Offer", 2, 9)
         ];
     }
+
+    /// <summary>
+    /// Fetches products from Odoo Online (product.template)
+    /// </summary>
+    public async Task<List<ProductDto>> FetchOdooProductsAsync(
+        OdooConfigRecord config,
+        bool allowOfflineSimulation = false)
+    {
+        string baseUrl = NormalizeUrl(config.ServerUrl);
+        string endpoint = $"{baseUrl}/jsonrpc";
+
+        try
+        {
+            var test = await TestConnectionAsync(config);
+            if (!test.Success || !test.Uid.HasValue)
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooProducts();
+                throw new InvalidOperationException(test.Message);
+            }
+
+            int uid = test.Uid.Value;
+
+            var productPayload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "product.template",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new
+                        {
+                            fields = new[]
+                            {
+                                "id", "name", "type", "list_price", "standard_price",
+                                "default_code", "barcode", "pos_categ_id", "product_variant_count",
+                                "image_1920", "product_tag_ids"
+                            }
+                        }
+                    }
+                },
+                id = 45
+            };
+
+            var prodReq = new StringContent(JsonSerializer.Serialize(productPayload), Encoding.UTF8, "application/json");
+            var prodResp = await _httpClient.PostAsync(endpoint, prodReq);
+            prodResp.EnsureSuccessStatusCode();
+
+            string prodStr = await prodResp.Content.ReadAsStringAsync();
+            using var prodDoc = JsonDocument.Parse(prodStr);
+
+            var products = new List<ProductDto>();
+            if (prodDoc.RootElement.TryGetProperty("result", out var prodList) && prodList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in prodList.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+                    string type = item.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() ?? "consu" : "consu";
+                    decimal listPrice = item.TryGetProperty("list_price", out var lp) && lp.ValueKind == JsonValueKind.Number ? lp.GetDecimal() : 0.00m;
+                    decimal stdPrice = item.TryGetProperty("standard_price", out var sp) && sp.ValueKind == JsonValueKind.Number ? sp.GetDecimal() : 0.00m;
+                    string sku = item.TryGetProperty("default_code", out var dc) && dc.ValueKind == JsonValueKind.String ? dc.GetString() ?? "" : "";
+                    string barcode = item.TryGetProperty("barcode", out var bc) && bc.ValueKind == JsonValueKind.String ? bc.GetString() ?? "" : "";
+
+                    int? catId = null;
+                    string? catName = null;
+                    if (item.TryGetProperty("pos_categ_id", out var pc) && pc.ValueKind == JsonValueKind.Array && pc.GetArrayLength() >= 2)
+                    {
+                        catId = pc[0].GetInt32();
+                        catName = pc[1].GetString();
+                    }
+
+                    int variantCount = item.TryGetProperty("product_variant_count", out var vc) && vc.ValueKind == JsonValueKind.Number ? vc.GetInt32() : 1;
+                    if (variantCount < 1) variantCount = 1;
+
+                    string? imageBase64 = null;
+                    if (item.TryGetProperty("image_1920", out var img) && img.ValueKind == JsonValueKind.String)
+                    {
+                        string s = img.GetString() ?? "";
+                        if (!string.IsNullOrWhiteSpace(s) && !s.Equals("false", StringComparison.OrdinalIgnoreCase))
+                        {
+                            imageBase64 = s;
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        products.Add(new ProductDto(odooId, name, type, listPrice, stdPrice, sku, barcode, catId, catName, variantCount, imageBase64, null, null, null));
+                    }
+                }
+            }
+
+            UpdateStatus(true, "Odoo Online");
+            return products;
+        }
+        catch
+        {
+            if (allowOfflineSimulation) return GetSimulatedOdooProducts();
+            UpdateStatus(false, "Offline (Local Mode)");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Fetches combo choices and combo lines from Odoo Online (pos.combo & pos.combo.line)
+    /// </summary>
+    public async Task<(List<ComboChoiceDto> combos, List<ComboChoiceLineDto> lines)> FetchOdooComboChoicesAsync(
+        OdooConfigRecord config,
+        bool allowOfflineSimulation = false)
+    {
+        string baseUrl = NormalizeUrl(config.ServerUrl);
+        string endpoint = $"{baseUrl}/jsonrpc";
+
+        try
+        {
+            var test = await TestConnectionAsync(config);
+            if (!test.Success || !test.Uid.HasValue)
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooCombos();
+                throw new InvalidOperationException(test.Message);
+            }
+
+            int uid = test.Uid.Value;
+
+            var comboPayload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "pos.combo",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new { fields = new[] { "id", "name", "combo_line_ids" } }
+                    }
+                },
+                id = 55
+            };
+
+            var comboReq = new StringContent(JsonSerializer.Serialize(comboPayload), Encoding.UTF8, "application/json");
+            var comboResp = await _httpClient.PostAsync(endpoint, comboReq);
+            comboResp.EnsureSuccessStatusCode();
+
+            string comboStr = await comboResp.Content.ReadAsStringAsync();
+            using var comboDoc = JsonDocument.Parse(comboStr);
+
+            var combos = new List<ComboChoiceDto>();
+            if (comboDoc.RootElement.TryGetProperty("result", out var cList) && cList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in cList.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+                    var lineIds = new List<int>();
+                    if (item.TryGetProperty("combo_line_ids", out var lids) && lids.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var id in lids.EnumerateArray()) lineIds.Add(id.GetInt32());
+                    }
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        combos.Add(new ComboChoiceDto(odooId, name, lineIds));
+                    }
+                }
+            }
+
+            // Fetch combo lines
+            var linesPayload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "pos.combo.line",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new { fields = new[] { "id", "combo_id", "product_id", "combo_price" } }
+                    }
+                },
+                id = 56
+            };
+
+            var lineReq = new StringContent(JsonSerializer.Serialize(linesPayload), Encoding.UTF8, "application/json");
+            var lineResp = await _httpClient.PostAsync(endpoint, lineReq);
+            lineResp.EnsureSuccessStatusCode();
+
+            string lineStr = await lineResp.Content.ReadAsStringAsync();
+            using var lineDoc = JsonDocument.Parse(lineStr);
+
+            var lines = new List<ComboChoiceLineDto>();
+            if (lineDoc.RootElement.TryGetProperty("result", out var lList) && lList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in lList.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    int comboId = 0;
+                    if (item.TryGetProperty("combo_id", out var cid) && cid.ValueKind == JsonValueKind.Array && cid.GetArrayLength() > 0)
+                    {
+                        comboId = cid[0].GetInt32();
+                    }
+                    int? prodId = null;
+                    string prodName = "";
+                    if (item.TryGetProperty("product_id", out var pid) && pid.ValueKind == JsonValueKind.Array && pid.GetArrayLength() >= 2)
+                    {
+                        prodId = pid[0].GetInt32();
+                        prodName = pid[1].GetString() ?? "";
+                    }
+                    decimal extraPrice = item.TryGetProperty("combo_price", out var cp) && cp.ValueKind == JsonValueKind.Number ? cp.GetDecimal() : 0.00m;
+
+                    lines.Add(new ComboChoiceLineDto(odooId, comboId, prodId, prodName, 10.00m, extraPrice));
+                }
+            }
+
+            UpdateStatus(true, "Odoo Online");
+            return (combos, lines);
+        }
+        catch
+        {
+            if (allowOfflineSimulation) return GetSimulatedOdooCombos();
+            UpdateStatus(false, "Offline (Local Mode)");
+            throw;
+        }
+    }
+
+    public static List<ProductDto> GetSimulatedOdooProducts()
+    {
+        return
+        [
+            new(1, "Acoustic Bloc Screens", "consu", 295.00m, 180.00m, "DEMO-0008", "08472910384", 2, "Desks", 2, null, "[\"Bestseller\", \"Featured\"]", "[{\"AttributeName\":\"Color\",\"Values\":\"White, Black\"}]", null),
+            new(2, "Black embroidered t-shirt", "consu", 35.00m, 12.50m, "E-COM11", "09182371928", 4, "Upper body", 8, null, "[\"New Arrival\"]", "[{\"AttributeName\":\"Size\",\"Values\":\"S, M, L, XL\"},{\"AttributeName\":\"Color\",\"Values\":\"Black, White\"}]", null),
+            new(3, "Office Chair Black", "consu", 159.00m, 85.00m, "FURN-0012", "07182937461", 3, "Chairs", 1, null, "[\"Featured\"]", null, null),
+            new(4, "Large Meeting Table", "consu", 850.00m, 450.00m, "CONF-0001", "08291048291", 2, "Desks", 3, null, "[\"Bestseller\"]", "[{\"AttributeName\":\"Size\",\"Values\":\"Small, Medium, Large\"}]", null),
+            new(5, "Desk Pad", "consu", 19.99m, 8.00m, "MISC-0034", "01928471928", 1, "Misc", 1, null, "[\"Special Offer\"]", null, null),
+            new(6, "Lunch Burger Combo", "combo", 14.50m, 7.00m, "COMBO-001", "09988112233", 6, "Others", 1, null, "[\"Featured\"]", null, "[{\"ComboName\":\"Burger Choice\",\"ItemsCount\":\"4 items\"},{\"ComboName\":\"Drink Choice\",\"ItemsCount\":\"4 items\"},{\"ComboName\":\"Side Choice\",\"ItemsCount\":\"3 items\"}]"),
+            new(7, "Breakfast Pastry Combo", "combo", 8.50m, 3.50m, "COMBO-002", "09988112244", 7, "Breads", 1, null, "[\"Bestseller\"]", null, "[{\"ComboName\":\"Pastry Choice\",\"ItemsCount\":\"3 items\"},{\"ComboName\":\"Drink Choice\",\"ItemsCount\":\"4 items\"}]"),
+            new(8, "Croissant", "consu", 3.50m, 1.20m, "BAKE-0001", "06677889900", 8, "Pastries", 1, null, "[\"Organic\"]", null, null),
+            new(9, "Baguette", "consu", 2.80m, 0.90m, "BAKE-0002", "06677889911", 7, "Breads", 1, null, "[\"Organic\"]", null, null),
+            new(10, "Maintenance Service", "service", 75.00m, 30.00m, "SERV-0005", "05544332211", 1, "Misc", 1, null, null, null, null),
+            new(11, "Ergonomic Desk", "consu", 420.00m, 260.00m, "FURN-0055", "03322114455", 2, "Desks", 2, null, "[\"Featured\"]", "[{\"AttributeName\":\"Color\",\"Values\":\"White, Oak\"}]", null),
+            new(12, "Conference Chair", "consu", 110.00m, 60.00m, "FURN-0023", "04455667788", 3, "Chairs", 4, null, "[\"Bestseller\"]", "[{\"AttributeName\":\"Color\",\"Values\":\"Grey, Black, Blue, Red\"}]", null)
+        ];
+    }
+
+    public static (List<ComboChoiceDto> combos, List<ComboChoiceLineDto> lines) GetSimulatedOdooCombos()
+    {
+        var combos = new List<ComboChoiceDto>
+        {
+            new(1, "Burger Choice", [1, 2, 3, 4]),
+            new(2, "Drink Choice", [5, 6, 7, 8]),
+            new(3, "Side Choice", [9, 10, 11]),
+            new(4, "Pastry Choice", [12, 13, 14])
+        };
+
+        var lines = new List<ComboChoiceLineDto>
+        {
+            new(1, 1, 101, "Classic Beef Burger", 12.00m, 0.00m),
+            new(2, 1, 102, "Double Cheeseburger", 14.00m, 2.00m),
+            new(3, 1, 103, "Veggie Burger", 11.50m, 0.00m),
+            new(4, 1, 104, "Crispy Chicken Burger", 13.00m, 1.00m),
+
+            new(5, 2, 201, "Soda Can 330ml", 2.50m, 0.00m),
+            new(6, 2, 202, "Mineral Water 500ml", 2.00m, 0.00m),
+            new(7, 2, 203, "Fresh Orange Juice", 4.50m, 1.50m),
+            new(8, 2, 204, "Iced Lemon Tea", 3.50m, 0.50m),
+
+            new(9, 3, 301, "French Fries", 3.50m, 0.00m),
+            new(10, 3, 302, "Onion Rings", 4.00m, 0.50m),
+            new(11, 3, 303, "Caesar Salad", 5.00m, 1.50m),
+
+            new(12, 4, 401, "Butter Croissant", 3.50m, 0.00m),
+            new(13, 4, 402, "Pain au Chocolat", 4.00m, 0.50m),
+            new(14, 4, 403, "Almond Danish", 4.50m, 1.00m)
+        };
+
+        return (combos, lines);
+    }
 }

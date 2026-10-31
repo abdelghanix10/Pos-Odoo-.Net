@@ -88,6 +88,11 @@ public partial class ProductTagManagementView : UserControl
         {
             _filteredTags.Add(item);
         }
+
+        if (TagDetailViewContainer.Visibility == Visibility.Visible)
+        {
+            UpdateDetailPagerVisual();
+        }
     }
 
     private void SearchTagsTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -111,6 +116,7 @@ public partial class ProductTagManagementView : UserControl
         TagDetailViewContainer.Visibility = Visibility.Collapsed;
         TagListViewContainer.Visibility = Visibility.Visible;
         BreadcrumbDetailSubPanel.Visibility = Visibility.Collapsed;
+        DetailRecordPagerPanel.Visibility = Visibility.Collapsed;
     }
 
     public void SwitchToDetailView(ProductTagRecord tag)
@@ -133,6 +139,52 @@ public partial class ProductTagManagementView : UserControl
         TagListViewContainer.Visibility = Visibility.Collapsed;
         TagDetailViewContainer.Visibility = Visibility.Visible;
         BreadcrumbDetailSubPanel.Visibility = Visibility.Visible;
+
+        UpdateDetailPagerVisual();
+    }
+
+    // =========================================================================
+    // DETAIL VIEW RECORD SWITCHER (< >)
+    // =========================================================================
+    private void UpdateDetailPagerVisual()
+    {
+        if (_filteredTags.Count == 0 || _selectedTag == null)
+        {
+            DetailRecordPagerPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        int index = _filteredTags.IndexOf(_selectedTag);
+        if (index < 0)
+        {
+            index = 0;
+            _selectedTag = _filteredTags[0];
+        }
+
+        DetailRecordPagerPanel.Visibility = Visibility.Visible;
+        DetailPagerCounterText.Text = $"{index + 1} / {_filteredTags.Count}";
+        DetailPrevRecordBtn.IsEnabled = index > 0;
+        DetailNextRecordBtn.IsEnabled = index < _filteredTags.Count - 1;
+    }
+
+    private void DetailPrevRecord_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTag == null || _filteredTags.Count == 0) return;
+        int index = _filteredTags.IndexOf(_selectedTag);
+        if (index > 0)
+        {
+            SwitchToDetailView(_filteredTags[index - 1]);
+        }
+    }
+
+    private void DetailNextRecord_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTag == null || _filteredTags.Count == 0) return;
+        int index = _filteredTags.IndexOf(_selectedTag);
+        if (index >= 0 && index < _filteredTags.Count - 1)
+        {
+            SwitchToDetailView(_filteredTags[index + 1]);
+        }
     }
 
     private void TagRow_Click(object sender, RoutedEventArgs e)

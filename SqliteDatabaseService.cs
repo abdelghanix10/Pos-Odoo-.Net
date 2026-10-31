@@ -59,6 +59,38 @@ public record ProductTagDto(
     int ProductsCount
 );
 
+public record ProductDto(
+    int OdooId,
+    string Name,
+    string ProductType,
+    decimal ListPrice,
+    decimal StandardPrice,
+    string DefaultCode,
+    string Barcode,
+    int? PosCategoryId,
+    string? PosCategoryName,
+    int VariantCount,
+    string? ImageBase64,
+    string? TagsJson,
+    string? AttributesJson,
+    string? ComboChoicesJson
+);
+
+public record ComboChoiceDto(
+    int OdooId,
+    string Name,
+    List<int> LineIds
+);
+
+public record ComboChoiceLineDto(
+    int OdooId,
+    int ComboId,
+    int? ProductId,
+    string ProductName,
+    decimal OriginalPrice,
+    decimal ExtraPrice
+);
+
 public class SqliteDatabaseService
 {
     private static readonly Lazy<SqliteDatabaseService> _instance = new(() => new SqliteDatabaseService());
@@ -154,6 +186,43 @@ public class SqliteDatabaseService
                 ProductsCount INTEGER DEFAULT 0,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS Products (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OdooId INTEGER UNIQUE,
+                Name TEXT NOT NULL,
+                ProductType TEXT DEFAULT 'consu',
+                ListPrice REAL DEFAULT 0.0,
+                StandardPrice REAL DEFAULT 0.0,
+                DefaultCode TEXT,
+                Barcode TEXT,
+                PosCategoryId INTEGER,
+                PosCategoryName TEXT,
+                VariantCount INTEGER DEFAULT 1,
+                ImageBase64 TEXT,
+                TagsJson TEXT,
+                AttributesJson TEXT,
+                ComboChoicesJson TEXT,
+                UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS ComboChoices (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OdooId INTEGER UNIQUE,
+                Name TEXT NOT NULL,
+                UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS ComboChoiceLines (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OdooId INTEGER UNIQUE,
+                ComboId INTEGER NOT NULL,
+                ProductId INTEGER,
+                ProductName TEXT NOT NULL,
+                OriginalPrice REAL DEFAULT 0.0,
+                ExtraPrice REAL DEFAULT 0.0,
+                UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
             """;
         command.ExecuteNonQuery();
 
@@ -177,6 +246,22 @@ public class SqliteDatabaseService
         {
             using var alterCmd = connection.CreateCommand();
             alterCmd.CommandText = "ALTER TABLE OdooConfig ADD COLUMN LastTagsSyncedAt TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+        catch { /* Column already exists */ }
+
+        try
+        {
+            using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE OdooConfig ADD COLUMN LastProductsSyncedAt TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+        catch { /* Column already exists */ }
+
+        try
+        {
+            using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE OdooConfig ADD COLUMN LastCombosSyncedAt TEXT;";
             alterCmd.ExecuteNonQuery();
         }
         catch { /* Column already exists */ }
@@ -229,6 +314,24 @@ public class SqliteDatabaseService
         if (tagCount == 0)
         {
             SeedDefaultTags(connection);
+        }
+
+        // Seed initial products if table is empty
+        using var checkProducts = connection.CreateCommand();
+        checkProducts.CommandText = "SELECT COUNT(*) FROM Products;";
+        long productCount = (long)(checkProducts.ExecuteScalar() ?? 0L);
+        if (productCount == 0)
+        {
+            SeedDefaultProducts(connection);
+        }
+
+        // Seed initial combo choices if table is empty
+        using var checkCombos = connection.CreateCommand();
+        checkCombos.CommandText = "SELECT COUNT(*) FROM ComboChoices;";
+        long comboCount = (long)(checkCombos.ExecuteScalar() ?? 0L);
+        if (comboCount == 0)
+        {
+            SeedDefaultCombos(connection);
         }
     }
 
@@ -392,6 +495,105 @@ public class SqliteDatabaseService
             cmd.Parameters.AddWithValue("@name", t.name);
             cmd.Parameters.AddWithValue("@colorIndex", t.colorIndex);
             cmd.Parameters.AddWithValue("@productsCount", t.productsCount);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static void SeedDefaultProducts(SqliteConnection connection)
+    {
+        var products = new (int odooId, string name, string type, decimal listPrice, decimal cost, string sku, string barcode, int? catId, string? catName, int variants, string? tags, string? attrs, string? combos)[]
+        {
+            (1, "Acoustic Bloc Screens", "consu", 295.00m, 180.00m, "DEMO-0008", "08472910384", 2, "Desks", 2, "[\"Bestseller\", \"Featured\"]", "[{\"AttributeName\":\"Color\",\"Values\":\"White, Black\"}]", null),
+            (2, "Black embroidered t-shirt", "consu", 35.00m, 12.50m, "E-COM11", "09182371928", 4, "Upper body", 8, "[\"New Arrival\"]", "[{\"AttributeName\":\"Size\",\"Values\":\"S, M, L, XL\"},{\"AttributeName\":\"Color\",\"Values\":\"Black, White\"}]", null),
+            (3, "Office Chair Black", "consu", 159.00m, 85.00m, "FURN-0012", "07182937461", 3, "Chairs", 1, "[\"Featured\"]", null, null),
+            (4, "Large Meeting Table", "consu", 850.00m, 450.00m, "CONF-0001", "08291048291", 2, "Desks", 3, "[\"Bestseller\"]", "[{\"AttributeName\":\"Size\",\"Values\":\"Small, Medium, Large\"}]", null),
+            (5, "Desk Pad", "consu", 19.99m, 8.00m, "MISC-0034", "01928471928", 1, "Misc", 1, "[\"Special Offer\"]", null, null),
+            (6, "Lunch Burger Combo", "combo", 14.50m, 7.00m, "COMBO-001", "09988112233", 6, "Others", 1, "[\"Featured\"]", null, "[{\"ComboName\":\"Burger Choice\",\"ItemsCount\":\"4 items\"},{\"ComboName\":\"Drink Choice\",\"ItemsCount\":\"4 items\"},{\"ComboName\":\"Side Choice\",\"ItemsCount\":\"3 items\"}]"),
+            (7, "Breakfast Pastry Combo", "combo", 8.50m, 3.50m, "COMBO-002", "09988112244", 7, "Breads", 1, "[\"Bestseller\"]", null, "[{\"ComboName\":\"Pastry Choice\",\"ItemsCount\":\"3 items\"},{\"ComboName\":\"Drink Choice\",\"ItemsCount\":\"4 items\"}]"),
+            (8, "Croissant", "consu", 3.50m, 1.20m, "BAKE-0001", "06677889900", 8, "Pastries", 1, "[\"Organic\"]", null, null),
+            (9, "Baguette", "consu", 2.80m, 0.90m, "BAKE-0002", "06677889911", 7, "Breads", 1, "[\"Organic\"]", null, null),
+            (10, "Maintenance Service", "service", 75.00m, 30.00m, "SERV-0005", "05544332211", 1, "Misc", 1, null, null, null),
+            (11, "Ergonomic Desk", "consu", 420.00m, 260.00m, "FURN-0055", "03322114455", 2, "Desks", 2, "[\"Featured\"]", "[{\"AttributeName\":\"Color\",\"Values\":\"White, Oak\"}]", null),
+            (12, "Conference Chair", "consu", 110.00m, 60.00m, "FURN-0023", "04455667788", 3, "Chairs", 4, "[\"Bestseller\"]", "[{\"AttributeName\":\"Color\",\"Values\":\"Grey, Black, Blue, Red\"}]", null)
+        };
+
+        foreach (var p in products)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO Products (OdooId, Name, ProductType, ListPrice, StandardPrice, DefaultCode, Barcode, PosCategoryId, PosCategoryName, VariantCount, TagsJson, AttributesJson, ComboChoicesJson)
+                VALUES (@odooId, @name, @type, @listPrice, @stdPrice, @sku, @barcode, @catId, @catName, @variants, @tags, @attrs, @combos);
+                """;
+            cmd.Parameters.AddWithValue("@odooId", p.odooId);
+            cmd.Parameters.AddWithValue("@name", p.name);
+            cmd.Parameters.AddWithValue("@type", p.type);
+            cmd.Parameters.AddWithValue("@listPrice", (double)p.listPrice);
+            cmd.Parameters.AddWithValue("@stdPrice", (double)p.cost);
+            cmd.Parameters.AddWithValue("@sku", p.sku);
+            cmd.Parameters.AddWithValue("@barcode", p.barcode);
+            cmd.Parameters.AddWithValue("@catId", (object?)p.catId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@catName", (object?)p.catName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@variants", p.variants);
+            cmd.Parameters.AddWithValue("@tags", (object?)p.tags ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@attrs", (object?)p.attrs ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@combos", (object?)p.combos ?? DBNull.Value);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static void SeedDefaultCombos(SqliteConnection connection)
+    {
+        var combos = new (int odooId, string name)[]
+        {
+            (1, "Burger Choice"),
+            (2, "Drink Choice"),
+            (3, "Side Choice"),
+            (4, "Pastry Choice")
+        };
+
+        foreach (var c in combos)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "INSERT INTO ComboChoices (OdooId, Name) VALUES (@odooId, @name);";
+            cmd.Parameters.AddWithValue("@odooId", c.odooId);
+            cmd.Parameters.AddWithValue("@name", c.name);
+            cmd.ExecuteNonQuery();
+        }
+
+        var lines = new (int odooId, int comboId, int? productId, string productName, decimal origPrice, decimal extraPrice)[]
+        {
+            (1, 1, 101, "Classic Beef Burger", 12.00m, 0.00m),
+            (2, 1, 102, "Double Cheeseburger", 14.00m, 2.00m),
+            (3, 1, 103, "Veggie Burger", 11.50m, 0.00m),
+            (4, 1, 104, "Crispy Chicken Burger", 13.00m, 1.00m),
+
+            (5, 2, 201, "Soda Can 330ml", 2.50m, 0.00m),
+            (6, 2, 202, "Mineral Water 500ml", 2.00m, 0.00m),
+            (7, 2, 203, "Fresh Orange Juice", 4.50m, 1.50m),
+            (8, 2, 204, "Iced Lemon Tea", 3.50m, 0.50m),
+
+            (9, 3, 301, "French Fries", 3.50m, 0.00m),
+            (10, 3, 302, "Onion Rings", 4.00m, 0.50m),
+            (11, 3, 303, "Caesar Salad", 5.00m, 1.50m),
+
+            (12, 4, 401, "Butter Croissant", 3.50m, 0.00m),
+            (13, 4, 402, "Pain au Chocolat", 4.00m, 0.50m),
+            (14, 4, 403, "Almond Danish", 4.50m, 1.00m)
+        };
+
+        foreach (var l in lines)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO ComboChoiceLines (OdooId, ComboId, ProductId, ProductName, OriginalPrice, ExtraPrice)
+                VALUES (@odooId, @comboId, @productId, @productName, @origPrice, @extraPrice);
+                """;
+            cmd.Parameters.AddWithValue("@odooId", l.odooId);
+            cmd.Parameters.AddWithValue("@comboId", l.comboId);
+            cmd.Parameters.AddWithValue("@productId", (object?)l.productId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@productName", l.productName);
+            cmd.Parameters.AddWithValue("@origPrice", (double)l.origPrice);
+            cmd.Parameters.AddWithValue("@extraPrice", (double)l.extraPrice);
             cmd.ExecuteNonQuery();
         }
     }
@@ -1421,6 +1623,403 @@ public class SqliteDatabaseService
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT LastTagsSyncedAt FROM OdooConfig WHERE Id = 1;";
+        var res = await cmd.ExecuteScalarAsync();
+        return res is DBNull or null ? null : res.ToString();
+    }
+
+    // =========================================================================
+    // PRODUCTS REPOSITORY & SYNC (product.template / product.product)
+    // =========================================================================
+    public async Task<List<ProductRecord>> LoadAllProductsAsync()
+    {
+        var result = new List<ProductRecord>();
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, OdooId, Name, ProductType, ListPrice, StandardPrice, DefaultCode, Barcode,
+                   PosCategoryId, PosCategoryName, VariantCount, ImageBase64, TagsJson, AttributesJson, ComboChoicesJson
+            FROM Products
+            ORDER BY Id ASC;
+            """;
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var p = new ProductRecord
+            {
+                Id = reader.GetInt64(0),
+                OdooId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                Name = reader.GetString(2),
+                ProductType = reader.IsDBNull(3) ? "consu" : reader.GetString(3),
+                ListPrice = reader.IsDBNull(4) ? 0.00m : Convert.ToDecimal(reader.GetDouble(4)),
+                StandardPrice = reader.IsDBNull(5) ? 0.00m : Convert.ToDecimal(reader.GetDouble(5)),
+                DefaultCode = reader.IsDBNull(6) ? "" : reader.GetString(6),
+                Barcode = reader.IsDBNull(7) ? "" : reader.GetString(7),
+                PosCategoryId = reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                PosCategoryName = reader.IsDBNull(9) ? null : reader.GetString(9),
+                VariantCount = reader.IsDBNull(10) ? 1 : reader.GetInt32(10),
+                ImageBase64 = reader.IsDBNull(11) ? null : reader.GetString(11),
+                TagsJson = reader.IsDBNull(12) ? null : reader.GetString(12),
+                AttributesJson = reader.IsDBNull(13) ? null : reader.GetString(13),
+                ComboChoicesJson = reader.IsDBNull(14) ? null : reader.GetString(14)
+            };
+            result.Add(p);
+        }
+
+        return result;
+    }
+
+    public async Task<(int imported, int updated, int deleted)> UpsertOdooProductsAsync(List<ProductDto> products)
+    {
+        int imported = 0, updated = 0, deleted = 0;
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        var odooProductIds = products.Select(p => p.OdooId).ToHashSet();
+
+        foreach (var p in products)
+        {
+            await using var checkCmd = connection.CreateCommand();
+            checkCmd.Transaction = transaction;
+            checkCmd.CommandText = "SELECT Id FROM Products WHERE OdooId = @odooId LIMIT 1;";
+            checkCmd.Parameters.AddWithValue("@odooId", p.OdooId);
+            var existingId = await checkCmd.ExecuteScalarAsync();
+
+            if (existingId != null)
+            {
+                await using var updateCmd = connection.CreateCommand();
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = """
+                    UPDATE Products
+                    SET Name = @name,
+                        ProductType = @type,
+                        ListPrice = @listPrice,
+                        StandardPrice = @stdPrice,
+                        DefaultCode = @sku,
+                        Barcode = @barcode,
+                        PosCategoryId = @catId,
+                        PosCategoryName = @catName,
+                        VariantCount = @variants,
+                        ImageBase64 = CASE WHEN @image IS NOT NULL THEN @image ELSE ImageBase64 END,
+                        TagsJson = @tags,
+                        AttributesJson = @attrs,
+                        ComboChoicesJson = @combos,
+                        UpdatedAt = CURRENT_TIMESTAMP
+                    WHERE OdooId = @odooId;
+                    """;
+                updateCmd.Parameters.AddWithValue("@name", p.Name);
+                updateCmd.Parameters.AddWithValue("@type", p.ProductType);
+                updateCmd.Parameters.AddWithValue("@listPrice", (double)p.ListPrice);
+                updateCmd.Parameters.AddWithValue("@stdPrice", (double)p.StandardPrice);
+                updateCmd.Parameters.AddWithValue("@sku", p.DefaultCode);
+                updateCmd.Parameters.AddWithValue("@barcode", p.Barcode);
+                updateCmd.Parameters.AddWithValue("@catId", (object?)p.PosCategoryId ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@catName", (object?)p.PosCategoryName ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@variants", p.VariantCount);
+                updateCmd.Parameters.AddWithValue("@image", (object?)p.ImageBase64 ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@tags", (object?)p.TagsJson ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@attrs", (object?)p.AttributesJson ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@combos", (object?)p.ComboChoicesJson ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@odooId", p.OdooId);
+                await updateCmd.ExecuteNonQueryAsync();
+                updated++;
+            }
+            else
+            {
+                await using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = """
+                    INSERT INTO Products (OdooId, Name, ProductType, ListPrice, StandardPrice, DefaultCode, Barcode,
+                                         PosCategoryId, PosCategoryName, VariantCount, ImageBase64, TagsJson, AttributesJson, ComboChoicesJson)
+                    VALUES (@odooId, @name, @type, @listPrice, @stdPrice, @sku, @barcode,
+                            @catId, @catName, @variants, @image, @tags, @attrs, @combos);
+                    """;
+                insertCmd.Parameters.AddWithValue("@odooId", p.OdooId);
+                insertCmd.Parameters.AddWithValue("@name", p.Name);
+                insertCmd.Parameters.AddWithValue("@type", p.ProductType);
+                insertCmd.Parameters.AddWithValue("@listPrice", (double)p.ListPrice);
+                insertCmd.Parameters.AddWithValue("@stdPrice", (double)p.StandardPrice);
+                insertCmd.Parameters.AddWithValue("@sku", p.DefaultCode);
+                insertCmd.Parameters.AddWithValue("@barcode", p.Barcode);
+                insertCmd.Parameters.AddWithValue("@catId", (object?)p.PosCategoryId ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@catName", (object?)p.PosCategoryName ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@variants", p.VariantCount);
+                insertCmd.Parameters.AddWithValue("@image", (object?)p.ImageBase64 ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@tags", (object?)p.TagsJson ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@attrs", (object?)p.AttributesJson ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@combos", (object?)p.ComboChoicesJson ?? DBNull.Value);
+                await insertCmd.ExecuteNonQueryAsync();
+                imported++;
+            }
+        }
+
+        // Reconcile / Delete products not in Odoo Online
+        if (products.Count > 0)
+        {
+            var delIds = new List<int>();
+            await using (var fetchCmd = connection.CreateCommand())
+            {
+                fetchCmd.Transaction = transaction;
+                fetchCmd.CommandText = "SELECT OdooId FROM Products WHERE OdooId IS NOT NULL;";
+                await using var reader = await fetchCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    int oId = reader.GetInt32(0);
+                    if (!odooProductIds.Contains(oId)) delIds.Add(oId);
+                }
+            }
+
+            foreach (var delId in delIds)
+            {
+                await using var delCmd = connection.CreateCommand();
+                delCmd.Transaction = transaction;
+                delCmd.CommandText = "DELETE FROM Products WHERE OdooId = @id;";
+                delCmd.Parameters.AddWithValue("@id", delId);
+                await delCmd.ExecuteNonQueryAsync();
+                deleted++;
+            }
+        }
+
+        await transaction.CommitAsync();
+        return (imported, updated, deleted);
+    }
+
+    public async Task UpdateProductSyncStatusAsync(DateTime syncedAt, string status)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            UPDATE OdooConfig
+            SET LastProductsSyncedAt = @syncedAt
+            WHERE Id = 1;
+            """;
+        cmd.Parameters.AddWithValue("@syncedAt", syncedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<string?> GetLastProductSyncStatusAsync()
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT LastProductsSyncedAt FROM OdooConfig WHERE Id = 1;";
+        var res = await cmd.ExecuteScalarAsync();
+        return res is DBNull or null ? null : res.ToString();
+    }
+
+    // =========================================================================
+    // COMBO CHOICES REPOSITORY & SYNC (pos.combo & pos.combo.line)
+    // =========================================================================
+    public async Task<List<ComboChoiceRecord>> LoadAllComboChoicesAsync()
+    {
+        var result = new List<ComboChoiceRecord>();
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Id, OdooId, Name FROM ComboChoices ORDER BY Id ASC;";
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var combo = new ComboChoiceRecord
+            {
+                Id = reader.GetInt64(0),
+                OdooId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                Name = reader.GetString(2)
+            };
+            result.Add(combo);
+        }
+
+        // Load lines for each combo
+        foreach (var combo in result)
+        {
+            if (combo.OdooId.HasValue)
+            {
+                await using var lineCmd = connection.CreateCommand();
+                lineCmd.CommandText = """
+                    SELECT Id, OdooId, ComboId, ProductId, ProductName, OriginalPrice, ExtraPrice
+                    FROM ComboChoiceLines
+                    WHERE ComboId = @comboId
+                    ORDER BY Id ASC;
+                    """;
+                lineCmd.Parameters.AddWithValue("@comboId", combo.OdooId.Value);
+
+                await using var lineReader = await lineCmd.ExecuteReaderAsync();
+                while (await lineReader.ReadAsync())
+                {
+                    var line = new ComboChoiceLineRecord
+                    {
+                        Id = lineReader.GetInt64(0),
+                        OdooId = lineReader.IsDBNull(1) ? null : lineReader.GetInt32(1),
+                        ComboId = lineReader.IsDBNull(2) ? null : lineReader.GetInt32(2),
+                        ProductId = lineReader.IsDBNull(3) ? null : lineReader.GetInt32(3),
+                        ProductName = lineReader.GetString(4),
+                        OriginalPrice = lineReader.IsDBNull(5) ? 0.00m : Convert.ToDecimal(lineReader.GetDouble(5)),
+                        ExtraPrice = lineReader.IsDBNull(6) ? 0.00m : Convert.ToDecimal(lineReader.GetDouble(6))
+                    };
+                    combo.Lines.Add(line);
+                }
+                combo.NotifyLinesChanged();
+            }
+        }
+
+        return result;
+    }
+
+    public async Task<(int imported, int updated, int deleted)> UpsertOdooCombosAsync(List<ComboChoiceDto> combos, List<ComboChoiceLineDto> lines)
+    {
+        int imported = 0, updated = 0, deleted = 0;
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        var odooComboIds = combos.Select(c => c.OdooId).ToHashSet();
+
+        foreach (var c in combos)
+        {
+            await using var checkCmd = connection.CreateCommand();
+            checkCmd.Transaction = transaction;
+            checkCmd.CommandText = "SELECT Id FROM ComboChoices WHERE OdooId = @odooId LIMIT 1;";
+            checkCmd.Parameters.AddWithValue("@odooId", c.OdooId);
+            var existingId = await checkCmd.ExecuteScalarAsync();
+
+            if (existingId != null)
+            {
+                await using var updateCmd = connection.CreateCommand();
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = "UPDATE ComboChoices SET Name = @name, UpdatedAt = CURRENT_TIMESTAMP WHERE OdooId = @odooId;";
+                updateCmd.Parameters.AddWithValue("@name", c.Name);
+                updateCmd.Parameters.AddWithValue("@odooId", c.OdooId);
+                await updateCmd.ExecuteNonQueryAsync();
+                updated++;
+            }
+            else
+            {
+                await using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = "INSERT INTO ComboChoices (OdooId, Name) VALUES (@odooId, @name);";
+                insertCmd.Parameters.AddWithValue("@odooId", c.OdooId);
+                insertCmd.Parameters.AddWithValue("@name", c.Name);
+                await insertCmd.ExecuteNonQueryAsync();
+                imported++;
+            }
+        }
+
+        // Upsert combo lines
+        foreach (var l in lines)
+        {
+            await using var checkLine = connection.CreateCommand();
+            checkLine.Transaction = transaction;
+            checkLine.CommandText = "SELECT Id FROM ComboChoiceLines WHERE OdooId = @odooId LIMIT 1;";
+            checkLine.Parameters.AddWithValue("@odooId", l.OdooId);
+            var existingLineId = await checkLine.ExecuteScalarAsync();
+
+            if (existingLineId != null)
+            {
+                await using var updateLine = connection.CreateCommand();
+                updateLine.Transaction = transaction;
+                updateLine.CommandText = """
+                    UPDATE ComboChoiceLines
+                    SET ComboId = @comboId, ProductId = @productId, ProductName = @productName,
+                        OriginalPrice = @origPrice, ExtraPrice = @extraPrice, UpdatedAt = CURRENT_TIMESTAMP
+                    WHERE OdooId = @odooId;
+                    """;
+                updateLine.Parameters.AddWithValue("@comboId", l.ComboId);
+                updateLine.Parameters.AddWithValue("@productId", (object?)l.ProductId ?? DBNull.Value);
+                updateLine.Parameters.AddWithValue("@productName", l.ProductName);
+                updateLine.Parameters.AddWithValue("@origPrice", (double)l.OriginalPrice);
+                updateLine.Parameters.AddWithValue("@extraPrice", (double)l.ExtraPrice);
+                updateLine.Parameters.AddWithValue("@odooId", l.OdooId);
+                await updateLine.ExecuteNonQueryAsync();
+            }
+            else
+            {
+                await using var insertLine = connection.CreateCommand();
+                insertLine.Transaction = transaction;
+                insertLine.CommandText = """
+                    INSERT INTO ComboChoiceLines (OdooId, ComboId, ProductId, ProductName, OriginalPrice, ExtraPrice)
+                    VALUES (@odooId, @comboId, @productId, @productName, @origPrice, @extraPrice);
+                    """;
+                insertLine.Parameters.AddWithValue("@odooId", l.OdooId);
+                insertLine.Parameters.AddWithValue("@comboId", l.ComboId);
+                insertLine.Parameters.AddWithValue("@productId", (object?)l.ProductId ?? DBNull.Value);
+                insertLine.Parameters.AddWithValue("@productName", l.ProductName);
+                insertLine.Parameters.AddWithValue("@origPrice", (double)l.OriginalPrice);
+                insertLine.Parameters.AddWithValue("@extraPrice", (double)l.ExtraPrice);
+                await insertLine.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Reconcile deleted combos
+        if (combos.Count > 0)
+        {
+            var delIds = new List<int>();
+            await using (var fetchCmd = connection.CreateCommand())
+            {
+                fetchCmd.Transaction = transaction;
+                fetchCmd.CommandText = "SELECT OdooId FROM ComboChoices WHERE OdooId IS NOT NULL;";
+                await using var reader = await fetchCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    int oId = reader.GetInt32(0);
+                    if (!odooComboIds.Contains(oId)) delIds.Add(oId);
+                }
+            }
+
+            foreach (var delId in delIds)
+            {
+                await using var delLines = connection.CreateCommand();
+                delLines.Transaction = transaction;
+                delLines.CommandText = "DELETE FROM ComboChoiceLines WHERE ComboId = @id;";
+                delLines.Parameters.AddWithValue("@id", delId);
+                await delLines.ExecuteNonQueryAsync();
+
+                await using var delCmd = connection.CreateCommand();
+                delCmd.Transaction = transaction;
+                delCmd.CommandText = "DELETE FROM ComboChoices WHERE OdooId = @id;";
+                delCmd.Parameters.AddWithValue("@id", delId);
+                await delCmd.ExecuteNonQueryAsync();
+                deleted++;
+            }
+        }
+
+        await transaction.CommitAsync();
+        return (imported, updated, deleted);
+    }
+
+    public async Task UpdateComboSyncStatusAsync(DateTime syncedAt, string status)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            UPDATE OdooConfig
+            SET LastCombosSyncedAt = @syncedAt
+            WHERE Id = 1;
+            """;
+        cmd.Parameters.AddWithValue("@syncedAt", syncedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<string?> GetLastComboSyncStatusAsync()
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT LastCombosSyncedAt FROM OdooConfig WHERE Id = 1;";
         var res = await cmd.ExecuteScalarAsync();
         return res is DBNull or null ? null : res.ToString();
     }

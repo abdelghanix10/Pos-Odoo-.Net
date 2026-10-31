@@ -92,6 +92,11 @@ public partial class PosCategoryManagementView : UserControl
         {
             _filteredCategories.Add(item);
         }
+
+        if (CategoryDetailViewContainer.Visibility == Visibility.Visible)
+        {
+            UpdateDetailPagerVisual();
+        }
     }
 
     private void SearchCategoriesTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -115,6 +120,7 @@ public partial class PosCategoryManagementView : UserControl
         CategoryDetailViewContainer.Visibility = Visibility.Collapsed;
         CategoryListViewContainer.Visibility = Visibility.Visible;
         BreadcrumbDetailSubPanel.Visibility = Visibility.Collapsed;
+        DetailRecordPagerPanel.Visibility = Visibility.Collapsed;
     }
 
     public void SwitchToDetailView(PosCategoryRecord category)
@@ -144,6 +150,52 @@ public partial class PosCategoryManagementView : UserControl
         CategoryListViewContainer.Visibility = Visibility.Collapsed;
         CategoryDetailViewContainer.Visibility = Visibility.Visible;
         BreadcrumbDetailSubPanel.Visibility = Visibility.Visible;
+
+        UpdateDetailPagerVisual();
+    }
+
+    // =========================================================================
+    // DETAIL VIEW RECORD SWITCHER (< >)
+    // =========================================================================
+    private void UpdateDetailPagerVisual()
+    {
+        if (_filteredCategories.Count == 0 || _selectedCategory == null)
+        {
+            DetailRecordPagerPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        int index = _filteredCategories.IndexOf(_selectedCategory);
+        if (index < 0)
+        {
+            index = 0;
+            _selectedCategory = _filteredCategories[0];
+        }
+
+        DetailRecordPagerPanel.Visibility = Visibility.Visible;
+        DetailPagerCounterText.Text = $"{index + 1} / {_filteredCategories.Count}";
+        DetailPrevRecordBtn.IsEnabled = index > 0;
+        DetailNextRecordBtn.IsEnabled = index < _filteredCategories.Count - 1;
+    }
+
+    private void DetailPrevRecord_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCategory == null || _filteredCategories.Count == 0) return;
+        int index = _filteredCategories.IndexOf(_selectedCategory);
+        if (index > 0)
+        {
+            SwitchToDetailView(_filteredCategories[index - 1]);
+        }
+    }
+
+    private void DetailNextRecord_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCategory == null || _filteredCategories.Count == 0) return;
+        int index = _filteredCategories.IndexOf(_selectedCategory);
+        if (index >= 0 && index < _filteredCategories.Count - 1)
+        {
+            SwitchToDetailView(_filteredCategories[index + 1]);
+        }
     }
 
     private void CategoryRow_Click(object sender, RoutedEventArgs e)

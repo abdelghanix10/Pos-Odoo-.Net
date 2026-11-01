@@ -1223,4 +1223,389 @@ public class OdooSyncService
 
         return (combos, lines);
     }
+
+    public async Task<List<PosSessionDto>> FetchOdooSessionsAsync(bool allowOfflineSimulation = true)
+    {
+        try
+        {
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooSessions();
+                throw new InvalidOperationException("Odoo Server URL is not configured.");
+            }
+
+            string baseUrl = NormalizeUrl(config.ServerUrl);
+            string endpoint = $"{baseUrl}/jsonrpc";
+
+            var test = await TestConnectionAsync(config);
+            if (!test.Success || !test.Uid.HasValue)
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooSessions();
+                throw new InvalidOperationException(test.Message);
+            }
+
+            int uid = test.Uid.Value;
+
+            var payload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "pos.session",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new { fields = new[] { "id", "name", "config_id", "user_id", "start_at", "stop_at", "state", "cash_register_balance_start", "cash_register_balance_end_real", "order_count", "total_payments_amount" } }
+                    }
+                },
+                id = 60
+            };
+
+            var req = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var resp = await _httpClient.PostAsync(endpoint, req);
+            resp.EnsureSuccessStatusCode();
+
+            string resStr = await resp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(resStr);
+
+            var list = new List<PosSessionDto>();
+            if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in items.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+                    int? cfgId = null;
+                    string cfgName = "";
+                    if (item.TryGetProperty("config_id", out var cid) && cid.ValueKind == JsonValueKind.Array && cid.GetArrayLength() >= 2)
+                    {
+                        cfgId = cid[0].GetInt32();
+                        cfgName = cid[1].GetString() ?? "";
+                    }
+                    int? userId = null;
+                    string userName = "";
+                    if (item.TryGetProperty("user_id", out var uidProp) && uidProp.ValueKind == JsonValueKind.Array && uidProp.GetArrayLength() >= 2)
+                    {
+                        userId = uidProp[0].GetInt32();
+                        userName = uidProp[1].GetString() ?? "";
+                    }
+                    DateTime? startAt = null;
+                    if (item.TryGetProperty("start_at", out var sProp) && sProp.ValueKind == JsonValueKind.String && DateTime.TryParse(sProp.GetString(), out var st))
+                    {
+                        startAt = st;
+                    }
+                    DateTime? stopAt = null;
+                    if (item.TryGetProperty("stop_at", out var spProp) && spProp.ValueKind == JsonValueKind.String && DateTime.TryParse(spProp.GetString(), out var sp))
+                    {
+                        stopAt = sp;
+                    }
+                    string state = item.TryGetProperty("state", out var stp) && stp.ValueKind == JsonValueKind.String ? stp.GetString() ?? "opened" : "opened";
+                    decimal openBal = item.TryGetProperty("cash_register_balance_start", out var ob) && ob.ValueKind == JsonValueKind.Number ? ob.GetDecimal() : 0.00m;
+                    decimal closeBal = item.TryGetProperty("cash_register_balance_end_real", out var cb) && cb.ValueKind == JsonValueKind.Number ? cb.GetDecimal() : 0.00m;
+                    int ordersCount = item.TryGetProperty("order_count", out var oc) && oc.ValueKind == JsonValueKind.Number ? oc.GetInt32() : 0;
+                    decimal totalPayments = item.TryGetProperty("total_payments_amount", out var tp) && tp.ValueKind == JsonValueKind.Number ? tp.GetDecimal() : 0.00m;
+
+                    list.Add(new PosSessionDto(odooId, name, cfgId, cfgName, userId, userName, null, startAt, stopAt, state, openBal, closeBal, ordersCount, totalPayments, userName));
+                }
+            }
+
+            UpdateStatus(true, "Odoo Online");
+            return list.Count > 0 ? list : GetSimulatedOdooSessions();
+        }
+        catch
+        {
+            if (allowOfflineSimulation) return GetSimulatedOdooSessions();
+            UpdateStatus(false, "Offline (Local Mode)");
+            throw;
+        }
+    }
+
+    public async Task<(List<PosOrderDto> orders, List<PosOrderLineDto> lines, List<PosPaymentDto> payments)> FetchOdooOrdersAsync(bool allowOfflineSimulation = true)
+    {
+        try
+        {
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooOrders();
+                throw new InvalidOperationException("Odoo Server URL is not configured.");
+            }
+
+            string baseUrl = NormalizeUrl(config.ServerUrl);
+            string endpoint = $"{baseUrl}/jsonrpc";
+
+            var test = await TestConnectionAsync(config);
+            if (!test.Success || !test.Uid.HasValue)
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooOrders();
+                throw new InvalidOperationException(test.Message);
+            }
+
+            int uid = test.Uid.Value;
+
+            var payload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "pos.order",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new { fields = new[] { "id", "name", "pos_reference", "tracking_number", "session_id", "date_order", "user_id", "fiscal_position_id", "amount_total", "amount_tax", "amount_paid", "margin", "margin_ratio", "state" } }
+                    }
+                },
+                id = 61
+            };
+
+            var req = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var resp = await _httpClient.PostAsync(endpoint, req);
+            resp.EnsureSuccessStatusCode();
+
+            string resStr = await resp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(resStr);
+
+            var orders = new List<PosOrderDto>();
+            if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in items.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
+                    string posRef = item.TryGetProperty("pos_reference", out var pr) && pr.ValueKind == JsonValueKind.String ? pr.GetString() ?? "" : "";
+                    string trackNum = item.TryGetProperty("tracking_number", out var tn) && tn.ValueKind == JsonValueKind.String ? tn.GetString() ?? "" : "";
+                    int? sessOdooId = null;
+                    string sessName = "";
+                    if (item.TryGetProperty("session_id", out var sid) && sid.ValueKind == JsonValueKind.Array && sid.GetArrayLength() >= 2)
+                    {
+                        sessOdooId = sid[0].GetInt32();
+                        sessName = sid[1].GetString() ?? "";
+                    }
+                    string cfgName = sessName.Contains('/') ? sessName.Split('/')[0].Trim() : "Point of Sale";
+                    DateTime? dateOrder = null;
+                    if (item.TryGetProperty("date_order", out var doProp) && doProp.ValueKind == JsonValueKind.String && DateTime.TryParse(doProp.GetString(), out var dt))
+                    {
+                        dateOrder = dt;
+                    }
+                    int? cashierId = null;
+                    string cashierName = "";
+                    if (item.TryGetProperty("user_id", out var uidProp) && uidProp.ValueKind == JsonValueKind.Array && uidProp.GetArrayLength() >= 2)
+                    {
+                        cashierId = uidProp[0].GetInt32();
+                        cashierName = uidProp[1].GetString() ?? "";
+                    }
+                    string fiscal = item.TryGetProperty("fiscal_position_id", out var fp) && fp.ValueKind == JsonValueKind.Array && fp.GetArrayLength() >= 2
+                        ? fp[1].GetString() ?? "Standard Tax" : "Standard Tax";
+
+                    decimal amountTotal = item.TryGetProperty("amount_total", out var at) && at.ValueKind == JsonValueKind.Number ? at.GetDecimal() : 0.00m;
+                    decimal amountTax = item.TryGetProperty("amount_tax", out var atx) && atx.ValueKind == JsonValueKind.Number ? atx.GetDecimal() : 0.00m;
+                    decimal amountPaid = item.TryGetProperty("amount_paid", out var ap) && ap.ValueKind == JsonValueKind.Number ? ap.GetDecimal() : amountTotal;
+                    decimal margin = item.TryGetProperty("margin", out var mg) && mg.ValueKind == JsonValueKind.Number ? mg.GetDecimal() : amountTotal * 0.45m;
+                    decimal marginRatio = item.TryGetProperty("margin_ratio", out var mr) && mr.ValueKind == JsonValueKind.Number ? mr.GetDecimal() : 0.45m;
+                    string state = item.TryGetProperty("state", out var stp) && stp.ValueKind == JsonValueKind.String ? stp.GetString() ?? "paid" : "paid";
+
+                    orders.Add(new PosOrderDto(odooId, name, posRef, trackNum, null, sessOdooId, sessName, cfgName, dateOrder, cashierId, cashierName, null, fiscal, amountTotal, amountTax, amountPaid, margin, marginRatio, state, false, "My Company", "", null, null));
+                }
+            }
+
+            UpdateStatus(true, "Odoo Online");
+            return orders.Count > 0 ? (orders, new List<PosOrderLineDto>(), new List<PosPaymentDto>()) : GetSimulatedOdooOrders();
+        }
+        catch
+        {
+            if (allowOfflineSimulation) return GetSimulatedOdooOrders();
+            UpdateStatus(false, "Offline (Local Mode)");
+            throw;
+        }
+    }
+
+    public async Task<List<PosPaymentDto>> FetchOdooPaymentsAsync(bool allowOfflineSimulation = true)
+    {
+        try
+        {
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooPayments();
+                throw new InvalidOperationException("Odoo Server URL is not configured.");
+            }
+
+            string baseUrl = NormalizeUrl(config.ServerUrl);
+            string endpoint = $"{baseUrl}/jsonrpc";
+
+            var test = await TestConnectionAsync(config);
+            if (!test.Success || !test.Uid.HasValue)
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooPayments();
+                throw new InvalidOperationException(test.Message);
+            }
+
+            int uid = test.Uid.Value;
+
+            var payload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "pos.payment",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new { fields = new[] { "id", "pos_order_id", "session_id", "payment_method_id", "amount", "payment_date" } }
+                    }
+                },
+                id = 62
+            };
+
+            var req = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var resp = await _httpClient.PostAsync(endpoint, req);
+            resp.EnsureSuccessStatusCode();
+
+            string resStr = await resp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(resStr);
+
+            var list = new List<PosPaymentDto>();
+            if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in items.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    int? orderOdooId = null;
+                    string orderName = "";
+                    if (item.TryGetProperty("pos_order_id", out var oid) && oid.ValueKind == JsonValueKind.Array && oid.GetArrayLength() >= 2)
+                    {
+                        orderOdooId = oid[0].GetInt32();
+                        orderName = oid[1].GetString() ?? "";
+                    }
+                    int? sessionOdooId = null;
+                    string sessionName = "";
+                    if (item.TryGetProperty("session_id", out var sid) && sid.ValueKind == JsonValueKind.Array && sid.GetArrayLength() >= 2)
+                    {
+                        sessionOdooId = sid[0].GetInt32();
+                        sessionName = sid[1].GetString() ?? "";
+                    }
+                    int? methodId = null;
+                    string methodName = "Cash";
+                    if (item.TryGetProperty("payment_method_id", out var pmid) && pmid.ValueKind == JsonValueKind.Array && pmid.GetArrayLength() >= 2)
+                    {
+                        methodId = pmid[0].GetInt32();
+                        methodName = pmid[1].GetString() ?? "Cash";
+                    }
+                    decimal amount = item.TryGetProperty("amount", out var am) && am.ValueKind == JsonValueKind.Number ? am.GetDecimal() : 0.00m;
+                    DateTime? payDate = null;
+                    if (item.TryGetProperty("payment_date", out var pd) && pd.ValueKind == JsonValueKind.String && DateTime.TryParse(pd.GetString(), out var pdt))
+                    {
+                        payDate = pdt;
+                    }
+
+                    list.Add(new PosPaymentDto(odooId, orderOdooId, orderName, sessionOdooId, sessionName, "Cashier", methodId, methodName, amount, "USD ($)", "—", payDate));
+                }
+            }
+
+            UpdateStatus(true, "Odoo Online");
+            return list.Count > 0 ? list : GetSimulatedOdooPayments();
+        }
+        catch
+        {
+            if (allowOfflineSimulation) return GetSimulatedOdooPayments();
+            UpdateStatus(false, "Offline (Local Mode)");
+            throw;
+        }
+    }
+
+    public static List<PosSessionRecord> GetSimulatedSessionsRecords()
+    {
+        return GetSimulatedOdooSessions().Select(s => new PosSessionRecord
+        {
+            OdooId = s.OdooId,
+            Name = s.Name,
+            PosConfigId = s.PosConfigId,
+            PosConfigName = s.PosConfigName ?? "",
+            UserId = s.UserId,
+            UserName = s.UserName ?? "",
+            StartAt = s.StartAt,
+            StopAt = s.StopAt,
+            State = s.State,
+            OpeningBalance = s.OpeningBalance,
+            ClosingBalance = s.ClosingBalance,
+            OrdersCount = s.OrdersCount,
+            TotalPaymentsAmount = s.TotalPaymentsAmount,
+            Employees = s.Employees
+        }).ToList();
+    }
+
+    public static List<PosSessionDto> GetSimulatedOdooSessions()
+    {
+        return
+        [
+            new(4, "Bakery Shop/00004", 3, "Bakery Shop", 3, "Mitchell Admin", null, new DateTime(2026, 10, 31, 8, 30, 0), null, "opened", 100.00m, 0.00m, 4, 248.50m, "Mitchell Admin, Marc Demo"),
+            new(3, "Bakery Shop/00003", 3, "Bakery Shop", 1, "Administrator", null, new DateTime(2026, 10, 30, 8, 0, 0), new DateTime(2026, 10, 30, 18, 0, 0), "closed", 100.00m, 684.20m, 12, 584.20m, "Administrator"),
+            new(2, "Furniture Shop/00002", 1, "Furniture Shop", 2, "Marc Demo", null, new DateTime(2026, 10, 31, 9, 15, 0), null, "opened", 150.00m, 0.00m, 3, 1295.00m, "Marc Demo"),
+            new(1, "Clothes Shop/00001", 2, "Clothes Shop", 3, "Mitchell Admin", null, new DateTime(2026, 10, 29, 10, 0, 0), new DateTime(2026, 10, 29, 20, 0, 0), "closed", 80.00m, 425.00m, 8, 345.00m, "Mitchell Admin")
+        ];
+    }
+
+    public static (List<PosOrderDto> orders, List<PosOrderLineDto> lines, List<PosPaymentDto> payments) GetSimulatedOdooOrders()
+    {
+        var orders = new List<PosOrderDto>
+        {
+            new(101, "Bakery Shop - 000001", "Order 00001-002-0001", "00001", null, 4, "Bakery Shop/00004", "Bakery Shop", new DateTime(2026, 10, 31, 9, 12, 15), 3, "Mitchell Admin", null, "Standard Tax", 24.50m, 3.20m, 24.50m, 11.20m, 0.457m, "paid", false, "My Company", "", null, null),
+            new(102, "Bakery Shop - 000002", "Order 00001-002-0002", "00002", null, 4, "Bakery Shop/00004", "Bakery Shop", new DateTime(2026, 10, 31, 10, 45, 0), 3, "Mitchell Admin", null, "Standard Tax", 42.00m, 5.48m, 42.00m, 20.10m, 0.478m, "done", false, "My Company", "", null, null),
+            new(103, "Furniture Shop - 000001", "Order 00002-001-0001", "00001", null, 2, "Furniture Shop/00002", "Furniture Shop", new DateTime(2026, 10, 31, 11, 20, 0), 2, "Marc Demo", null, "Standard Tax", 454.00m, 59.22m, 454.00m, 189.00m, 0.416m, "paid", false, "My Company", "", null, null),
+            new(104, "Bakery Shop - 000003", "Order 00001-002-0003", "00003", null, 4, "Bakery Shop/00004", "Bakery Shop", new DateTime(2026, 10, 31, 13, 5, 0), 3, "Mitchell Admin", null, "Standard Tax", 18.00m, 2.35m, 18.00m, 8.50m, 0.472m, "cancel", false, "My Company", "", null, null)
+        };
+
+        var lines = new List<PosOrderLineDto>
+        {
+            new(1001, 101, 7, "Breakfast Pastry Combo", false, 2m, 8.50m, 0m, "15%", 14.78m, 17.00m),
+            new(1002, 101, 8, "Croissant", false, 2m, 3.50m, 0m, "15%", 6.09m, 7.00m),
+            new(1003, 101, 6, "Mineral Water 500ml", false, 1m, 2.00m, 75m, "15%", 0.43m, 0.50m),
+            new(1004, 102, 6, "Lunch Burger Combo", false, 2m, 14.50m, 0m, "15%", 25.22m, 29.00m),
+            new(1005, 102, 1, "Acoustic Bloc Screens", false, 1m, 13.00m, 0m, "15%", 11.30m, 13.00m),
+            new(1006, 103, 11, "Ergonomic Desk", false, 1m, 420.00m, 0m, "15%", 365.22m, 420.00m),
+            new(1007, 103, 8, "Soda Can 330ml", false, 2m, 2.50m, 0m, "15%", 4.35m, 5.00m),
+            new(1008, 103, 5, "Desk Pad", false, 1m, 29.00m, 0m, "15%", 25.21m, 29.00m),
+            new(1009, 104, 8, "Croissant", false, 3m, 3.50m, 0m, "15%", 9.13m, 10.50m),
+            new(1010, 104, 7, "Breakfast Pastry Combo", false, 1m, 7.50m, 0m, "15%", 6.52m, 7.50m)
+        };
+
+        var payments = GetSimulatedOdooPayments();
+        return (orders, lines, payments);
+    }
+
+    public static List<PosPaymentDto> GetSimulatedOdooPayments()
+    {
+        return
+        [
+            new(201, 101, "Bakery Shop - 000001", 4, "Bakery Shop/00004", "Mitchell Admin", 1, "Cash", 24.50m, "USD ($)", "—", new DateTime(2026, 10, 31, 9, 12, 15)),
+            new(202, 102, "Bakery Shop - 000002", 4, "Bakery Shop/00004", "Mitchell Admin", 2, "Bank", 42.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 10, 45, 0)),
+            new(203, 103, "Furniture Shop - 000001", 2, "Furniture Shop/00002", "Marc Demo", 2, "Bank", 454.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 11, 20, 0)),
+            new(204, 101, "Bakery Shop - 000001", 4, "Bakery Shop/00004", "Mitchell Admin", 1, "Cash", 35.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 14, 10, 0)),
+            new(205, 102, "Bakery Shop - 000002", 4, "Bakery Shop/00004", "Mitchell Admin", 1, "Cash", 55.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 14, 35, 0)),
+            new(206, 103, "Furniture Shop - 000001", 2, "Furniture Shop/00002", "Marc Demo", 2, "Bank", 841.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 15, 50, 0)),
+            new(207, 101, "Bakery Shop - 000001", 4, "Bakery Shop/00004", "Mitchell Admin", 1, "Cash", 92.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 16, 15, 0))
+        ];
+    }
 }

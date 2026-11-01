@@ -382,197 +382,298 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0">
-                        <!-- ==================== USERS ITEM ==================== -->
-                        <Button x:Name="NavUsersBtn"
-                                Style="{StaticResource SidebarItemButtonStyle}"
-                                Click="NavUsers_Click"
-                                ToolTip="Users Management">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
-                                    <Canvas Width="24" Height="24">
-                                        <Ellipse Canvas.Left="6" Canvas.Top="3" Width="6" Height="6"
-                                                 Stroke="{StaticResource OdooPurpleBrush}"
-                                                 StrokeThickness="1.8"/>
-                                        <Path Data="M 2,19 C 2,15 5,13 9,13 C 13,13 16,15 16,19"
-                                              Stroke="{StaticResource OdooPurpleBrush}"
-                                              StrokeThickness="1.8"
-                                              StrokeStartLineCap="Round"/>
-                                        <Ellipse Canvas.Left="15" Canvas.Top="5" Width="4.5" Height="4.5"
-                                                 Stroke="{StaticResource OdooTealBrush}"
-                                                 StrokeThickness="1.6"/>
-                                        <Path Data="M 15.5,14 C 18,14.5 20.5,16 21,19"
-                                              Stroke="{StaticResource OdooTealBrush}"
-                                              StrokeThickness="1.6"
-                                              StrokeStartLineCap="Round"/>
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock x:Name="UsersLabel"
-                                           Text="Users"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
+                    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <!-- ==================== SECTION 1: REGISTER ==================== -->
+                            <TextBlock Text="REGISTER"
+                                       FontSize="10.5"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       Margin="14,4,0,4"/>
 
-                        <!-- ==================== PRODUCTS ITEM ==================== -->
-                        <Button x:Name="NavProductsBtn"
-                                Style="{StaticResource SidebarItemButtonStyle}"
-                                Click="NavProducts_Click"
-                                ToolTip="Products"
-                                Margin="0,2,0,0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
-                                    <Canvas Width="24" Height="24">
-                                        <Path Data="M 12,2 L 21,7 L 12,12 L 3,7 Z" Fill="{StaticResource OdooTealBrush}"/>
-                                        <Path Data="M 3,7 L 12,12 L 12,22 L 3,17 Z" Fill="{StaticResource OdooPurpleBrush}" Opacity="0.85"/>
-                                        <Path Data="M 12,12 L 21,7 L 21,17 L 12,22 Z" Fill="{StaticResource OdooPurpleBrush}"/>
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock x:Name="ProductsLabel"
-                                           Text="Products"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
+                            <!-- SESSIONS ITEM -->
+                            <Button x:Name="NavSessionsBtn"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
+                                    Click="NavSessions_Click"
+                                    ToolTip="Point of Sale Sessions">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Rectangle Canvas.Left="2" Canvas.Top="3" Width="20" Height="14" RadiusX="2" RadiusY="2"
+                                                       Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="1.8"/>
+                                            <Line X1="7" Y1="21" X2="17" Y2="21"
+                                                  Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                            <Line X1="12" Y1="17" X2="12" Y2="21"
+                                                  Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2"/>
+                                            <Ellipse Canvas.Left="9.5" Canvas.Top="7" Width="5" Height="5"
+                                                     Stroke="{StaticResource OdooTealBrush}" StrokeThickness="1.5"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="SessionsLabel"
+                                               Text="Sessions"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
 
-                        <!-- ==================== COMBO CHOICES ITEM ==================== -->
-                        <Button x:Name="NavCombosBtn"
-                                Style="{StaticResource SidebarItemButtonStyle}"
-                                Click="NavCombos_Click"
-                                ToolTip="Combo Choices"
-                                Margin="0,2,0,0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
-                                    <Canvas Width="24" Height="24">
-                                        <Path Data="M 4,8 C 4,5 7.5,3 12,3 C 16.5,3 20,5 20,8 Z" Fill="{StaticResource OdooTealBrush}"/>
-                                        <Path Data="M 3,11 H 21" Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                                        <Path Data="M 4,15 C 4,18 7.5,20 12,20 C 16.5,20 20,18 20,15 Z" Fill="{StaticResource OdooPurpleBrush}"/>
-                                        <Ellipse Canvas.Left="15" Canvas.Top="8" Width="4" Height="4" Fill="{StaticResource ActiveGreenBrush}"/>
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock x:Name="CombosLabel"
-                                           Text="Combo Choices"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
+                            <!-- ORDERS ITEM -->
+                            <Button x:Name="NavOrdersBtn"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
+                                    Click="NavOrders_Click"
+                                    ToolTip="Orders / Sales Orders"
+                                    Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M 19,7 L 5,7 L 3,20 C 3,20.6 3.4,21 4,21 L 20,21 C 20.6,21 21,20.6 21,20 L 19,7 Z"
+                                                  Stroke="{StaticResource OdooTealBrush}" StrokeThickness="1.8" Fill="{StaticResource OdooTealSoftBrush}"/>
+                                            <Path Data="M 16,10 C 16,12.2 14.2,14 12,14 C 9.8,14 8,12.2 8,10"
+                                                  Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="OrdersLabel"
+                                               Text="Orders"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
 
-                        <!-- ==================== POS CATEGORIES ITEM ==================== -->
-                        <Button x:Name="NavCategoriesBtn"
-                                Style="{StaticResource SidebarItemButtonStyle}"
-                                Click="NavCategories_Click"
-                                ToolTip="PoS Product Categories"
-                                Margin="0,2,0,0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
-                                    <Canvas Width="24" Height="24">
-                                        <!-- Category tag / layers shape in Odoo Teal and Purple -->
-                                        <Path Data="M 12,2 L 2,7 L 12,12 L 22,7 L 12,2 Z"
-                                              Fill="{StaticResource OdooTealBrush}"/>
-                                        <Path Data="M 2,12 L 12,17 L 22,12 M 2,17 L 12,22 L 22,17"
-                                              Stroke="{StaticResource OdooPurpleBrush}"
-                                              StrokeThickness="2"
-                                              StrokeLineJoin="Round"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"/>
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock x:Name="CategoriesLabel"
-                                           Text="PoS Categories"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
+                            <!-- PAYMENTS ITEM -->
+                            <Button x:Name="NavPaymentsBtn"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
+                                    Click="NavPayments_Click"
+                                    ToolTip="Payments"
+                                    Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Rectangle Canvas.Left="2" Canvas.Top="5" Width="20" Height="14" RadiusX="2.5" RadiusY="2.5"
+                                                       Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="1.8" Fill="{StaticResource OdooPurpleSoftBrush}"/>
+                                            <Line X1="2" Y1="10" X2="22" Y2="10"
+                                                  Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="1.8"/>
+                                            <Rectangle Canvas.Left="5" Canvas.Top="13" Width="4" Height="3" RadiusX="0.5" RadiusY="0.5"
+                                                       Fill="{StaticResource OdooTealBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="PaymentsLabel"
+                                               Text="Payments"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
 
-                        <!-- ==================== ATTRIBUTES ITEM ==================== -->
-                        <Button x:Name="NavAttributesBtn"
-                                Style="{StaticResource SidebarItemButtonStyle}"
-                                Click="NavAttributes_Click"
-                                ToolTip="Product Attributes"
-                                Margin="0,2,0,0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
-                                    <Canvas Width="24" Height="24">
-                                        <Path Data="M 4,6 L 20,6 M 4,12 L 20,12 M 4,18 L 20,18"
-                                              Stroke="{StaticResource OdooTealBrush}"
-                                              StrokeThickness="2"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"/>
-                                        <Ellipse Canvas.Left="7" Canvas.Top="4" Width="4" Height="4" Fill="{StaticResource OdooPurpleBrush}"/>
-                                        <Ellipse Canvas.Left="15" Canvas.Top="10" Width="4" Height="4" Fill="{StaticResource OdooPurpleBrush}"/>
-                                        <Ellipse Canvas.Left="10" Canvas.Top="16" Width="4" Height="4" Fill="{StaticResource OdooPurpleBrush}"/>
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock x:Name="AttributesLabel"
-                                           Text="Attributes"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
+                            <!-- ==================== SECTION 2: CATALOG & STOCK ==================== -->
+                            <TextBlock Text="CATALOG"
+                                       FontSize="10.5"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       Margin="14,14,0,4"/>
 
-                        <!-- ==================== PRODUCT TAGS ITEM ==================== -->
-                        <Button x:Name="NavProductTagsBtn"
-                                Style="{StaticResource SidebarItemButtonStyle}"
-                                Click="NavProductTags_Click"
-                                ToolTip="Product Tags"
-                                Margin="0,2,0,0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
-                                    <Canvas Width="24" Height="24">
-                                        <Path Data="M 19.5,12.5 L 12.5,19.5 C 11.7,20.3 10.4,20.3 9.6,19.5 L 3.5,13.4 C 3.2,13.1 3,12.6 3,12.2 L 3,5 C 3,3.9 3.9,3 5,3 L 12.2,3 C 12.6,3 13.1,3.2 13.4,3.5 L 19.5,9.6 C 20.3,10.4 20.3,11.7 19.5,12.5 Z"
-                                              Stroke="{StaticResource OdooPurpleBrush}"
-                                              StrokeThickness="1.8"
-                                              Fill="{StaticResource OdooTealSoftBrush}"/>
-                                        <Ellipse Canvas.Left="6.5" Canvas.Top="6.5" Width="3" Height="3" Fill="{StaticResource OdooTealBrush}"/>
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock x:Name="ProductTagsLabel"
-                                           Text="Product Tags"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
+                            <!-- PRODUCTS ITEM -->
+                            <Button x:Name="NavProductsBtn"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
+                                    Click="NavProducts_Click"
+                                    ToolTip="Products"
+                                    Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M 12,2 L 21,7 L 12,12 L 3,7 Z" Fill="{StaticResource OdooTealBrush}"/>
+                                            <Path Data="M 3,7 L 12,12 L 12,22 L 3,17 Z" Fill="{StaticResource OdooPurpleBrush}" Opacity="0.85"/>
+                                            <Path Data="M 12,12 L 21,7 L 21,17 L 12,22 Z" Fill="{StaticResource OdooPurpleBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="ProductsLabel"
+                                               Text="Products"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
 
-                        <!-- ==================== SETTINGS (CONFIGURATION) ITEM ==================== -->
-                        <Button x:Name="NavSettingsBtn"
-                                Style="{StaticResource ActiveSidebarItemButtonStyle}"
-                                Click="NavSettings_Click"
-                                ToolTip="Settings &amp; Configuration">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Viewbox Width="20" Height="20" Margin="0,0,12,0">
-                                    <Canvas Width="24" Height="24">
-                                        <Ellipse Canvas.Left="6.5" Canvas.Top="6.5" Width="11" Height="11"
-                                                 Stroke="{StaticResource OdooPurpleBrush}"
-                                                 StrokeThickness="2"/>
-                                        <Path Data="M 12,2 L 12,5 M 12,19 L 12,22 M 2,12 L 5,12 M 19,12 L 22,12 M 4.9,4.9 L 7.1,7.1 M 16.9,16.9 L 19.1,19.1 M 4.9,19.1 L 7.1,16.9 M 16.9,7.1 L 19.1,4.9"
-                                              Stroke="{StaticResource OdooTealBrush}"
-                                              StrokeThickness="2.2"
-                                              StrokeStartLineCap="Round"/>
-                                        <Ellipse Canvas.Left="10" Canvas.Top="10" Width="4" Height="4"
-                                                 Fill="{StaticResource OdooPurpleBrush}"/>
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock x:Name="SettingsLabel"
-                                           Text="Settings"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource OdooPurpleBrush}"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
+                            <!-- COMBO CHOICES ITEM -->
+                            <Button x:Name="NavCombosBtn"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
+                                    Click="NavCombos_Click"
+                                    ToolTip="Combo Choices"
+                                    Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M 4,8 C 4,5 7.5,3 12,3 C 16.5,3 20,5 20,8 Z" Fill="{StaticResource OdooTealBrush}"/>
+                                            <Path Data="M 3,11 H 21" Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                            <Path Data="M 4,15 C 4,18 7.5,20 12,20 C 16.5,20 20,18 20,15 Z" Fill="{StaticResource OdooPurpleBrush}"/>
+                                            <Ellipse Canvas.Left="15" Canvas.Top="8" Width="4" Height="4" Fill="{StaticResource ActiveGreenBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="CombosLabel"
+                                               Text="Combo Choices"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- POS CATEGORIES ITEM -->
+                            <Button x:Name="NavCategoriesBtn"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
+                                    Click="NavCategories_Click"
+                                    ToolTip="PoS Product Categories"
+                                    Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M 12,2 L 2,7 L 12,12 L 22,7 L 12,2 Z"
+                                                  Fill="{StaticResource OdooTealBrush}"/>
+                                            <Path Data="M 2,12 L 12,17 L 22,12 M 2,17 L 12,22 L 22,17"
+                                                  Stroke="{StaticResource OdooPurpleBrush}"
+                                                  StrokeThickness="2"
+                                                  StrokeLineJoin="Round"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="CategoriesLabel"
+                                               Text="PoS Categories"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- ATTRIBUTES ITEM -->
+                            <Button x:Name="NavAttributesBtn"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
+                                    Click="NavAttributes_Click"
+                                    ToolTip="Product Attributes"
+                                    Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M 4,6 L 20,6 M 4,12 L 20,12 M 4,18 L 20,18"
+                                                  Stroke="{StaticResource OdooTealBrush}"
+                                                  StrokeThickness="2"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"/>
+                                            <Ellipse Canvas.Left="7" Canvas.Top="4" Width="4" Height="4" Fill="{StaticResource OdooPurpleBrush}"/>
+                                            <Ellipse Canvas.Left="15" Canvas.Top="10" Width="4" Height="4" Fill="{StaticResource OdooPurpleBrush}"/>
+                                            <Ellipse Canvas.Left="10" Canvas.Top="16" Width="4" Height="4" Fill="{StaticResource OdooPurpleBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="AttributesLabel"
+                                               Text="Attributes"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- PRODUCT TAGS ITEM -->
+                            <Button x:Name="NavProductTagsBtn"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
+                                    Click="NavProductTags_Click"
+                                    ToolTip="Product Tags"
+                                    Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M 19.5,12.5 L 12.5,19.5 C 11.7,20.3 10.4,20.3 9.6,19.5 L 3.5,13.4 C 3.2,13.1 3,12.6 3,12.2 L 3,5 C 3,3.9 3.9,3 5,3 L 12.2,3 C 12.6,3 13.1,3.2 13.4,3.5 L 19.5,9.6 C 20.3,10.4 20.3,11.7 19.5,12.5 Z"
+                                                  Stroke="{StaticResource OdooPurpleBrush}"
+                                                  StrokeThickness="1.8"
+                                                  Fill="{StaticResource OdooTealSoftBrush}"/>
+                                            <Ellipse Canvas.Left="6.5" Canvas.Top="6.5" Width="3" Height="3" Fill="{StaticResource OdooTealBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="ProductTagsLabel"
+                                               Text="Product Tags"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- ==================== SECTION 3: ADMINISTRATION ==================== -->
+                            <TextBlock Text="ADMINISTRATION"
+                                       FontSize="10.5"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       Margin="14,14,0,4"/>
+
+                            <!-- USERS ITEM -->
+                            <Button x:Name="NavUsersBtn"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
+                                    Click="NavUsers_Click"
+                                    ToolTip="Users Management"
+                                    Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Ellipse Canvas.Left="6" Canvas.Top="3" Width="6" Height="6"
+                                                     Stroke="{StaticResource OdooPurpleBrush}"
+                                                     StrokeThickness="1.8"/>
+                                            <Path Data="M 2,19 C 2,15 5,13 9,13 C 13,13 16,15 16,19"
+                                                  Stroke="{StaticResource OdooPurpleBrush}"
+                                                  StrokeThickness="1.8"
+                                                  StrokeStartLineCap="Round"/>
+                                            <Ellipse Canvas.Left="15" Canvas.Top="5" Width="4.5" Height="4.5"
+                                                     Stroke="{StaticResource OdooTealBrush}"
+                                                     StrokeThickness="1.6"/>
+                                            <Path Data="M 15.5,14 C 18,14.5 20.5,16 21,19"
+                                                  Stroke="{StaticResource OdooTealBrush}"
+                                                  StrokeThickness="1.6"
+                                                  StrokeStartLineCap="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="UsersLabel"
+                                               Text="Users"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- SETTINGS (CONFIGURATION) ITEM -->
+                            <Button x:Name="NavSettingsBtn"
+                                    Style="{StaticResource ActiveSidebarItemButtonStyle}"
+                                    Click="NavSettings_Click"
+                                    ToolTip="Settings &amp; Configuration"
+                                    Margin="0,2,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Ellipse Canvas.Left="6.5" Canvas.Top="6.5" Width="11" Height="11"
+                                                     Stroke="{StaticResource OdooPurpleBrush}"
+                                                     StrokeThickness="2"/>
+                                            <Path Data="M 12,2 L 12,5 M 12,19 L 12,22 M 2,12 L 5,12 M 19,12 L 22,12 M 4.9,4.9 L 7.1,7.1 M 16.9,16.9 L 19.1,19.1 M 4.9,19.1 L 7.1,16.9 M 16.9,7.1 L 19.1,4.9"
+                                                  Stroke="{StaticResource OdooTealBrush}"
+                                                  StrokeThickness="2.2"
+                                                  StrokeStartLineCap="Round"/>
+                                            <Ellipse Canvas.Left="10" Canvas.Top="10" Width="4" Height="4"
+                                                     Fill="{StaticResource OdooPurpleBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="SettingsLabel"
+                                               Text="Settings"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource OdooPurpleBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </ScrollViewer>
 
                     <!-- ==================== BOTTOM: LOGOUT ITEM ==================== -->
                     <Button Grid.Row="1"
@@ -1450,6 +1551,261 @@
                                     </Grid>
                                 </StackPanel>
                             </Border>
+
+                            <!-- 8. SESSIONS SYNCHRONIZATION CARD -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="24"
+                                    Margin="0,0,0,24"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                        <Border Width="36" Height="36" CornerRadius="8" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,12,0">
+                                            <Viewbox Width="18" Height="18">
+                                                <Canvas Width="24" Height="24">
+                                                    <Rectangle Canvas.Left="2" Canvas.Top="3" Width="20" Height="14" RadiusX="2" RadiusY="2"
+                                                               Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="1.8"/>
+                                                    <Line X1="7" Y1="21" X2="17" Y2="21"
+                                                          Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                    <Line X1="12" Y1="17" X2="12" Y2="21"
+                                                          Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2"/>
+                                                    <Ellipse Canvas.Left="9.5" Canvas.Top="7" Width="5" Height="5"
+                                                             Stroke="{StaticResource OdooTealBrush}" StrokeThickness="1.5"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Sessions Synchronization"
+                                                       FontSize="15"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Pull pos.session records from Odoo into local SQLite database."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,16"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                                x:Name="SyncSessionsNowBtn"
+                                                Style="{StaticResource OdooTealActionButtonStyle}"
+                                                Click="SyncSessionsNowBtn_Click"
+                                                Height="44"
+                                                Padding="22,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Viewbox x:Name="SettingsSessionSyncIconBox" Width="16" Height="16" Margin="0,0,10,0" RenderTransformOrigin="0.5,0.5">
+                                                    <Viewbox.RenderTransform>
+                                                        <RotateTransform x:Name="SettingsSessionSyncIconRotation" Angle="0"/>
+                                                    </Viewbox.RenderTransform>
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
+                                                        <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock x:Name="SettingsSessionSyncButtonText" Text="Sync Sessions Now" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="LastSessionsSyncedStatusText"
+                                                           Text="Last Synced: Never"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                <ProgressBar x:Name="SessionsSyncProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Width="140" Height="4"
+                                                             Visibility="Collapsed"
+                                                             Margin="16,0,0,0"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="SessionsSyncDetailText"
+                                                       Text="Click 'Sync Sessions Now' to fetch pos.session records from Odoo."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 9. ORDERS SYNCHRONIZATION CARD -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="24"
+                                    Margin="0,0,0,24"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                        <Border Width="36" Height="36" CornerRadius="8" Background="{StaticResource OdooTealSoftBrush}" Margin="0,0,12,0">
+                                            <Viewbox Width="18" Height="18">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M 19,7 L 5,7 L 3,20 C 3,20.6 3.4,21 4,21 L 20,21 C 20.6,21 21,20.6 21,20 L 19,7 Z"
+                                                          Stroke="{StaticResource OdooTealBrush}" StrokeThickness="1.8" Fill="{StaticResource OdooTealSoftBrush}"/>
+                                                    <Path Data="M 16,10 C 16,12.2 14.2,14 12,14 C 9.8,14 8,12.2 8,10"
+                                                          Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Orders Synchronization"
+                                                       FontSize="15"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Pull pos.order and pos.order.line records from Odoo into local SQLite database."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,16"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                                x:Name="SyncOrdersNowBtn"
+                                                Style="{StaticResource OdooTealActionButtonStyle}"
+                                                Click="SyncOrdersNowBtn_Click"
+                                                Height="44"
+                                                Padding="22,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Viewbox x:Name="SettingsOrderSyncIconBox" Width="16" Height="16" Margin="0,0,10,0" RenderTransformOrigin="0.5,0.5">
+                                                    <Viewbox.RenderTransform>
+                                                        <RotateTransform x:Name="SettingsOrderSyncIconRotation" Angle="0"/>
+                                                    </Viewbox.RenderTransform>
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
+                                                        <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock x:Name="SettingsOrderSyncButtonText" Text="Sync Orders Now" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="LastOrdersSyncedStatusText"
+                                                           Text="Last Synced: Never"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                <ProgressBar x:Name="OrdersSyncProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Width="140" Height="4"
+                                                             Visibility="Collapsed"
+                                                             Margin="16,0,0,0"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="OrdersSyncDetailText"
+                                                       Text="Click 'Sync Orders Now' to fetch pos.order and pos.order.line records from Odoo."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 10. PAYMENTS SYNCHRONIZATION CARD -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="24"
+                                    Margin="0,0,0,24"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                        <Border Width="36" Height="36" CornerRadius="8" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,12,0">
+                                            <Viewbox Width="18" Height="18">
+                                                <Canvas Width="24" Height="24">
+                                                    <Rectangle Canvas.Left="2" Canvas.Top="5" Width="20" Height="14" RadiusX="2.5" RadiusY="2.5"
+                                                               Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="1.8" Fill="{StaticResource OdooPurpleSoftBrush}"/>
+                                                    <Line X1="2" Y1="10" X2="22" Y2="10"
+                                                          Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="1.8"/>
+                                                    <Rectangle Canvas.Left="5" Canvas.Top="13" Width="4" Height="3" RadiusX="0.5" RadiusY="0.5"
+                                                               Fill="{StaticResource OdooTealBrush}"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Payments Synchronization"
+                                                       FontSize="15"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Pull pos.payment records from Odoo into local SQLite database."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,16"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                                x:Name="SyncPaymentsNowBtn"
+                                                Style="{StaticResource OdooTealActionButtonStyle}"
+                                                Click="SyncPaymentsNowBtn_Click"
+                                                Height="44"
+                                                Padding="22,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Viewbox x:Name="SettingsPaymentSyncIconBox" Width="16" Height="16" Margin="0,0,10,0" RenderTransformOrigin="0.5,0.5">
+                                                    <Viewbox.RenderTransform>
+                                                        <RotateTransform x:Name="SettingsPaymentSyncIconRotation" Angle="0"/>
+                                                    </Viewbox.RenderTransform>
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
+                                                        <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock x:Name="SettingsPaymentSyncButtonText" Text="Sync Payments Now" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="LastPaymentsSyncedStatusText"
+                                                           Text="Last Synced: Never"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                <ProgressBar x:Name="PaymentsSyncProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Width="140" Height="4"
+                                                             Visibility="Collapsed"
+                                                             Margin="16,0,0,0"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="PaymentsSyncDetailText"
+                                                       Text="Click 'Sync Payments Now' to fetch pos.payment records from Odoo."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
 
@@ -1492,6 +1848,18 @@
             <!-- ==================== VIEW G: COMBO CHOICES MANAGEMENT VIEW ==================== -->
             <local:ComboChoiceManagementView x:Name="ComboChoicesViewControl"
                                              Visibility="Collapsed"/>
+
+            <!-- ==================== VIEW H: SESSIONS MANAGEMENT VIEW ==================== -->
+            <local:SessionManagementView x:Name="SessionsViewControl"
+                                         Visibility="Collapsed"/>
+
+            <!-- ==================== VIEW I: ORDERS MANAGEMENT VIEW ==================== -->
+            <local:OrderManagementView x:Name="OrdersViewControl"
+                                       Visibility="Collapsed"/>
+
+            <!-- ==================== VIEW J: PAYMENTS MANAGEMENT VIEW ==================== -->
+            <local:PaymentManagementView x:Name="PaymentsViewControl"
+                                         Visibility="Collapsed"/>
 
             <!-- ==================== TOAST BANNER NOTIFICATION ==================== -->
             <Border x:Name="ShellToastBanner"

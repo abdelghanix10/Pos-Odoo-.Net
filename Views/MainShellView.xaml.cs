@@ -23,6 +23,9 @@ public partial class MainShellView : UserControl
     public PosCategoryManagementView CategoriesControl => CategoriesViewControl;
     public ProductManagementView ProductsControl => ProductsViewControl;
     public ComboChoiceManagementView CombosControl => ComboChoicesViewControl;
+    public SessionManagementView SessionsControl => SessionsViewControl;
+    public OrderManagementView OrdersControl => OrdersViewControl;
+    public PaymentManagementView PaymentsControl => PaymentsViewControl;
 
     public MainShellView()
     {
@@ -39,6 +42,16 @@ public partial class MainShellView : UserControl
         UsersViewControl.RequestCloseToPos += (_, _) =>
         {
             SwitchToSettings();
+        };
+
+        // Wire cross-navigation: Sessions smart buttons to Orders and Payments
+        SessionsViewControl.VM.NavigateToOrdersRequested += sessionName =>
+        {
+            SwitchToOrders(sessionName);
+        };
+        SessionsViewControl.VM.NavigateToPaymentsRequested += sessionName =>
+        {
+            SwitchToPayments(sessionName);
         };
 
         // Listen for live online status updates
@@ -107,6 +120,24 @@ public partial class MainShellView : UserControl
                 LastCombosSyncedStatusText.Text = $"Last Synced: {lastComboSync}";
             }
 
+            var lastSessionSync = await SqliteDatabaseService.Instance.GetLastSessionSyncStatusAsync();
+            if (!string.IsNullOrEmpty(lastSessionSync))
+            {
+                LastSessionsSyncedStatusText.Text = $"Last Synced: {lastSessionSync}";
+            }
+
+            var lastOrderSync = await SqliteDatabaseService.Instance.GetLastOrderSyncStatusAsync();
+            if (!string.IsNullOrEmpty(lastOrderSync))
+            {
+                LastOrdersSyncedStatusText.Text = $"Last Synced: {lastOrderSync}";
+            }
+
+            var lastPaymentSync = await SqliteDatabaseService.Instance.GetLastPaymentSyncStatusAsync();
+            if (!string.IsNullOrEmpty(lastPaymentSync))
+            {
+                LastPaymentsSyncedStatusText.Text = $"Last Synced: {lastPaymentSync}";
+            }
+
             if (!string.IsNullOrEmpty(config.LastStatus))
             {
                 ConnectionStatusText.Text = config.LastStatus;
@@ -139,6 +170,9 @@ public partial class MainShellView : UserControl
         {
             // Collapse navigation panel into icon-only mode
             SidebarMenuColumn.Width = new GridLength(_collapsedSidebarWidth);
+            SessionsLabel.Visibility = Visibility.Collapsed;
+            OrdersLabel.Visibility = Visibility.Collapsed;
+            PaymentsLabel.Visibility = Visibility.Collapsed;
             UsersLabel.Visibility = Visibility.Collapsed;
             ProductsLabel.Visibility = Visibility.Collapsed;
             CombosLabel.Visibility = Visibility.Collapsed;
@@ -155,6 +189,9 @@ public partial class MainShellView : UserControl
         {
             // Expand navigation panel to show icons & labels
             SidebarMenuColumn.Width = new GridLength(_expandedSidebarWidth);
+            SessionsLabel.Visibility = Visibility.Visible;
+            OrdersLabel.Visibility = Visibility.Visible;
+            PaymentsLabel.Visibility = Visibility.Visible;
             UsersLabel.Visibility = Visibility.Visible;
             ProductsLabel.Visibility = Visibility.Visible;
             CombosLabel.Visibility = Visibility.Visible;
@@ -170,8 +207,11 @@ public partial class MainShellView : UserControl
     }
 
     // =========================================================================
-    // 2. PRIMARY NAVIGATION (USERS, PRODUCTS, COMBOS, CATEGORIES, ATTRIBUTES, TAGS, SETTINGS)
+    // 2. PRIMARY NAVIGATION (SESSIONS, ORDERS, PAYMENTS, USERS, PRODUCTS, COMBOS, CATEGORIES, ATTRIBUTES, TAGS, SETTINGS)
     // =========================================================================
+    private void NavSessions_Click(object sender, RoutedEventArgs e) => SwitchToSessions();
+    private void NavOrders_Click(object sender, RoutedEventArgs e) => SwitchToOrders();
+    private void NavPayments_Click(object sender, RoutedEventArgs e) => SwitchToPayments();
     private void NavUsers_Click(object sender, RoutedEventArgs e) => SwitchToUsers();
     private void NavProducts_Click(object sender, RoutedEventArgs e) => SwitchToProducts();
     private void NavCombos_Click(object sender, RoutedEventArgs e) => SwitchToCombos();
@@ -183,6 +223,9 @@ public partial class MainShellView : UserControl
     private void HideAllMainViews()
     {
         SettingsViewPanel.Visibility = Visibility.Collapsed;
+        SessionsViewControl.Visibility = Visibility.Collapsed;
+        OrdersViewControl.Visibility = Visibility.Collapsed;
+        PaymentsViewControl.Visibility = Visibility.Collapsed;
         UsersViewControl.Visibility = Visibility.Collapsed;
         ProductsViewControl.Visibility = Visibility.Collapsed;
         ComboChoicesViewControl.Visibility = Visibility.Collapsed;
@@ -198,6 +241,9 @@ public partial class MainShellView : UserControl
         Brush purpleBrush = (Brush)FindResource("OdooPurpleBrush");
         Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
 
+        NavSessionsBtn.Style = NavSessionsBtn == activeButton ? activeStyle : defaultStyle;
+        NavOrdersBtn.Style = NavOrdersBtn == activeButton ? activeStyle : defaultStyle;
+        NavPaymentsBtn.Style = NavPaymentsBtn == activeButton ? activeStyle : defaultStyle;
         NavUsersBtn.Style = NavUsersBtn == activeButton ? activeStyle : defaultStyle;
         NavProductsBtn.Style = NavProductsBtn == activeButton ? activeStyle : defaultStyle;
         NavCombosBtn.Style = NavCombosBtn == activeButton ? activeStyle : defaultStyle;
@@ -206,6 +252,9 @@ public partial class MainShellView : UserControl
         NavProductTagsBtn.Style = NavProductTagsBtn == activeButton ? activeStyle : defaultStyle;
         NavSettingsBtn.Style = NavSettingsBtn == activeButton ? activeStyle : defaultStyle;
 
+        SessionsLabel.Foreground = SessionsLabel == activeLabel ? purpleBrush : primaryTextBrush;
+        OrdersLabel.Foreground = OrdersLabel == activeLabel ? purpleBrush : primaryTextBrush;
+        PaymentsLabel.Foreground = PaymentsLabel == activeLabel ? purpleBrush : primaryTextBrush;
         UsersLabel.Foreground = UsersLabel == activeLabel ? purpleBrush : primaryTextBrush;
         ProductsLabel.Foreground = ProductsLabel == activeLabel ? purpleBrush : primaryTextBrush;
         CombosLabel.Foreground = CombosLabel == activeLabel ? purpleBrush : primaryTextBrush;
@@ -213,6 +262,30 @@ public partial class MainShellView : UserControl
         AttributesLabel.Foreground = AttributesLabel == activeLabel ? purpleBrush : primaryTextBrush;
         ProductTagsLabel.Foreground = ProductTagsLabel == activeLabel ? purpleBrush : primaryTextBrush;
         SettingsLabel.Foreground = SettingsLabel == activeLabel ? purpleBrush : primaryTextBrush;
+    }
+
+    public void SwitchToSessions()
+    {
+        HideAllMainViews();
+        SessionsViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavSessionsBtn, SessionsLabel);
+        _ = SessionsViewControl.ReloadSessionsFromDatabaseAsync();
+    }
+
+    public void SwitchToOrders(string? sessionFilter = null)
+    {
+        HideAllMainViews();
+        OrdersViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavOrdersBtn, OrdersLabel);
+        _ = OrdersViewControl.ReloadOrdersFromDatabaseAsync(sessionFilter);
+    }
+
+    public void SwitchToPayments(string? sessionFilter = null)
+    {
+        HideAllMainViews();
+        PaymentsViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavPaymentsBtn, PaymentsLabel);
+        _ = PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(sessionFilter);
     }
 
     public void SwitchToUsers()
@@ -885,6 +958,210 @@ public partial class MainShellView : UserControl
             SettingsComboSyncButtonText.Text = "Sync Combos Now";
             CombosSyncProgressBar.Visibility = Visibility.Collapsed;
             SyncCombosNowBtn.IsEnabled = true;
+        }
+    }
+
+    private async void SyncSessionsNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetSessionsSyncLoadingState(true);
+
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
+                return;
+            }
+
+            var sessionsDto = await OdooSyncService.Instance.FetchOdooSessionsAsync(allowOfflineSimulation: true);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooSessionsAsync(sessionsDto);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated ({sessionsDto.Count} sessions).";
+
+            await SqliteDatabaseService.Instance.UpdateSessionSyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastSessionsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            SessionsSyncDetailText.Text = statusMsg;
+            SessionsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await SessionsViewControl.ReloadSessionsFromDatabaseAsync();
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            SessionsSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            SessionsSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetSessionsSyncLoadingState(false);
+        }
+    }
+
+    private void SetSessionsSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncSessionsNowBtn.IsEnabled = false;
+            SettingsSessionSyncButtonText.Text = "Syncing Sessions...";
+            SessionsSyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsSessionSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsSessionSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsSessionSyncIconRotation.Angle = 0;
+            SettingsSessionSyncButtonText.Text = "Sync Sessions Now";
+            SessionsSyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncSessionsNowBtn.IsEnabled = true;
+        }
+    }
+
+    private async void SyncOrdersNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetOrdersSyncLoadingState(true);
+
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
+                return;
+            }
+
+            var (orders, lines, payments) = await OdooSyncService.Instance.FetchOdooOrdersAsync(allowOfflineSimulation: true);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooOrdersAsync(orders, lines, payments);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated ({orders.Count} orders, {lines.Count} lines).";
+
+            await SqliteDatabaseService.Instance.UpdateOrderSyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastOrdersSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            OrdersSyncDetailText.Text = statusMsg;
+            OrdersSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await OrdersViewControl.ReloadOrdersFromDatabaseAsync();
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            OrdersSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            OrdersSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetOrdersSyncLoadingState(false);
+        }
+    }
+
+    private void SetOrdersSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncOrdersNowBtn.IsEnabled = false;
+            SettingsOrderSyncButtonText.Text = "Syncing Orders...";
+            OrdersSyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsOrderSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsOrderSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsOrderSyncIconRotation.Angle = 0;
+            SettingsOrderSyncButtonText.Text = "Sync Orders Now";
+            OrdersSyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncOrdersNowBtn.IsEnabled = true;
+        }
+    }
+
+    private async void SyncPaymentsNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetPaymentsSyncLoadingState(true);
+
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
+                return;
+            }
+
+            var paymentsDto = await OdooSyncService.Instance.FetchOdooPaymentsAsync(allowOfflineSimulation: true);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooPaymentsAsync(paymentsDto);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated ({paymentsDto.Count} payments).";
+
+            await SqliteDatabaseService.Instance.UpdatePaymentSyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastPaymentsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            PaymentsSyncDetailText.Text = statusMsg;
+            PaymentsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync();
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            PaymentsSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            PaymentsSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetPaymentsSyncLoadingState(false);
+        }
+    }
+
+    private void SetPaymentsSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncPaymentsNowBtn.IsEnabled = false;
+            SettingsPaymentSyncButtonText.Text = "Syncing Payments...";
+            PaymentsSyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsPaymentSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsPaymentSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsPaymentSyncIconRotation.Angle = 0;
+            SettingsPaymentSyncButtonText.Text = "Sync Payments Now";
+            PaymentsSyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncPaymentsNowBtn.IsEnabled = true;
         }
     }
 

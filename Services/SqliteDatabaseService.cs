@@ -165,6 +165,21 @@ public record PosPaymentDto(
     DateTime? PaymentDate
 );
 
+public record PosConfigDto(
+    int OdooId,
+    string Name,
+    int? CurrentSessionId,
+    string? CurrentSessionName,
+    string? CurrentSessionState,
+    DateTime? LastClosingDate,
+    decimal LastClosingBalance,
+    decimal OpeningBalance,
+    int? ActiveUserId,
+    string? ActiveUserName,
+    string? ActiveUserAvatar,
+    string? RecentSalesPointsJson
+);
+
 public class SqliteDatabaseService
 {
     private static readonly Lazy<SqliteDatabaseService> _instance = new(() => new SqliteDatabaseService());
@@ -382,6 +397,23 @@ public class SqliteDatabaseService
                 PaymentDate TEXT,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS PosConfigs (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OdooId INTEGER UNIQUE,
+                Name TEXT NOT NULL,
+                CurrentSessionId INTEGER,
+                CurrentSessionName TEXT,
+                CurrentSessionState TEXT DEFAULT 'closed',
+                LastClosingDate TEXT,
+                LastClosingBalance REAL DEFAULT 0.0,
+                OpeningBalance REAL DEFAULT 0.0,
+                ActiveUserId INTEGER,
+                ActiveUserName TEXT,
+                ActiveUserAvatar TEXT,
+                RecentSalesPointsJson TEXT,
+                UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
             """;
         command.ExecuteNonQuery();
 
@@ -445,6 +477,14 @@ public class SqliteDatabaseService
         {
             using var alterCmd = connection.CreateCommand();
             alterCmd.CommandText = "ALTER TABLE OdooConfig ADD COLUMN LastPaymentsSyncedAt TEXT;";
+            alterCmd.ExecuteNonQuery();
+        }
+        catch { /* Column already exists */ }
+
+        try
+        {
+            using var alterCmd = connection.CreateCommand();
+            alterCmd.CommandText = "ALTER TABLE OdooConfig ADD COLUMN LastPosConfigsSyncedAt TEXT;";
             alterCmd.ExecuteNonQuery();
         }
         catch { /* Column already exists */ }
@@ -542,6 +582,15 @@ public class SqliteDatabaseService
         if (paymentCount == 0)
         {
             SeedDefaultPayments(connection);
+        }
+
+        // Seed initial POS configurations if table is empty
+        using var checkConfigs = connection.CreateCommand();
+        checkConfigs.CommandText = "SELECT COUNT(*) FROM PosConfigs;";
+        long posConfigCount = (long)(checkConfigs.ExecuteScalar() ?? 0L);
+        if (posConfigCount == 0)
+        {
+            SeedDefaultPosConfigs(connection);
         }
     }
 
@@ -943,6 +992,37 @@ public class SqliteDatabaseService
             cmd.Parameters.AddWithValue("@method", p.method);
             cmd.Parameters.AddWithValue("@amount", (double)p.amount);
             cmd.Parameters.AddWithValue("@date", p.date);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static void SeedDefaultPosConfigs(SqliteConnection connection)
+    {
+        var configs = new (int odooId, string name, int? sessId, string? sessName, string state, string? closingDate, decimal closingBal, decimal openBal, int? userId, string? userName, string salesPoints)[]
+        {
+            (1, "Furniture Shop", null, "Furniture Shop/00002", "closed", "2026-10-20 18:00:00", 51.49m, 0.00m, null, null, "[140.0, 310.0, 220.0, 480.0, 390.0]"),
+            (2, "Clothes Shop", 5, "Clothes Shop/00005", "opening_control", null, 0.00m, 0.00m, 3, "Mitchell Admin", "[0.0, 0.0, 0.0, 0.0, 0.0]"),
+            (3, "Bakery Shop", 4, "Bakery Shop/00004", "opened", "2026-10-27 08:30:00", 0.00m, 25.59m, 3, "Mitchell Admin", "[65.0, 140.0, 95.0, 210.0, 248.5]")
+        };
+
+        foreach (var c in configs)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO PosConfigs (OdooId, Name, CurrentSessionId, CurrentSessionName, CurrentSessionState, LastClosingDate, LastClosingBalance, OpeningBalance, ActiveUserId, ActiveUserName, RecentSalesPointsJson)
+                VALUES (@odooId, @name, @sessId, @sessName, @state, @closingDate, @closingBal, @openBal, @userId, @userName, @salesPoints);
+                """;
+            cmd.Parameters.AddWithValue("@odooId", c.odooId);
+            cmd.Parameters.AddWithValue("@name", c.name);
+            cmd.Parameters.AddWithValue("@sessId", (object?)c.sessId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@sessName", (object?)c.sessName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@state", c.state);
+            cmd.Parameters.AddWithValue("@closingDate", (object?)c.closingDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@closingBal", (double)c.closingBal);
+            cmd.Parameters.AddWithValue("@openBal", (double)c.openBal);
+            cmd.Parameters.AddWithValue("@userId", (object?)c.userId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@userName", (object?)c.userName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@salesPoints", c.salesPoints);
             cmd.ExecuteNonQuery();
         }
     }
@@ -3151,6 +3231,182 @@ public class SqliteDatabaseService
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "SELECT LastPaymentsSyncedAt FROM OdooConfig WHERE Id = 1;";
+        var res = await cmd.ExecuteScalarAsync();
+        return res is DBNull or null ? null : res.ToString();
+    }
+
+    // =========================================================================
+    // POS CONFIGURATIONS (pos.config) REPOSITORY
+    // =========================================================================
+    public async Task<List<PosConfigRecord>> LoadAllPosConfigsAsync()
+    {
+        var result = new List<PosConfigRecord>();
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, OdooId, Name, CurrentSessionId, CurrentSessionName, CurrentSessionState,
+                   LastClosingDate, LastClosingBalance, OpeningBalance,
+                   ActiveUserId, ActiveUserName, ActiveUserAvatar, RecentSalesPointsJson
+            FROM PosConfigs
+            ORDER BY Id ASC;
+            """;
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var rec = new PosConfigRecord
+            {
+                Id = reader.GetInt64(0),
+                OdooId = reader.GetInt32(1),
+                Name = reader.GetString(2),
+                CurrentSessionId = reader.IsDBNull(3) ? null : reader.GetInt32(3),
+                CurrentSessionName = reader.IsDBNull(4) ? null : reader.GetString(4),
+                CurrentSessionState = reader.IsDBNull(5) ? "closed" : reader.GetString(5),
+                LastClosingDate = reader.IsDBNull(6) ? null : (DateTime.TryParse(reader.GetString(6), out var dt) ? dt : null),
+                LastClosingBalance = reader.IsDBNull(7) ? 0.00m : Convert.ToDecimal(reader.GetDouble(7)),
+                OpeningBalance = reader.IsDBNull(8) ? 0.00m : Convert.ToDecimal(reader.GetDouble(8)),
+                ActiveUserId = reader.IsDBNull(9) ? null : reader.GetInt32(9),
+                ActiveUserName = reader.IsDBNull(10) ? null : reader.GetString(10),
+                ActiveUserAvatarBase64 = reader.IsDBNull(11) ? null : reader.GetString(11),
+                RecentSalesPointsJson = reader.IsDBNull(12) ? "[]" : reader.GetString(12)
+            };
+            result.Add(rec);
+        }
+
+        return result;
+    }
+
+    public async Task<(int imported, int updated, int deleted)> UpsertOdooPosConfigsAsync(List<PosConfigDto> configs)
+    {
+        int imported = 0, updated = 0, deleted = 0;
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        var odooIds = configs.Select(c => c.OdooId).ToHashSet();
+
+        foreach (var c in configs)
+        {
+            await using var checkCmd = connection.CreateCommand();
+            checkCmd.Transaction = transaction;
+            checkCmd.CommandText = "SELECT Id FROM PosConfigs WHERE OdooId = @odooId LIMIT 1;";
+            checkCmd.Parameters.AddWithValue("@odooId", c.OdooId);
+            var existingId = await checkCmd.ExecuteScalarAsync();
+
+            if (existingId != null && existingId != DBNull.Value)
+            {
+                await using var updateCmd = connection.CreateCommand();
+                updateCmd.Transaction = transaction;
+                updateCmd.CommandText = """
+                    UPDATE PosConfigs
+                    SET Name = @name,
+                        CurrentSessionId = @sessId,
+                        CurrentSessionName = @sessName,
+                        CurrentSessionState = @state,
+                        LastClosingDate = @closingDate,
+                        LastClosingBalance = @closingBal,
+                        OpeningBalance = @openBal,
+                        ActiveUserId = @userId,
+                        ActiveUserName = @userName,
+                        ActiveUserAvatar = @avatar,
+                        RecentSalesPointsJson = @salesPoints,
+                        UpdatedAt = CURRENT_TIMESTAMP
+                    WHERE OdooId = @odooId;
+                    """;
+                updateCmd.Parameters.AddWithValue("@odooId", c.OdooId);
+                updateCmd.Parameters.AddWithValue("@name", c.Name);
+                updateCmd.Parameters.AddWithValue("@sessId", (object?)c.CurrentSessionId ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@sessName", (object?)c.CurrentSessionName ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@state", c.CurrentSessionState ?? "closed");
+                updateCmd.Parameters.AddWithValue("@closingDate", c.LastClosingDate.HasValue ? c.LastClosingDate.Value.ToString("yyyy-MM-dd HH:mm:ss") : DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@closingBal", (double)c.LastClosingBalance);
+                updateCmd.Parameters.AddWithValue("@openBal", (double)c.OpeningBalance);
+                updateCmd.Parameters.AddWithValue("@userId", (object?)c.ActiveUserId ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@userName", (object?)c.ActiveUserName ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@avatar", (object?)c.ActiveUserAvatar ?? DBNull.Value);
+                updateCmd.Parameters.AddWithValue("@salesPoints", c.RecentSalesPointsJson ?? "[]");
+                await updateCmd.ExecuteNonQueryAsync();
+                updated++;
+            }
+            else
+            {
+                await using var insertCmd = connection.CreateCommand();
+                insertCmd.Transaction = transaction;
+                insertCmd.CommandText = """
+                    INSERT INTO PosConfigs (OdooId, Name, CurrentSessionId, CurrentSessionName, CurrentSessionState,
+                                           LastClosingDate, LastClosingBalance, OpeningBalance,
+                                           ActiveUserId, ActiveUserName, ActiveUserAvatar, RecentSalesPointsJson)
+                    VALUES (@odooId, @name, @sessId, @sessName, @state,
+                            @closingDate, @closingBal, @openBal,
+                            @userId, @userName, @avatar, @salesPoints);
+                    """;
+                insertCmd.Parameters.AddWithValue("@odooId", c.OdooId);
+                insertCmd.Parameters.AddWithValue("@name", c.Name);
+                insertCmd.Parameters.AddWithValue("@sessId", (object?)c.CurrentSessionId ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@sessName", (object?)c.CurrentSessionName ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@state", c.CurrentSessionState ?? "closed");
+                insertCmd.Parameters.AddWithValue("@closingDate", c.LastClosingDate.HasValue ? c.LastClosingDate.Value.ToString("yyyy-MM-dd HH:mm:ss") : DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@closingBal", (double)c.LastClosingBalance);
+                insertCmd.Parameters.AddWithValue("@openBal", (double)c.OpeningBalance);
+                insertCmd.Parameters.AddWithValue("@userId", (object?)c.ActiveUserId ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@userName", (object?)c.ActiveUserName ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@avatar", (object?)c.ActiveUserAvatar ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@salesPoints", c.RecentSalesPointsJson ?? "[]");
+                await insertCmd.ExecuteNonQueryAsync();
+                imported++;
+            }
+        }
+
+        if (configs.Count > 0)
+        {
+            var delIds = new List<int>();
+            await using (var fetchCmd = connection.CreateCommand())
+            {
+                fetchCmd.Transaction = transaction;
+                fetchCmd.CommandText = "SELECT OdooId FROM PosConfigs WHERE OdooId IS NOT NULL;";
+                await using var reader = await fetchCmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    int oId = reader.GetInt32(0);
+                    if (!odooIds.Contains(oId)) delIds.Add(oId);
+                }
+            }
+
+            foreach (var delId in delIds)
+            {
+                await using var delCmd = connection.CreateCommand();
+                delCmd.Transaction = transaction;
+                delCmd.CommandText = "DELETE FROM PosConfigs WHERE OdooId = @id;";
+                delCmd.Parameters.AddWithValue("@id", delId);
+                await delCmd.ExecuteNonQueryAsync();
+                deleted++;
+            }
+        }
+
+        await transaction.CommitAsync();
+        return (imported, updated, deleted);
+    }
+
+    public async Task UpdatePosConfigSyncStatusAsync(DateTime syncedAt, string status)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE OdooConfig SET LastPosConfigsSyncedAt = @syncedAt WHERE Id = 1;";
+        cmd.Parameters.AddWithValue("@syncedAt", syncedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<string?> GetLastPosConfigSyncStatusAsync()
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT LastPosConfigsSyncedAt FROM OdooConfig WHERE Id = 1;";
         var res = await cmd.ExecuteScalarAsync();
         return res is DBNull or null ? null : res.ToString();
     }

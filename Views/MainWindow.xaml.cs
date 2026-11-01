@@ -293,7 +293,7 @@ public partial class MainWindow : Window
     {
         MainShellModule.Visibility = Visibility.Visible;
         MainShellModule.SetCurrentUser(role);
-        MainShellModule.SwitchToSettings();
+        MainShellModule.SwitchToDashboard();
 
         ToastMessageText.Text = $"Authenticated as {role} — Active POS Session";
         SessionToastBanner.Visibility = Visibility.Visible;

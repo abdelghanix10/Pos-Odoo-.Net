@@ -19,6 +19,7 @@ public partial class MainShellView : UserControl
     public event EventHandler? LogoutRequested;
 
     public string CurrentUser { get; private set; } = "Administrator";
+    public PosDashboardView DashboardControl => DashboardViewControl;
     public UserManagementView UsersControl => UsersViewControl;
     public PosCategoryManagementView CategoriesControl => CategoriesViewControl;
     public ProductManagementView ProductsControl => ProductsViewControl;
@@ -42,6 +43,24 @@ public partial class MainShellView : UserControl
         UsersViewControl.RequestCloseToPos += (_, _) =>
         {
             SwitchToSettings();
+        };
+
+        // Wire Dashboard navigation
+        DashboardViewControl.VM.OpenRegisterRequested += config =>
+        {
+            SwitchToSessions();
+        };
+        DashboardViewControl.VM.ViewOrdersRequested += shopName =>
+        {
+            SwitchToOrders(shopName);
+        };
+        DashboardViewControl.VM.ViewSessionsRequested += shopName =>
+        {
+            SwitchToSessions();
+        };
+        DashboardViewControl.VM.ViewPaymentsRequested += shopName =>
+        {
+            SwitchToPayments(shopName);
         };
 
         // Wire cross-navigation: Sessions smart buttons to Orders and Payments
@@ -138,6 +157,12 @@ public partial class MainShellView : UserControl
                 LastPaymentsSyncedStatusText.Text = $"Last Synced: {lastPaymentSync}";
             }
 
+            var lastConfigSync = await SqliteDatabaseService.Instance.GetLastPosConfigSyncStatusAsync();
+            if (!string.IsNullOrEmpty(lastConfigSync))
+            {
+                LastPosConfigsSyncedStatusText.Text = $"Last Synced: {lastConfigSync}";
+            }
+
             if (!string.IsNullOrEmpty(config.LastStatus))
             {
                 ConnectionStatusText.Text = config.LastStatus;
@@ -207,8 +232,9 @@ public partial class MainShellView : UserControl
     }
 
     // =========================================================================
-    // 2. PRIMARY NAVIGATION (SESSIONS, ORDERS, PAYMENTS, USERS, PRODUCTS, COMBOS, CATEGORIES, ATTRIBUTES, TAGS, SETTINGS)
+    // 2. PRIMARY NAVIGATION (DASHBOARD, SESSIONS, ORDERS, PAYMENTS, USERS, PRODUCTS, COMBOS, CATEGORIES, ATTRIBUTES, TAGS, SETTINGS)
     // =========================================================================
+    private void NavDashboard_Click(object sender, RoutedEventArgs e) => SwitchToDashboard();
     private void NavSessions_Click(object sender, RoutedEventArgs e) => SwitchToSessions();
     private void NavOrders_Click(object sender, RoutedEventArgs e) => SwitchToOrders();
     private void NavPayments_Click(object sender, RoutedEventArgs e) => SwitchToPayments();
@@ -222,6 +248,7 @@ public partial class MainShellView : UserControl
 
     private void HideAllMainViews()
     {
+        DashboardViewControl.Visibility = Visibility.Collapsed;
         SettingsViewPanel.Visibility = Visibility.Collapsed;
         SessionsViewControl.Visibility = Visibility.Collapsed;
         OrdersViewControl.Visibility = Visibility.Collapsed;
@@ -241,6 +268,7 @@ public partial class MainShellView : UserControl
         Brush purpleBrush = (Brush)FindResource("OdooPurpleBrush");
         Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
 
+        NavDashboardBtn.Style = NavDashboardBtn == activeButton ? activeStyle : defaultStyle;
         NavSessionsBtn.Style = NavSessionsBtn == activeButton ? activeStyle : defaultStyle;
         NavOrdersBtn.Style = NavOrdersBtn == activeButton ? activeStyle : defaultStyle;
         NavPaymentsBtn.Style = NavPaymentsBtn == activeButton ? activeStyle : defaultStyle;
@@ -252,6 +280,7 @@ public partial class MainShellView : UserControl
         NavProductTagsBtn.Style = NavProductTagsBtn == activeButton ? activeStyle : defaultStyle;
         NavSettingsBtn.Style = NavSettingsBtn == activeButton ? activeStyle : defaultStyle;
 
+        DashboardLabel.Foreground = DashboardLabel == activeLabel ? purpleBrush : primaryTextBrush;
         SessionsLabel.Foreground = SessionsLabel == activeLabel ? purpleBrush : primaryTextBrush;
         OrdersLabel.Foreground = OrdersLabel == activeLabel ? purpleBrush : primaryTextBrush;
         PaymentsLabel.Foreground = PaymentsLabel == activeLabel ? purpleBrush : primaryTextBrush;
@@ -262,6 +291,14 @@ public partial class MainShellView : UserControl
         AttributesLabel.Foreground = AttributesLabel == activeLabel ? purpleBrush : primaryTextBrush;
         ProductTagsLabel.Foreground = ProductTagsLabel == activeLabel ? purpleBrush : primaryTextBrush;
         SettingsLabel.Foreground = SettingsLabel == activeLabel ? purpleBrush : primaryTextBrush;
+    }
+
+    public void SwitchToDashboard()
+    {
+        HideAllMainViews();
+        DashboardViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavDashboardBtn, DashboardLabel);
+        _ = DashboardViewControl.ReloadConfigsFromDatabaseAsync();
     }
 
     public void SwitchToSessions()
@@ -1162,6 +1199,69 @@ public partial class MainShellView : UserControl
             SettingsPaymentSyncButtonText.Text = "Sync Payments Now";
             PaymentsSyncProgressBar.Visibility = Visibility.Collapsed;
             SyncPaymentsNowBtn.IsEnabled = true;
+        }
+    }
+
+    private async void SyncPosConfigsNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetPosConfigsSyncLoadingState(true);
+            PosConfigsSyncDetailText.Text = "Connecting to Odoo & synchronizing pos.config...";
+            PosConfigsSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
+
+            var odooConfigs = await OdooSyncService.Instance.FetchOdooPosConfigsAsync(allowOfflineSimulation: true);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooPosConfigsAsync(odooConfigs);
+
+            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
+            string statusMsg = deleted > 0
+                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
+                : $"Sync Complete: {imported} imported, {updated} updated.";
+
+            await SqliteDatabaseService.Instance.UpdatePosConfigSyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastPosConfigsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            PosConfigsSyncDetailText.Text = statusMsg;
+            PosConfigsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            PosConfigsSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            PosConfigsSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetPosConfigsSyncLoadingState(false);
+        }
+    }
+
+    private void SetPosConfigsSyncLoadingState(bool isLoading)
+    {
+        if (isLoading)
+        {
+            SyncPosConfigsNowBtn.IsEnabled = false;
+            SettingsPosConfigSyncButtonText.Text = "Syncing Shops...";
+            PosConfigsSyncProgressBar.Visibility = Visibility.Visible;
+            var spinAnim = new DoubleAnimation
+            {
+                From = 0,
+                To = 360,
+                Duration = TimeSpan.FromSeconds(0.9),
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            SettingsPosConfigSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+        }
+        else
+        {
+            SettingsPosConfigSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            SettingsPosConfigSyncIconRotation.Angle = 0;
+            SettingsPosConfigSyncButtonText.Text = "Sync POS Shops Now";
+            PosConfigsSyncProgressBar.Visibility = Visibility.Collapsed;
+            SyncPosConfigsNowBtn.IsEnabled = true;
         }
     }
 

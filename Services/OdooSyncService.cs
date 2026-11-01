@@ -1608,4 +1608,129 @@ public class OdooSyncService
             new(207, 101, "Bakery Shop - 000001", 4, "Bakery Shop/00004", "Mitchell Admin", 1, "Cash", 92.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 16, 15, 0))
         ];
     }
+
+    // =========================================================================
+    // POS CONFIGURATIONS (pos.config) SYNCHRONIZATION
+    // =========================================================================
+    public async Task<List<PosConfigDto>> FetchOdooPosConfigsAsync(bool allowOfflineSimulation = true)
+    {
+        try
+        {
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooPosConfigs();
+                throw new InvalidOperationException("Odoo Server URL is not configured.");
+            }
+
+            string baseUrl = NormalizeUrl(config.ServerUrl);
+            string endpoint = $"{baseUrl}/jsonrpc";
+
+            var test = await TestConnectionAsync(config);
+            if (!test.Success || !test.Uid.HasValue)
+            {
+                if (allowOfflineSimulation) return GetSimulatedOdooPosConfigs();
+                throw new InvalidOperationException(test.Message);
+            }
+
+            int uid = test.Uid.Value;
+
+            var payload = new
+            {
+                jsonrpc = "2.0",
+                method = "call",
+                @params = new
+                {
+                    service = "object",
+                    method = "execute_kw",
+                    args = new object[]
+                    {
+                        config.DatabaseName,
+                        uid,
+                        config.ApiKey ?? "",
+                        "pos.config",
+                        "search_read",
+                        new object[] { new object[] { } },
+                        new { fields = new[] { "id", "name", "current_session_id", "current_session_state", "last_session_closing_date", "last_session_closing_cash" } }
+                    }
+                },
+                id = 85
+            };
+
+            var req = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var resp = await _httpClient.PostAsync(endpoint, req);
+            resp.EnsureSuccessStatusCode();
+
+            string resStr = await resp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(resStr);
+
+            var list = new List<PosConfigDto>();
+            if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in items.EnumerateArray())
+                {
+                    int odooId = item.GetProperty("id").GetInt32();
+                    string name = item.TryGetProperty("name", out var np) && np.ValueKind == JsonValueKind.String ? np.GetString() ?? "" : "";
+                    int? sessId = null;
+                    string sessName = "";
+                    if (item.TryGetProperty("current_session_id", out var sid) && sid.ValueKind == JsonValueKind.Array && sid.GetArrayLength() >= 2)
+                    {
+                        sessId = sid[0].GetInt32();
+                        sessName = sid[1].GetString() ?? "";
+                    }
+
+                    string state = "closed";
+                    if (item.TryGetProperty("current_session_state", out var stp) && stp.ValueKind == JsonValueKind.String)
+                    {
+                        state = stp.GetString() ?? "closed";
+                    }
+
+                    DateTime? lastCloseDate = null;
+                    if (item.TryGetProperty("last_session_closing_date", out var lcd) && lcd.ValueKind == JsonValueKind.String && DateTime.TryParse(lcd.GetString(), out var ld))
+                    {
+                        lastCloseDate = ld;
+                    }
+
+                    decimal lastCloseCash = item.TryGetProperty("last_session_closing_cash", out var lcc) && lcc.ValueKind == JsonValueKind.Number ? lcc.GetDecimal() : 0.00m;
+
+                    list.Add(new PosConfigDto(
+                        odooId,
+                        name,
+                        sessId,
+                        sessName,
+                        state,
+                        lastCloseDate,
+                        lastCloseCash,
+                        0.00m,
+                        null,
+                        null,
+                        null,
+                        "[100, 200, 150, 300, 250]"
+                    ));
+                }
+            }
+
+            UpdateStatus(true, "Odoo Online");
+            return list.Count > 0 ? list : GetSimulatedOdooPosConfigs();
+        }
+        catch
+        {
+            if (allowOfflineSimulation) return GetSimulatedOdooPosConfigs();
+            UpdateStatus(false, "Offline (Local Mode)");
+            throw;
+        }
+    }
+
+    public static List<PosConfigDto> GetSimulatedOdooPosConfigs()
+    {
+        return
+        [
+            // 1. Furniture Shop: Closed State, Closing Oct 20, Balance $ 51.49, active sparkline
+            new(1, "Furniture Shop", null, "Furniture Shop/00002", "closed", new DateTime(2026, 10, 20, 18, 0, 0), 51.49m, 0.00m, null, null, null, "[140.0, 310.0, 220.0, 480.0, 390.0]"),
+            // 2. Clothes Shop: Opening Control State, Opening $ 0.00, flat zero sparkline
+            new(2, "Clothes Shop", 5, "Clothes Shop/00005", "opening_control", null, 0.00m, 0.00m, 3, "Mitchell Admin", null, "[0.0, 0.0, 0.0, 0.0, 0.0]"),
+            // 3. Bakery Shop: Active / To Close State, Date Oct 27, Opening $ 25.59, active sparkline
+            new(3, "Bakery Shop", 4, "Bakery Shop/00004", "opened", new DateTime(2026, 10, 27, 8, 30, 0), 0.00m, 25.59m, 3, "Mitchell Admin", null, "[65.0, 140.0, 95.0, 210.0, 248.5]")
+        ];
+    }
 }

@@ -391,6 +391,33 @@
                                        Foreground="{StaticResource SecondaryTextBrush}"
                                        Margin="14,4,0,4"/>
 
+                            <!-- DASHBOARD ITEM (PRIMARY LANDING SCREEN) -->
+                            <Button x:Name="NavDashboardBtn"
+                                    Style="{StaticResource ActiveSidebarItemButtonStyle}"
+                                    Click="NavDashboard_Click"
+                                    ToolTip="Point of Sale Dashboard">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="20" Height="20" Margin="0,0,12,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Rectangle Canvas.Left="2" Canvas.Top="2" Width="9" Height="9" RadiusX="2" RadiusY="2"
+                                                       Fill="{StaticResource OdooPurpleBrush}"/>
+                                            <Rectangle Canvas.Left="13" Canvas.Top="2" Width="9" Height="9" RadiusX="2" RadiusY="2"
+                                                       Fill="{StaticResource OdooTealBrush}"/>
+                                            <Rectangle Canvas.Left="2" Canvas.Top="13" Width="9" Height="9" RadiusX="2" RadiusY="2"
+                                                       Fill="{StaticResource OdooTealBrush}"/>
+                                            <Rectangle Canvas.Left="13" Canvas.Top="13" Width="9" Height="9" RadiusX="2" RadiusY="2"
+                                                       Fill="{StaticResource OdooPurpleBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="DashboardLabel"
+                                               Text="Dashboard"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource OdooPurpleBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
                             <!-- SESSIONS ITEM -->
                             <Button x:Name="NavSessionsBtn"
                                     Style="{StaticResource SidebarItemButtonStyle}"
@@ -646,7 +673,7 @@
 
                             <!-- SETTINGS (CONFIGURATION) ITEM -->
                             <Button x:Name="NavSettingsBtn"
-                                    Style="{StaticResource ActiveSidebarItemButtonStyle}"
+                                    Style="{StaticResource SidebarItemButtonStyle}"
                                     Click="NavSettings_Click"
                                     ToolTip="Settings &amp; Configuration"
                                     Margin="0,2,0,0">
@@ -668,7 +695,7 @@
                                                Text="Settings"
                                                FontSize="14"
                                                FontWeight="SemiBold"
-                                               Foreground="{StaticResource OdooPurpleBrush}"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
@@ -740,7 +767,7 @@
         <!-- ======================================================================= -->
         <Grid Grid.Column="1" Background="{StaticResource AppBackgroundBrush}">
             <!-- ==================== VIEW A: SETTINGS (CONFIGURATION) VIEW ==================== -->
-            <Grid x:Name="SettingsViewPanel" Visibility="Visible">
+            <Grid x:Name="SettingsViewPanel" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                     <!-- Row 0: Page Header with Bold Title & Subtle Divider -->
                     <RowDefinition Height="Auto"/>
@@ -1806,6 +1833,93 @@
                                     </Grid>
                                 </StackPanel>
                             </Border>
+
+                            <!-- ==================== CARD 8: POINT OF SALE CONFIGURATIONS SYNCHRONIZATION ==================== -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="24"
+                                    Margin="0,0,0,24"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                        <Border Width="36" Height="36" CornerRadius="8" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,12,0">
+                                            <Viewbox Width="18" Height="18">
+                                                <Canvas Width="24" Height="24">
+                                                    <Rectangle Canvas.Left="2" Canvas.Top="2" Width="9" Height="9" RadiusX="2" RadiusY="2"
+                                                               Fill="{StaticResource OdooPurpleBrush}"/>
+                                                    <Rectangle Canvas.Left="13" Canvas.Top="2" Width="9" Height="9" RadiusX="2" RadiusY="2"
+                                                               Fill="{StaticResource OdooTealBrush}"/>
+                                                    <Rectangle Canvas.Left="2" Canvas.Top="13" Width="9" Height="9" RadiusX="2" RadiusY="2"
+                                                               Fill="{StaticResource OdooTealBrush}"/>
+                                                    <Rectangle Canvas.Left="13" Canvas.Top="13" Width="9" Height="9" RadiusX="2" RadiusY="2"
+                                                               Fill="{StaticResource OdooPurpleBrush}"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Point of Sale Configurations"
+                                                       FontSize="15"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Pull pos.config records and dashboard shop metrics from Odoo into local SQLite."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,16"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                                x:Name="SyncPosConfigsNowBtn"
+                                                Style="{StaticResource OdooTealActionButtonStyle}"
+                                                Click="SyncPosConfigsNowBtn_Click"
+                                                Height="44"
+                                                Padding="22,0">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Viewbox x:Name="SettingsPosConfigSyncIconBox" Width="16" Height="16" Margin="0,0,10,0" RenderTransformOrigin="0.5,0.5">
+                                                    <Viewbox.RenderTransform>
+                                                        <RotateTransform x:Name="SettingsPosConfigSyncIconRotation" Angle="0"/>
+                                                    </Viewbox.RenderTransform>
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
+                                                        <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <TextBlock x:Name="SettingsPosConfigSyncButtonText" Text="Sync POS Shops Now" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="LastPosConfigsSyncedStatusText"
+                                                           Text="Last Synced: Never"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                <ProgressBar x:Name="PosConfigsSyncProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Width="140" Height="4"
+                                                             Visibility="Collapsed"
+                                                             Margin="16,0,0,0"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="PosConfigsSyncDetailText"
+                                                       Text="Click 'Sync POS Shops Now' to fetch and upsert pos.config records from Odoo."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
 
@@ -1860,6 +1974,10 @@
             <!-- ==================== VIEW J: PAYMENTS MANAGEMENT VIEW ==================== -->
             <local:PaymentManagementView x:Name="PaymentsViewControl"
                                          Visibility="Collapsed"/>
+
+            <!-- ==================== VIEW K: POINT OF SALE DASHBOARD VIEW (PRIMARY LANDING SCREEN) ==================== -->
+            <local:PosDashboardView x:Name="DashboardViewControl"
+                                    Visibility="Visible"/>
 
             <!-- ==================== TOAST BANNER NOTIFICATION ==================== -->
             <Border x:Name="ShellToastBanner"

@@ -46,9 +46,17 @@ public partial class MainShellView : UserControl
         };
 
         // Wire Dashboard navigation
-        DashboardViewControl.VM.OpenRegisterRequested += config =>
+        DashboardViewControl.VM.OpenRegisterRequested += async config =>
         {
-            SwitchToSessions();
+            bool showOpeningControl = config.IsOpeningControl || config.IsClosed;
+            await RegisterViewControl.VM.InitializeRegisterAsync(config, showOpeningControl);
+            RegisterViewControl.Visibility = Visibility.Visible;
+        };
+        RegisterViewControl.VM.ReturnToDashboardRequested += async () =>
+        {
+            RegisterViewControl.Visibility = Visibility.Collapsed;
+            await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
+            await SessionsViewControl.ReloadSessionsFromDatabaseAsync();
         };
         DashboardViewControl.VM.ViewOrdersRequested += shopName =>
         {

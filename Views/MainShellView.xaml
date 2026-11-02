@@ -1999,5 +1999,12 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <!-- ==================== FULL-SCREEN POS REGISTER & SELLING VIEW ==================== -->
+        <local:PosRegisterView x:Name="RegisterViewControl"
+                               Grid.Column="0"
+                               Grid.ColumnSpan="2"
+                               Panel.ZIndex="500"
+                               Visibility="Collapsed"/>
     </Grid>
 </UserControl>

@@ -414,6 +414,9 @@ public class PosOrderRecord : INotifyPropertyChanged
     public ObservableCollection<PosOrderLineRecord> Lines { get; } = [];
     public ObservableCollection<PosPaymentRecord> Payments { get; } = [];
 
+    public bool IsDraft => string.Equals(State, "draft", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(State, "ongoing", StringComparison.OrdinalIgnoreCase);
+
     // ==================== COMPUTED & DISPLAY PROPERTIES ====================
     public string DateDisplay => DateOrder.HasValue ? DateOrder.Value.ToString("yyyy-MM-dd HH:mm:ss") : "—";
     public string TotalDisplay => $"$ {AmountTotal:N2}";

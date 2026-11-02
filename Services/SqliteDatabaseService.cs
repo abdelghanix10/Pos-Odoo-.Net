@@ -592,6 +592,8 @@ public class SqliteDatabaseService
         {
             SeedDefaultPosConfigs(connection);
         }
+
+        EnsureBakeryDemoProducts(connection);
     }
 
     private static void SeedDefaultUsers(SqliteConnection connection)
@@ -2068,10 +2070,12 @@ public class SqliteDatabaseService
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            SELECT Id, OdooId, Name, ProductType, ListPrice, StandardPrice, DefaultCode, Barcode,
-                   PosCategoryId, PosCategoryName, VariantCount, ImageBase64, TagsJson, AttributesJson, ComboChoicesJson
-            FROM Products
-            ORDER BY Id ASC;
+            SELECT p.Id, p.OdooId, p.Name, p.ProductType, p.ListPrice, p.StandardPrice, p.DefaultCode, p.Barcode,
+                   p.PosCategoryId, p.PosCategoryName, p.VariantCount, p.ImageBase64, p.TagsJson, p.AttributesJson, p.ComboChoicesJson,
+                   COALESCE(c.ColorHex, '#017E84')
+            FROM Products p
+            LEFT JOIN PosCategories c ON p.PosCategoryId = c.OdooId
+            ORDER BY p.Id ASC;
             """;
 
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -2093,7 +2097,8 @@ public class SqliteDatabaseService
                 ImageBase64 = reader.IsDBNull(11) ? null : reader.GetString(11),
                 TagsJson = reader.IsDBNull(12) ? null : reader.GetString(12),
                 AttributesJson = reader.IsDBNull(13) ? null : reader.GetString(13),
-                ComboChoicesJson = reader.IsDBNull(14) ? null : reader.GetString(14)
+                ComboChoicesJson = reader.IsDBNull(14) ? null : reader.GetString(14),
+                CategoryColorHex = reader.IsDBNull(15) ? "#017E84" : reader.GetString(15)
             };
             result.Add(p);
         }
@@ -3409,6 +3414,315 @@ public class SqliteDatabaseService
         cmd.CommandText = "SELECT LastPosConfigsSyncedAt FROM OdooConfig WHERE Id = 1;";
         var res = await cmd.ExecuteScalarAsync();
         return res is DBNull or null ? null : res.ToString();
+    }
+
+    // =========================================================================
+    // POS REGISTER & SELLING WORKFLOW HELPER METHODS
+    // =========================================================================
+    public async Task UpdateSessionOpeningControlAsync(int configId, int sessionId, decimal openingBalance, string? openingNote)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmdSession = connection.CreateCommand();
+        cmdSession.CommandText = """
+            UPDATE PosSessions
+            SET OpeningBalance = @openBal,
+                State = 'opened',
+                StartAt = COALESCE(StartAt, CURRENT_TIMESTAMP),
+                UpdatedAt = CURRENT_TIMESTAMP
+            WHERE OdooId = @sessId OR Id = @sessId;
+            """;
+        cmdSession.Parameters.AddWithValue("@openBal", (double)openingBalance);
+        cmdSession.Parameters.AddWithValue("@sessId", sessionId);
+        await cmdSession.ExecuteNonQueryAsync();
+
+        await using var cmdConfig = connection.CreateCommand();
+        cmdConfig.CommandText = """
+            UPDATE PosConfigs
+            SET OpeningBalance = @openBal,
+                CurrentSessionState = 'opened',
+                UpdatedAt = CURRENT_TIMESTAMP
+            WHERE OdooId = @cfgId OR Id = @cfgId;
+            """;
+        cmdConfig.Parameters.AddWithValue("@openBal", (double)openingBalance);
+        cmdConfig.Parameters.AddWithValue("@cfgId", configId);
+        await cmdConfig.ExecuteNonQueryAsync();
+    }
+
+    public async Task CloseSessionAsync(int configId, int sessionId, decimal closingBalance, string? closingNote)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmdSession = connection.CreateCommand();
+        cmdSession.CommandText = """
+            UPDATE PosSessions
+            SET ClosingBalance = @closeBal,
+                StopAt = CURRENT_TIMESTAMP,
+                State = 'closed',
+                UpdatedAt = CURRENT_TIMESTAMP
+            WHERE OdooId = @sessId OR Id = @sessId;
+            """;
+        cmdSession.Parameters.AddWithValue("@closeBal", (double)closingBalance);
+        cmdSession.Parameters.AddWithValue("@sessId", sessionId);
+        await cmdSession.ExecuteNonQueryAsync();
+
+        await using var cmdConfig = connection.CreateCommand();
+        cmdConfig.CommandText = """
+            UPDATE PosConfigs
+            SET CurrentSessionState = 'closed',
+                LastClosingBalance = @closeBal,
+                LastClosingDate = CURRENT_TIMESTAMP,
+                UpdatedAt = CURRENT_TIMESTAMP
+            WHERE OdooId = @cfgId OR Id = @cfgId;
+            """;
+        cmdConfig.Parameters.AddWithValue("@closeBal", (double)closingBalance);
+        cmdConfig.Parameters.AddWithValue("@cfgId", configId);
+        await cmdConfig.ExecuteNonQueryAsync();
+    }
+
+    public async Task<int> GetSessionDraftOrdersCountAsync(int sessionId)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM PosOrders
+            WHERE (SessionId = @sessId OR SessionOdooId = @sessId)
+              AND LOWER(State) IN ('draft', 'ongoing', 'new');
+            """;
+        cmd.Parameters.AddWithValue("@sessId", sessionId);
+        var res = await cmd.ExecuteScalarAsync();
+        return res is long l ? (int)l : 0;
+    }
+
+    public async Task CancelAllSessionDraftOrdersAsync(int sessionId)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            DELETE FROM PosOrderLines
+            WHERE OrderId IN (
+                SELECT Id FROM PosOrders
+                WHERE (SessionId = @sessId OR SessionOdooId = @sessId)
+                  AND LOWER(State) IN ('draft', 'ongoing', 'new')
+            );
+            DELETE FROM PosOrders
+            WHERE (SessionId = @sessId OR SessionOdooId = @sessId)
+              AND LOWER(State) IN ('draft', 'ongoing', 'new');
+            """;
+        cmd.Parameters.AddWithValue("@sessId", sessionId);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task DeleteDraftOrderAsync(long orderId)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            DELETE FROM PosOrderLines WHERE OrderId = @orderId;
+            DELETE FROM PosOrders WHERE Id = @orderId AND LOWER(State) IN ('draft', 'ongoing', 'new');
+            """;
+        cmd.Parameters.AddWithValue("@orderId", orderId);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<long> SavePosOrderAsync(PosOrderRecord order, List<PosOrderLineRecord> lines, List<PosPaymentRecord> payments)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        long orderId = order.Id;
+        if (orderId > 0)
+        {
+            await using var updateCmd = connection.CreateCommand();
+            updateCmd.Transaction = transaction;
+            updateCmd.CommandText = """
+                UPDATE PosOrders
+                SET Name = @name, PosReference = @posRef, TrackingNumber = @trackNum,
+                    SessionId = @sessId, SessionOdooId = @sessOdooId, SessionName = @sessName,
+                    PosConfigName = @cfgName, DateOrder = @dateOrder,
+                    CashierId = @cashierId, CashierName = @cashierName,
+                    AmountTotal = @total, AmountTax = @tax, AmountPaid = @paid,
+                    State = @state, Note = @note, UpdatedAt = CURRENT_TIMESTAMP
+                WHERE Id = @id;
+                """;
+            updateCmd.Parameters.AddWithValue("@id", orderId);
+            updateCmd.Parameters.AddWithValue("@name", order.Name);
+            updateCmd.Parameters.AddWithValue("@posRef", order.PosReference);
+            updateCmd.Parameters.AddWithValue("@trackNum", order.TrackingNumber);
+            updateCmd.Parameters.AddWithValue("@sessId", (object?)order.SessionId ?? DBNull.Value);
+            updateCmd.Parameters.AddWithValue("@sessOdooId", (object?)order.SessionOdooId ?? DBNull.Value);
+            updateCmd.Parameters.AddWithValue("@sessName", order.SessionName);
+            updateCmd.Parameters.AddWithValue("@cfgName", order.PosConfigName);
+            updateCmd.Parameters.AddWithValue("@dateOrder", order.DateOrder.HasValue ? order.DateOrder.Value.ToString("yyyy-MM-dd HH:mm:ss") : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            updateCmd.Parameters.AddWithValue("@cashierId", (object?)order.CashierId ?? DBNull.Value);
+            updateCmd.Parameters.AddWithValue("@cashierName", order.CashierName);
+            updateCmd.Parameters.AddWithValue("@total", (double)order.AmountTotal);
+            updateCmd.Parameters.AddWithValue("@tax", (double)order.AmountTax);
+            updateCmd.Parameters.AddWithValue("@paid", (double)order.AmountPaid);
+            updateCmd.Parameters.AddWithValue("@state", order.State);
+            updateCmd.Parameters.AddWithValue("@note", order.Note ?? "");
+            await updateCmd.ExecuteNonQueryAsync();
+
+            await using var clearLinesCmd = connection.CreateCommand();
+            clearLinesCmd.Transaction = transaction;
+            clearLinesCmd.CommandText = "DELETE FROM PosOrderLines WHERE OrderId = @orderId;";
+            clearLinesCmd.Parameters.AddWithValue("@orderId", orderId);
+            await clearLinesCmd.ExecuteNonQueryAsync();
+        }
+        else
+        {
+            await using var insertCmd = connection.CreateCommand();
+            insertCmd.Transaction = transaction;
+            insertCmd.CommandText = """
+                INSERT INTO PosOrders (Name, PosReference, TrackingNumber, SessionId, SessionOdooId, SessionName, PosConfigName,
+                                       DateOrder, CashierId, CashierName, FiscalPosition, AmountTotal, AmountTax, AmountPaid,
+                                       Margin, MarginRatio, State, IsEdited, Company, Note)
+                VALUES (@name, @posRef, @trackNum, @sessId, @sessOdooId, @sessName, @cfgName,
+                        @dateOrder, @cashierId, @cashierName, @fiscal, @total, @tax, @paid,
+                        @margin, @marginRatio, @state, @isEdited, @company, @note);
+                SELECT last_insert_rowid();
+                """;
+            insertCmd.Parameters.AddWithValue("@name", order.Name);
+            insertCmd.Parameters.AddWithValue("@posRef", order.PosReference);
+            insertCmd.Parameters.AddWithValue("@trackNum", order.TrackingNumber);
+            insertCmd.Parameters.AddWithValue("@sessId", (object?)order.SessionId ?? DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@sessOdooId", (object?)order.SessionOdooId ?? DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@sessName", order.SessionName);
+            insertCmd.Parameters.AddWithValue("@cfgName", order.PosConfigName);
+            insertCmd.Parameters.AddWithValue("@dateOrder", order.DateOrder.HasValue ? order.DateOrder.Value.ToString("yyyy-MM-dd HH:mm:ss") : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            insertCmd.Parameters.AddWithValue("@cashierId", (object?)order.CashierId ?? DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@cashierName", order.CashierName);
+            insertCmd.Parameters.AddWithValue("@fiscal", order.FiscalPosition ?? "Standard Tax");
+            insertCmd.Parameters.AddWithValue("@total", (double)order.AmountTotal);
+            insertCmd.Parameters.AddWithValue("@tax", (double)order.AmountTax);
+            insertCmd.Parameters.AddWithValue("@paid", (double)order.AmountPaid);
+            insertCmd.Parameters.AddWithValue("@margin", (double)order.Margin);
+            insertCmd.Parameters.AddWithValue("@marginRatio", (double)order.MarginRatio);
+            insertCmd.Parameters.AddWithValue("@state", order.State);
+            insertCmd.Parameters.AddWithValue("@isEdited", order.IsEdited ? 1 : 0);
+            insertCmd.Parameters.AddWithValue("@company", order.Company);
+            insertCmd.Parameters.AddWithValue("@note", order.Note ?? "");
+            orderId = (long)(await insertCmd.ExecuteScalarAsync() ?? 0L);
+            order.Id = orderId;
+        }
+
+        foreach (var l in lines)
+        {
+            await using var lineCmd = connection.CreateCommand();
+            lineCmd.Transaction = transaction;
+            lineCmd.CommandText = """
+                INSERT INTO PosOrderLines (OrderId, ProductId, ProductName, IsEdited, Qty, PriceUnit, Discount, Taxes, PriceSubtotal, PriceSubtotalIncl)
+                VALUES (@orderId, @productId, @productName, @isEdited, @qty, @unitPrice, @discount, @taxes, @subtotal, @subtotalIncl);
+                """;
+            lineCmd.Parameters.AddWithValue("@orderId", orderId);
+            lineCmd.Parameters.AddWithValue("@productId", (object?)l.ProductId ?? DBNull.Value);
+            lineCmd.Parameters.AddWithValue("@productName", l.ProductName);
+            lineCmd.Parameters.AddWithValue("@isEdited", l.IsEdited ? 1 : 0);
+            lineCmd.Parameters.AddWithValue("@qty", (double)l.Qty);
+            lineCmd.Parameters.AddWithValue("@unitPrice", (double)l.PriceUnit);
+            lineCmd.Parameters.AddWithValue("@discount", (double)l.Discount);
+            lineCmd.Parameters.AddWithValue("@taxes", l.Taxes ?? "15%");
+            lineCmd.Parameters.AddWithValue("@subtotal", (double)l.PriceSubtotal);
+            lineCmd.Parameters.AddWithValue("@subtotalIncl", (double)l.PriceSubtotalIncl);
+            await lineCmd.ExecuteNonQueryAsync();
+        }
+
+        foreach (var p in payments)
+        {
+            await using var payCmd = connection.CreateCommand();
+            payCmd.Transaction = transaction;
+            payCmd.CommandText = """
+                INSERT INTO PosPayments (OrderId, OrderName, SessionId, SessionOdooId, SessionName, CashierName, PaymentMethodName, Amount, CurrencyName, PaymentDate)
+                VALUES (@orderId, @orderName, @sessId, @sessOdooId, @sessName, @cashier, @method, @amount, @curr, @date);
+                """;
+            payCmd.Parameters.AddWithValue("@orderId", orderId);
+            payCmd.Parameters.AddWithValue("@orderName", order.Name);
+            payCmd.Parameters.AddWithValue("@sessId", (object?)order.SessionId ?? DBNull.Value);
+            payCmd.Parameters.AddWithValue("@sessOdooId", (object?)order.SessionOdooId ?? DBNull.Value);
+            payCmd.Parameters.AddWithValue("@sessName", order.SessionName);
+            payCmd.Parameters.AddWithValue("@cashier", order.CashierName);
+            payCmd.Parameters.AddWithValue("@method", p.PaymentMethodName ?? "Cash");
+            payCmd.Parameters.AddWithValue("@amount", (double)p.Amount);
+            payCmd.Parameters.AddWithValue("@curr", p.CurrencyName ?? "USD ($)");
+            payCmd.Parameters.AddWithValue("@date", p.PaymentDate.HasValue ? p.PaymentDate.Value.ToString("yyyy-MM-dd HH:mm:ss") : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            await payCmd.ExecuteNonQueryAsync();
+        }
+
+        if (order.State == "paid" && (order.SessionOdooId.HasValue || order.SessionId.HasValue))
+        {
+            int sId = order.SessionOdooId ?? order.SessionId!.Value;
+            await using var updSessCmd = connection.CreateCommand();
+            updSessCmd.Transaction = transaction;
+            updSessCmd.CommandText = """
+                UPDATE PosSessions
+                SET OrdersCount = OrdersCount + 1,
+                    TotalPaymentsAmount = TotalPaymentsAmount + @amt,
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE OdooId = @sId OR Id = @sId;
+                """;
+            updSessCmd.Parameters.AddWithValue("@amt", (double)order.AmountTotal);
+            updSessCmd.Parameters.AddWithValue("@sId", sId);
+            await updSessCmd.ExecuteNonQueryAsync();
+        }
+
+        await transaction.CommitAsync();
+        return orderId;
+    }
+
+    private static void EnsureBakeryDemoProducts(SqliteConnection connection)
+    {
+        using var checkCmd = connection.CreateCommand();
+        checkCmd.CommandText = "SELECT COUNT(*) FROM Products WHERE Name = 'Wholemeal loaf';";
+        long exists = (long)(checkCmd.ExecuteScalar() ?? 0L);
+        if (exists > 0) return;
+
+        var bakeryProducts = new (int odooId, string name, string type, decimal listPrice, decimal cost, string sku, string barcode, int catId, string catName, string? tags)[]
+        {
+            (13, "Wholemeal loaf", "consu", 3.44m, 1.20m, "BAKE-0013", "07700000013", 7, "Breads", "[\"Organic\"]"),
+            (14, "Flour", "consu", 2.10m, 0.80m, "BAKE-0014", "07700000014", 7, "Breads", null),
+            (15, "Tiger white loaf", "consu", 3.20m, 1.10m, "BAKE-0015", "07700000015", 7, "Breads", null),
+            (16, "Butter Croissant", "consu", 2.80m, 1.00m, "BAKE-0016", "07700000016", 8, "Pastries", "[\"Bestseller\"]"),
+            (17, "Apple Pie", "consu", 4.50m, 1.80m, "BAKE-0017", "07700000017", 8, "Pastries", "[\"Featured\"]"),
+            (18, "Cherry Pie", "consu", 4.75m, 1.90m, "BAKE-0018", "07700000018", 8, "Pastries", null),
+            (19, "Sourdough Loaf", "consu", 4.20m, 1.50m, "BAKE-0019", "07700000019", 7, "Breads", "[\"Bestseller\"]"),
+            (20, "Multigrain Bread", "consu", 3.80m, 1.40m, "BAKE-0020", "07700000020", 7, "Breads", "[\"Organic\"]"),
+            (21, "Rye Bread", "consu", 3.60m, 1.30m, "BAKE-0021", "07700000021", 7, "Breads", null),
+            (22, "Cinnamon Roll", "consu", 3.10m, 1.10m, "BAKE-0022", "07700000022", 8, "Pastries", "[\"Special Offer\"]"),
+            (23, "Pain au Chocolat", "consu", 3.25m, 1.15m, "BAKE-0023", "07700000023", 8, "Pastries", "[\"Bestseller\"]"),
+            (24, "Blueberry Muffin", "consu", 2.95m, 1.05m, "BAKE-0024", "07700000024", 8, "Pastries", null),
+            (25, "Bagel", "consu", 2.20m, 0.75m, "BAKE-0025", "07700000025", 7, "Breads", null),
+            (26, "Cheese Croissant", "consu", 3.50m, 1.30m, "BAKE-0026", "07700000026", 8, "Pastries", null),
+            (27, "Pecan Pie", "consu", 5.20m, 2.10m, "BAKE-0027", "07700000027", 8, "Pastries", "[\"Featured\"]")
+        };
+
+        foreach (var p in bakeryProducts)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT OR IGNORE INTO Products (OdooId, Name, ProductType, ListPrice, StandardPrice, DefaultCode, Barcode, PosCategoryId, PosCategoryName, VariantCount, TagsJson)
+                VALUES (@odooId, @name, @type, @listPrice, @stdPrice, @sku, @barcode, @catId, @catName, 1, @tags);
+                """;
+            cmd.Parameters.AddWithValue("@odooId", p.odooId);
+            cmd.Parameters.AddWithValue("@name", p.name);
+            cmd.Parameters.AddWithValue("@type", p.type);
+            cmd.Parameters.AddWithValue("@listPrice", (double)p.listPrice);
+            cmd.Parameters.AddWithValue("@stdPrice", (double)p.cost);
+            cmd.Parameters.AddWithValue("@sku", p.sku);
+            cmd.Parameters.AddWithValue("@barcode", p.barcode);
+            cmd.Parameters.AddWithValue("@catId", p.catId);
+            cmd.Parameters.AddWithValue("@catName", p.catName);
+            cmd.Parameters.AddWithValue("@tags", (object?)p.tags ?? DBNull.Value);
+            cmd.ExecuteNonQuery();
+        }
     }
 }
 

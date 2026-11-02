@@ -44,6 +44,52 @@ public class ProductRecord : INotifyPropertyChanged
     private string? _tagsJson;
     private string? _attributesJson;
     private string? _comboChoicesJson;
+    private int _cartQuantity = 0;
+    private string? _categoryColorHex = "#017E84";
+
+    public int CartQuantity
+    {
+        get => _cartQuantity;
+        set
+        {
+            if (_cartQuantity != value)
+            {
+                _cartQuantity = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasCartQuantity));
+            }
+        }
+    }
+
+    public bool HasCartQuantity => _cartQuantity > 0;
+
+    public string? CategoryColorHex
+    {
+        get => _categoryColorHex;
+        set
+        {
+            if (_categoryColorHex != value)
+            {
+                _categoryColorHex = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CategoryColorBrush));
+            }
+        }
+    }
+
+    public Brush CategoryColorBrush
+    {
+        get
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(_categoryColorHex))
+                    return new SolidColorBrush((Color)ColorConverter.ConvertFromString(_categoryColorHex));
+            }
+            catch { }
+            return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84"));
+        }
+    }
 
     public long Id
     {

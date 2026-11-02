@@ -25,18 +25,18 @@
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
         <SolidColorBrush x:Key="ModalBackdropBrush" Color="#73111827"/>
-        
+
         <SolidColorBrush x:Key="OdooPurpleBrush" Color="#714B67"/>
         <SolidColorBrush x:Key="OdooPurpleHoverBrush" Color="#5D3D54"/>
         <SolidColorBrush x:Key="OdooPurpleSoftBrush" Color="#F3ECF1"/>
-        
+
         <SolidColorBrush x:Key="OdooTealBrush" Color="#017E84"/>
         <SolidColorBrush x:Key="OdooTealHoverBrush" Color="#01666B"/>
         <SolidColorBrush x:Key="OdooTealSoftBrush" Color="#E6F4F5"/>
-        
+
         <SolidColorBrush x:Key="PrimaryTextBrush" Color="#111827"/>
         <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6B7280"/>
-        
+
         <SolidColorBrush x:Key="DangerRedBrush" Color="#DC2626"/>
         <SolidColorBrush x:Key="DangerRedSoftHoverBrush" Color="#FEF2F2"/>
         <SolidColorBrush x:Key="DangerRedBorderHoverBrush" Color="#FECACA"/>
@@ -88,7 +88,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
+                                CornerRadius="10"
                                 Effect="{StaticResource CardShadowEffect}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
@@ -114,7 +114,7 @@
 
         <!-- ==================== EXIT FOOTER CARD STYLE ==================== -->
         <Style x:Key="ExitCardButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="72"/>
+            <Setter Property="Height" Value="64"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="Background" Value="{StaticResource SurfaceCardBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
@@ -206,10 +206,10 @@
 
         <!-- ==================== PRIMARY ACTION BUTTON STYLE ==================== -->
         <Style x:Key="PrimaryTouchButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="52"/>
+            <Setter Property="Height" Value="46"/>
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
-            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -218,7 +218,7 @@
                         <Border x:Name="BtnBorder"
                                 Background="{TemplateBinding Background}"
                                 CornerRadius="8"
-                                Padding="20,0">
+                                Padding="18,0">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -227,6 +227,9 @@
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="BtnBorder" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="BtnBorder" Property="Opacity" Value="0.65"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -237,12 +240,9 @@
 
     <!-- ==================== ROOT CONTAINER ==================== -->
     <Grid>
-        <!-- ========================================================= -->
-        <!-- BASE LAYER: HEADER + WORKSPACE                            -->
-        <!-- ========================================================= -->
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="68"/>
+                <RowDefinition Height="64"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
@@ -251,7 +251,7 @@
                     Background="{StaticResource SurfaceCardBrush}"
                     BorderBrush="{StaticResource SubtleBorderBrush}"
                     BorderThickness="0,0,0,1"
-                    Padding="32,0">
+                    Padding="28,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -283,12 +283,12 @@
                             <TextBlock x:Name="ClockTextBlock"
                                        Text="09:41:00 AM"
                                        Foreground="{StaticResource PrimaryTextBrush}"
-                                       FontSize="14"
+                                       FontSize="13.5"
                                        FontWeight="SemiBold"/>
                             <TextBlock x:Name="DateTextBlock"
-                                       Text="Thursday, Oct 29, 2026"
+                                       Text="Monday, Nov 02, 2026"
                                        Foreground="{StaticResource SecondaryTextBrush}"
-                                       FontSize="12"/>
+                                       FontSize="11.5"/>
                         </StackPanel>
                     </StackPanel>
 
@@ -297,24 +297,54 @@
                                Text="Point of Sale"
                                Foreground="{StaticResource PrimaryTextBrush}"
                                FontFamily="Segoe UI Variable Display, Inter, Segoe UI"
-                               FontSize="20"
+                               FontSize="19"
                                FontWeight="Bold"
                                VerticalAlignment="Center"
                                HorizontalAlignment="Center"/>
 
-                    <!-- Right: Compact "Powered by" Brand Logo -->
+                    <!-- Right: Connection Status Pill + Setup Button + Brand Logo -->
                     <StackPanel Grid.Column="2"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
+
+                        <!-- Quick Setup / Sync Button (visible on Login Screen) -->
+                        <Button x:Name="HeaderQuickSetupBtn"
+                                Click="OpenSetupSettings_Click"
+                                Background="#F3F4F6"
+                                BorderBrush="{StaticResource SubtleBorderBrush}"
+                                BorderThickness="1"
+                                Cursor="Hand"
+                                Height="30"
+                                Padding="12,0"
+                                Margin="0,0,12,0"
+                                ToolTip="Configure Odoo Connection &amp; Synchronize Data">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bdr" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="15" Padding="{TemplateBinding Padding}">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="⚙" FontSize="12" Foreground="{StaticResource OdooPurpleBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Odoo Setup &amp; Sync" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bdr" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                                            <Setter TargetName="Bdr" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
                         <!-- Global Odoo Online / Offline Connection Status Pill -->
                         <Border x:Name="GlobalConnectionStatusBadge"
                                 Background="#FFFBEB"
                                 BorderBrush="#FDE68A"
                                 BorderThickness="1"
-                                CornerRadius="16"
+                                CornerRadius="15"
                                 Padding="12,5"
-                                Margin="0,0,18,0"
+                                Margin="0,0,16,0"
                                 ToolTip="Live Odoo Online Connection Status">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Ellipse x:Name="GlobalStatusDot"
@@ -324,10 +354,11 @@
                                 <TextBlock x:Name="GlobalStatusText"
                                            Text="Offline (Local Mode)"
                                            Foreground="#92400E"
-                                           FontSize="12.5"
+                                           FontSize="12"
                                            FontWeight="SemiBold"/>
                             </StackPanel>
                         </Border>
+
                         <TextBlock Text="Powered by"
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    FontSize="12"
@@ -356,11 +387,11 @@
                 </Grid>
             </Border>
 
-            <!-- 2. MAIN WORKSPACE AREA -->
-            <Grid Grid.Row="1" Margin="32,20">
+            <!-- 2. LOGIN WORKSPACE AREA -->
+            <Grid x:Name="LoginWorkspaceGrid" Grid.Row="1" Margin="32,20">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto" MinWidth="388"/>
+                    <ColumnDefinition Width="Auto" MinWidth="400"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- CENTER BRANDING AREA -->
@@ -368,7 +399,7 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
                             Margin="0,0,48,0">
-                    
+
                     <Border Width="112" Height="112"
                             Background="{StaticResource SurfaceCardBrush}"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -427,34 +458,29 @@
                                    FontSize="13"
                                    TextAlignment="Center"
                                    Margin="0,0,0,6"/>
-                        <TextBlock Text="https://www.odoo.com  •  pos-support@example.com"
+                        <TextBlock Text="https://www.odoo.com  •  Local SQLite + Odoo 20 JSON-RPC Sync"
                                    Foreground="{StaticResource OdooTealBrush}"
                                    FontSize="13"
                                    FontWeight="Medium"
-                                   TextAlignment="Center"
-                                   Margin="0,0,0,6"/>
-                        <TextBlock Text="Odoo 20 Enterprise Edition (LGPLv3 / OEEL-1) • Terminal ID: POS-MAIN-01"
-                                   Foreground="{StaticResource SecondaryTextBrush}"
-                                   FontSize="12"
-                                   Opacity="0.85"
                                    TextAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
 
-                <!-- RIGHT INTERACTIVE COLUMN (2x2 GRID + FOOTER EXIT) -->
-                <Grid Grid.Column="1">
+                <!-- RIGHT INTERACTIVE COLUMN (USER CARDS OR INITIAL ODOO SYNC CARD + FOOTER EXIT) -->
+                <Grid Grid.Column="1" Width="400">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 1. TOP-RIGHT USER SELECTION (DYNAMIC POS USERS - 2 COLUMNS) -->
-                    <ScrollViewer Grid.Row="0"
+                    <!-- A. SYNCHRONIZED POS USER CARDS -->
+                    <ScrollViewer x:Name="UsersScrollViewer"
+                                  Grid.Row="0"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
-                                  MaxHeight="400"
-                                  Padding="0,0,10,0">
+                                  VerticalAlignment="Center"
+                                  MaxHeight="520"
+                                  Margin="0,0,0,16">
                         <ItemsControl x:Name="PosLoginUsersItemsControl">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -468,7 +494,6 @@
                                             Click="PosUserCard_Click"
                                             Margin="8">
                                         <StackPanel HorizontalAlignment="Center">
-                                            <!-- Circle Avatar (68x68) -->
                                             <Border Width="68" Height="68"
                                                     CornerRadius="34"
                                                     Background="{Binding AvatarSoftBrush}"
@@ -476,7 +501,6 @@
                                                     Margin="0,0,0,14"
                                                     ClipToBounds="True">
                                                 <Grid>
-                                                    <!-- Initials (when no image) -->
                                                     <TextBlock Text="{Binding Initials}"
                                                                Foreground="{Binding AvatarAccentBrush}"
                                                                FontSize="22"
@@ -484,7 +508,6 @@
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                Visibility="{Binding InitialsVisibility}"/>
-                                                    <!-- Custom Uploaded Avatar Image (when present) -->
                                                     <Image Source="{Binding AvatarBitmap}"
                                                            Stretch="UniformToFill"
                                                            Visibility="{Binding HasCustomImageVisibility}"/>
@@ -504,32 +527,100 @@
                         </ItemsControl>
                     </ScrollViewer>
 
+                    <!-- B. EMPTY STATE CARD WHEN NO USERS ARE SYNCED YET -->
+                    <Border x:Name="NoUsersEmptyStateCard"
+                            Grid.Row="0"
+                            Visibility="Collapsed"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource SurfaceCardBrush}"
+                            BorderBrush="{StaticResource SubtleBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="28,32"
+                            Margin="8,0,8,16"
+                            Effect="{StaticResource CardShadowEffect}">
+                        <StackPanel HorizontalAlignment="Center">
+                            <Border Width="64" Height="64"
+                                    CornerRadius="32"
+                                    Background="{StaticResource OdooPurpleSoftBrush}"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,0,0,16">
+                                <Viewbox Width="30" Height="30">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="{StaticResource OdooPurpleBrush}"/>
+                                        <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="{StaticResource OdooTealBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Border>
+
+                            <TextBlock Text="No Local Users Synchronized"
+                                       FontSize="18"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource PrimaryTextBrush}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,8"/>
+
+                            <TextBlock x:Name="NoUsersSubtitleText"
+                                       Text="Your local database is clean. Connect to your Odoo instance and synchronize POS, catalog, and user records to begin."
+                                       FontSize="13"
+                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       Margin="0,0,0,22"/>
+
+                            <Button x:Name="QuickSyncLoginBtn"
+                                    Style="{StaticResource PrimaryTouchButtonStyle}"
+                                    Click="QuickSyncFromLogin_Click"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,0,0,10">
+                                <TextBlock x:Name="QuickSyncLoginBtnText" Text="Sync All Data from Odoo Now"/>
+                            </Button>
+
+                            <Button x:Name="OpenSetupFromLoginBtn"
+                                    Style="{StaticResource PinPadKeyStyle}"
+                                    Height="42"
+                                    FontSize="13.5"
+                                    Click="OpenSetupSettings_Click"
+                                    HorizontalAlignment="Stretch"
+                                    Content="Configure Odoo Server"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- 2. BOTTOM-RIGHT FOOTER ACTION (EXIT BUTTON CARD) -->
-                    <Button Grid.Row="2"
+                    <Button Grid.Row="1"
                             Style="{StaticResource ExitCardButtonStyle}"
                             Click="ExitButton_Click"
+                            Margin="8,0,8,0"
                             ToolTip="Close Point of Sale">
-                        <Viewbox Width="28" Height="28">
-                            <Canvas Width="24" Height="24">
-                                <Path Data="M 12,3 L 12,12"
-                                      Stroke="{StaticResource DangerRedBrush}"
-                                      StrokeThickness="2.4"
-                                      StrokeStartLineCap="Round"
-                                      StrokeEndLineCap="Round"/>
-                                <Path Data="M 18.36,6.64 A 9,9 0 1 1 5.64,6.64"
-                                      Stroke="{StaticResource DangerRedBrush}"
-                                      StrokeThickness="2.4"
-                                      StrokeStartLineCap="Round"
-                                      StrokeEndLineCap="Round"/>
-                            </Canvas>
-                        </Viewbox>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Viewbox Width="22" Height="22" Margin="0,0,10,0">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="M 12,3 L 12,12"
+                                          Stroke="{StaticResource DangerRedBrush}"
+                                          StrokeThickness="2.4"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"/>
+                                    <Path Data="M 18.36,6.64 A 9,9 0 1 1 5.64,6.64"
+                                          Stroke="{StaticResource DangerRedBrush}"
+                                          StrokeThickness="2.4"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="Shut Down Terminal"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource DangerRedBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
                     </Button>
                 </Grid>
             </Grid>
 
-                <local:MainShellView x:Name="MainShellModule"
-                                     Grid.Row="1"
-                                     Visibility="Collapsed"/>
+            <!-- 3. MAIN APPLICATION SHELL -->
+            <local:MainShellView x:Name="MainShellModule"
+                                 Grid.Row="1"
+                                 Visibility="Collapsed"/>
         </Grid>
 
         <!-- ========================================================= -->
@@ -565,18 +656,17 @@
                             </Border>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock x:Name="ModalRoleTitleText"
-                                           Text="Administrator"
+                                           Text="User"
                                            Foreground="{StaticResource PrimaryTextBrush}"
                                            FontSize="18"
                                            FontWeight="Bold"/>
                                 <TextBlock x:Name="PinPromptText"
-                                           Text="Enter 4-digit security PIN (Demo: 1234)"
+                                           Text="Enter your security PIN"
                                            Foreground="{StaticResource SecondaryTextBrush}"
                                            FontSize="12"/>
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- Close Button -->
                         <Button Width="36" Height="36"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
@@ -653,7 +743,7 @@
                                       Stroke="{StaticResource DangerRedBrush}"
                                       StrokeThickness="2.4"
                                       StrokeStartLineCap="Round"
-                                      StrokeEndLineCap="Round"/>
+                                          StrokeEndLineCap="Round"/>
                                 <Path Data="M 18.36,6.64 A 9,9 0 1 1 5.64,6.64"
                                       Stroke="{StaticResource DangerRedBrush}"
                                       StrokeThickness="2.4"
@@ -670,7 +760,7 @@
                                HorizontalAlignment="Center"
                                Margin="0,0,0,8"/>
 
-                    <TextBlock Text="Any unsynchronized offline orders will remain safely queued on this terminal until the next session."
+                    <TextBlock Text="Your local SQLite database and configuration settings will remain safely stored on this terminal."
                                Foreground="{StaticResource SecondaryTextBrush}"
                                FontSize="14"
                                TextWrapping="Wrap"
@@ -694,6 +784,7 @@
                         <Button Grid.Column="2"
                                 Content="Shut Down"
                                 Style="{StaticResource PrimaryTouchButtonStyle}"
+                                Height="52"
                                 Background="{StaticResource DangerRedBrush}"
                                 Click="ConfirmShutdown_Click"/>
                     </Grid>
@@ -716,7 +807,7 @@
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Ellipse Width="10" Height="10" Fill="#10B981" Margin="0,0,12,0"/>
                 <TextBlock x:Name="ToastMessageText"
-                           Text="Authenticated as Administrator — Loading POS Register..."
+                           Text="Authenticated — Loading POS..."
                            Foreground="#FFFFFF"
                            FontSize="14"
                            FontWeight="Medium"/>

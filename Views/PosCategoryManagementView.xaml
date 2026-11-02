@@ -17,7 +17,6 @@
     </UserControl.DataContext>
 
     <UserControl.Resources>
-        <!-- Design Palette Brushes -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
@@ -47,7 +46,6 @@
                           Color="#111827"
                           Opacity="0.05"/>
 
-        <!-- Primary Purple Button Style -->
         <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -82,7 +80,6 @@
             </Setter>
         </Style>
 
-        <!-- Pager Chevron Button Style -->
         <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="30"/>
             <Setter Property="Height" Value="30"/>
@@ -118,15 +115,11 @@
 
     <Grid Background="{StaticResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
-            <!-- Row 0: Top Control Bar -->
             <RowDefinition Height="64"/>
-            <!-- Row 1: Workspace Content -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ======================================================================= -->
-        <!-- 1. TOP CONTROL BAR                                                      -->
-        <!-- ======================================================================= -->
+        <!-- 1. TOP CONTROL BAR -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -134,19 +127,15 @@
                 Padding="24,0">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <!-- Left: Action Buttons + Breadcrumb Title -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Center: Search Input Bar -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Right: Pager & Controls -->
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT CONTROLS: "Sync from Odoo", Breadcrumbs -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource OdooPrimaryButtonStyle}"
                             Command="{Binding SyncFromOdooCommand}"
-                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBooleanConverter}}"
                             Margin="0,0,14,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Viewbox Width="15" Height="15" Margin="0,0,8,0">
@@ -159,7 +148,6 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Breadcrumb: "PoS Product Categories" -->
                     <Button Command="{Binding BackToListCommand}"
                             Cursor="Hand"
                             Background="Transparent"
@@ -182,7 +170,6 @@
                         </Button.Template>
                     </Button>
 
-                    <!-- Breadcrumb Sub-Path (when viewing Detail/Form View) -->
                     <StackPanel Orientation="Horizontal"
                                 Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 VerticalAlignment="Center">
@@ -200,7 +187,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER: SEARCH BAR -->
+                <!-- CENTER SEARCH BAR -->
                 <Grid Grid.Column="1" HorizontalAlignment="Center" MinWidth="220" MaxWidth="380" Width="320" Height="36" VerticalAlignment="Center">
                     <Border Background="#F3F4F6"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -250,7 +237,7 @@
                     </Border>
                 </Grid>
 
-                <!-- RIGHT: DETAIL RECORD SWITCHER (VISIBLE ONLY IN DETAIL VIEW) -->
+                <!-- RIGHT PAGER -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
@@ -295,13 +282,9 @@
             </Grid>
         </Border>
 
-        <!-- ======================================================================= -->
-        <!-- 2. WORKSPACE CONTENT AREA                                               -->
-        <!-- ======================================================================= -->
+        <!-- 2. WORKSPACE CONTENT AREA -->
         <Grid Grid.Row="1">
-            <!-- =================================================================== -->
-            <!-- VIEW 1: POS PRODUCT CATEGORIES LIST VIEW (TABLE)                    -->
-            <!-- =================================================================== -->
+            <!-- VIEW 1: POS PRODUCT CATEGORIES LIST VIEW -->
             <Grid Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                   Margin="24,20,24,28">
                 <Border Background="{StaticResource SurfaceCardBrush}"
@@ -311,13 +294,10 @@
                         Effect="{StaticResource SubtleCardShadow}">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <!-- Table Header -->
                             <RowDefinition Height="44"/>
-                            <!-- Table Data Body -->
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <!-- TABLE HEADER -->
                         <Border Grid.Row="0"
                                 Background="#F9FAFB"
                                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -339,110 +319,121 @@
                             </Grid>
                         </Border>
 
-                        <!-- TABLE DATA ROWS -->
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding FilteredCategories}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type local:PosCategoryRecord}">
-                                        <Button Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"
-                                                Cursor="Hand"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                HorizontalContentAlignment="Stretch"
-                                                VerticalContentAlignment="Stretch"
-                                                Padding="0">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="RowBorder"
-                                                            Background="#FFFFFF"
-                                                            BorderBrush="{StaticResource SubtleBorderBrush}"
-                                                            BorderThickness="0,0,0,1"
-                                                            Padding="16,12"
-                                                            MinHeight="48">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="2.5*"/>
-                                                                <ColumnDefinition Width="1.8*"/>
-                                                                <ColumnDefinition Width="3*"/>
-                                                                <ColumnDefinition Width="80"/>
-                                                            </Grid.ColumnDefinitions>
+                        <Grid Grid.Row="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding FilteredCategories}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:PosCategoryRecord}">
+                                            <Button Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Cursor="Hand"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    HorizontalContentAlignment="Stretch"
+                                                    VerticalContentAlignment="Stretch"
+                                                    Padding="0">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="RowBorder"
+                                                                Background="#FFFFFF"
+                                                                BorderBrush="{StaticResource SubtleBorderBrush}"
+                                                                BorderThickness="0,0,0,1"
+                                                                Padding="16,12"
+                                                                MinHeight="48">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="2.5*"/>
+                                                                    <ColumnDefinition Width="1.8*"/>
+                                                                    <ColumnDefinition Width="3*"/>
+                                                                    <ColumnDefinition Width="80"/>
+                                                                </Grid.ColumnDefinitions>
 
-                                                            <!-- Col 0: Category Name -->
-                                                            <TextBlock Grid.Column="0"
-                                                                       Text="{Binding Name}"
-                                                                       FontSize="14"
-                                                                       FontWeight="SemiBold"
-                                                                       Foreground="{StaticResource PrimaryTextBrush}"
-                                                                       VerticalAlignment="Center"/>
+                                                                <TextBlock Grid.Column="0"
+                                                                           Text="{Binding Name}"
+                                                                           FontSize="14"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                                                           VerticalAlignment="Center"/>
 
-                                                            <!-- Col 1: Parent Category -->
-                                                            <TextBlock Grid.Column="1"
-                                                                       Text="{Binding ParentCategoryDisplay}"
-                                                                       FontSize="13.5"
-                                                                       Foreground="{StaticResource SecondaryTextBrush}"
-                                                                       VerticalAlignment="Center"/>
+                                                                <TextBlock Grid.Column="1"
+                                                                           Text="{Binding ParentCategoryDisplay}"
+                                                                           FontSize="13.5"
+                                                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                                                           VerticalAlignment="Center"/>
 
-                                                            <!-- Col 2: Linked PoS Configurations -->
-                                                            <ItemsControl Grid.Column="2"
-                                                                          ItemsSource="{Binding LinkedShopsList}"
-                                                                          VerticalAlignment="Center">
-                                                                <ItemsControl.ItemsPanel>
-                                                                    <ItemsPanelTemplate>
-                                                                        <WrapPanel Orientation="Horizontal"/>
-                                                                    </ItemsPanelTemplate>
-                                                                </ItemsControl.ItemsPanel>
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate>
-                                                                        <Border Background="#F3F4F6"
-                                                                                BorderBrush="{StaticResource SubtleBorderBrush}"
-                                                                                BorderThickness="1"
-                                                                                CornerRadius="12"
-                                                                                Padding="10,3"
-                                                                                Margin="0,2,8,2"
-                                                                                VerticalAlignment="Center">
-                                                                            <TextBlock Text="{Binding}"
-                                                                                       FontSize="12"
-                                                                                       FontWeight="Medium"
-                                                                                       Foreground="#374151"/>
-                                                                        </Border>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
+                                                                <ItemsControl Grid.Column="2"
+                                                                              ItemsSource="{Binding LinkedShopsList}"
+                                                                              VerticalAlignment="Center">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel Orientation="Horizontal"/>
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Background="#F3F4F6"
+                                                                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="12"
+                                                                                    Padding="10,3"
+                                                                                    Margin="0,2,8,2"
+                                                                                    VerticalAlignment="Center">
+                                                                                <TextBlock Text="{Binding}"
+                                                                                           FontSize="12"
+                                                                                           FontWeight="Medium"
+                                                                                           Foreground="#374151"/>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
 
-                                                            <!-- Col 3: Color Dot -->
-                                                            <Ellipse Grid.Column="3"
-                                                                     Width="20" Height="20"
-                                                                     Fill="{Binding ColorBrush}"
-                                                                     Stroke="{StaticResource SubtleBorderBrush}"
-                                                                     StrokeThickness="1"
-                                                                     HorizontalAlignment="Right"
-                                                                     VerticalAlignment="Center"
-                                                                     Margin="0,0,12,0"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="RowBorder" Property="Background" Value="#F9FAFB"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsPressed" Value="True">
-                                                            <Setter TargetName="RowBorder" Property="Background" Value="#F3ECF1"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                                                                <Ellipse Grid.Column="3"
+                                                                         Width="20" Height="20"
+                                                                         Fill="{Binding ColorBrush}"
+                                                                         Stroke="{StaticResource SubtleBorderBrush}"
+                                                                         StrokeThickness="1"
+                                                                         HorizontalAlignment="Right"
+                                                                         VerticalAlignment="Center"
+                                                                         Margin="0,0,12,0"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="RowBorder" Property="Background" Value="#F9FAFB"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsPressed" Value="True">
+                                                                <Setter TargetName="RowBorder" Property="Background" Value="#F3ECF1"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <!-- EMPTY STATE PLACEHOLDER -->
+                            <StackPanel HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="No PoS Categories Synchronized Yet"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,0,6"/>
+                                <TextBlock Text="Click 'Sync from Odoo' above to pull PoS product categories and shop assignments."
+                                           FontSize="13"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
 
-            <!-- =================================================================== -->
-            <!-- VIEW 2: POS PRODUCT CATEGORY DETAIL VIEW (STRICTLY READ-ONLY)       -->
-            <!-- =================================================================== -->
+            <!-- VIEW 2: POS CATEGORY DETAIL VIEW -->
             <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
@@ -459,7 +450,6 @@
                                 <ColumnDefinition Width="120"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- LEFT: CATEGORY FIELDS -->
                             <Grid Grid.Column="0" Margin="0,0,24,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -467,7 +457,6 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Top-Left: Category Name Display -->
                                 <StackPanel Grid.Row="0">
                                     <TextBlock Text="PoS Category"
                                                FontSize="12"
@@ -480,7 +469,6 @@
                                                Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </StackPanel>
 
-                                <!-- Bottom Row: Parent Category + Color + Linked Configs -->
                                 <Grid Grid.Row="2">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>
@@ -490,7 +478,6 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Parent Category -->
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Text="Parent Category"
                                                    FontSize="12.5"
@@ -504,7 +491,6 @@
                                                    VerticalAlignment="Center"/>
                                     </StackPanel>
 
-                                    <!-- Color -->
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Text="Color"
                                                    FontSize="12.5"
@@ -526,7 +512,6 @@
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <!-- Linked PoS Configurations -->
                                     <StackPanel Grid.Column="4">
                                         <TextBlock Text="Linked PoS Configurations"
                                                    FontSize="12.5"
@@ -560,7 +545,6 @@
                                 </Grid>
                             </Grid>
 
-                            <!-- FAR-RIGHT: IMAGE -->
                             <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
                                 <Border Width="88" Height="88"
                                         Background="#F9FAFB"
@@ -594,9 +578,7 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- ======================================================================= -->
-        <!-- 3. TOAST BANNER NOTIFICATION                                            -->
-        <!-- ======================================================================= -->
+        <!-- 3. TOAST BANNER NOTIFICATION -->
         <Border Visibility="{Binding IsToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                 Grid.Row="1"
                 VerticalAlignment="Bottom"

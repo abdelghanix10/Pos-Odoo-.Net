@@ -26,7 +26,7 @@ public partial class PaymentsViewModel : ViewModelBase
     private PosPaymentRecord? _selectedPayment;
 
     [ObservableProperty]
-    private string _pagerText = "1 / 1";
+    private string _pagerText = "0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -54,6 +54,9 @@ public partial class PaymentsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _toastSeverity = "Success";
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event EventHandler? PaymentsUpdated;
 
@@ -135,8 +138,8 @@ public partial class PaymentsViewModel : ViewModelBase
         }
 
         GrandTotalText = $"$ {grandTotal.ToString("N2", CultureInfo.InvariantCulture)}";
+        IsEmptyStateVisible = FlatPayments.Count == 0;
 
-        // Group by Payment Method (e.g. Cash, Bank)
         var groups = list
             .GroupBy(p => p.PaymentMethodName)
             .OrderBy(g => g.Key);
@@ -250,11 +253,17 @@ public partial class PaymentsViewModel : ViewModelBase
 
         try
         {
-            var paymentsDto = await OdooSyncService.Instance.FetchOdooPaymentsAsync(allowOfflineSimulation: true);
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
+            {
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
+                return;
+            }
+
+            var paymentsDto = await OdooSyncService.Instance.FetchOdooPaymentsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooPaymentsAsync(paymentsDto);
 
-            DateTime now = DateTime.Now;
-            await SqliteDatabaseService.Instance.UpdatePaymentSyncStatusAsync(now, "Success");
+            await SqliteDatabaseService.Instance.UpdatePaymentSyncStatusAsync(DateTime.Now, "Success");
 
             await ReloadPaymentsAsync();
             PaymentsUpdated?.Invoke(this, EventArgs.Empty);

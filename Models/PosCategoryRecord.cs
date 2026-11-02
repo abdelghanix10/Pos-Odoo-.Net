@@ -82,6 +82,7 @@ public class PosCategoryRecord : INotifyPropertyChanged
                 ColorHex = GetOdooColorHex(value);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ColorBrush));
+                OnPropertyChanged(nameof(ColorNameDisplay));
             }
         }
     }
@@ -96,6 +97,7 @@ public class PosCategoryRecord : INotifyPropertyChanged
                 _colorHex = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ColorBrush));
+                OnPropertyChanged(nameof(ColorNameDisplay));
             }
         }
     }
@@ -163,6 +165,7 @@ public class PosCategoryRecord : INotifyPropertyChanged
     }
 
     public string ParentCategoryDisplay => string.IsNullOrWhiteSpace(ParentCategoryName) ? "—" : ParentCategoryName;
+    public string ColorNameDisplay => ColorIndex == 0 ? "Default Gray" : $"Color {ColorIndex} ({ColorHex})";
     public bool HasImage => ImageBitmap != null;
     public bool HasNoImage => ImageBitmap == null;
 

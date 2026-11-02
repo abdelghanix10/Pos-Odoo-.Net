@@ -18,30 +18,28 @@
     </UserControl.DataContext>
 
     <UserControl.Resources>
-        <!-- Color Palette -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
         <SolidColorBrush x:Key="InputBorderBrush" Color="#D1D5DB"/>
-        
+
         <SolidColorBrush x:Key="OdooPurpleBrush" Color="#714B67"/>
         <SolidColorBrush x:Key="OdooPurpleHoverBrush" Color="#5D3D54"/>
         <SolidColorBrush x:Key="OdooPurpleSoftBrush" Color="#F3ECF1"/>
-        
+
         <SolidColorBrush x:Key="OdooTealBrush" Color="#017E84"/>
         <SolidColorBrush x:Key="OdooTealSoftBrush" Color="#E6F4F5"/>
-        
+
         <SolidColorBrush x:Key="PrimaryTextBrush" Color="#111827"/>
         <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6B7280"/>
         <SolidColorBrush x:Key="PlaceholderTextBrush" Color="#9CA3AF"/>
-        
+
         <SolidColorBrush x:Key="ActiveGreenBrush" Color="#10B981"/>
         <SolidColorBrush x:Key="WarningAmberBrush" Color="#F59E0B"/>
         <SolidColorBrush x:Key="DangerRedBrush" Color="#DC2626"/>
         <SolidColorBrush x:Key="DangerRedHoverBrush" Color="#B91C1C"/>
         <SolidColorBrush x:Key="DangerRedSoftBrush" Color="#FEF2F2"/>
 
-        <!-- Shadow Effects -->
         <DropShadowEffect x:Key="SubtleCardShadow"
                           BlurRadius="14"
                           ShadowDepth="2"
@@ -63,7 +61,6 @@
                           Color="#111827"
                           Opacity="0.06"/>
 
-        <!-- Primary Purple Button Style -->
         <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -98,7 +95,6 @@
             </Setter>
         </Style>
 
-        <!-- Icon / Secondary Button Style -->
         <Style x:Key="OdooIconButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
@@ -136,7 +132,6 @@
             </Setter>
         </Style>
 
-        <!-- Kanban User Card Button Style -->
         <Style x:Key="KanbanCardButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="320"/>
             <Setter Property="Height" Value="100"/>
@@ -168,7 +163,6 @@
             </Setter>
         </Style>
 
-        <!-- Form Input Container Style -->
         <Style x:Key="FormInputBoxBorderStyle" TargetType="Border">
             <Setter Property="Background" Value="#F9FAFB"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
@@ -191,15 +185,11 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <!-- 1. Shared Top Control Bar -->
             <RowDefinition Height="68"/>
-            <!-- 2. Active View Area (Kanban or Form) -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ======================================================================= -->
-        <!-- 1. SHARED TOP CONTROL BAR                                               -->
-        <!-- ======================================================================= -->
+        <!-- 1. SHARED TOP CONTROL BAR -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -207,19 +197,15 @@
                 Padding="24,0">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <!-- Left: Action Buttons + Breadcrumb Title -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Center: Search Input Bar -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Right: Save / Discard in Detail view -->
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT CONTROLS: "Sync from Odoo", Breadcrumbs -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource OdooPrimaryButtonStyle}"
                             Command="{Binding SyncFromOdooCommand}"
-                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBooleanConverter}}"
                             Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                             Margin="0,0,18,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -233,7 +219,6 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Breadcrumb Root: "Users" -->
                     <Button Command="{Binding BackToListCommand}"
                             Cursor="Hand"
                             Background="Transparent"
@@ -256,7 +241,6 @@
                         </Button.Template>
                     </Button>
 
-                    <!-- Breadcrumb Sub-Path (when viewing Detail/Form View) -->
                     <StackPanel Orientation="Horizontal"
                                 Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 VerticalAlignment="Center">
@@ -274,7 +258,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER (KANBAN ONLY): Responsive Search Bar -->
+                <!-- CENTER SEARCH BAR -->
                 <Border Grid.Column="1"
                         MinWidth="220" MaxWidth="380" Width="320"
                         Height="38"
@@ -292,7 +276,6 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Search Magnifier Icon -->
                         <Viewbox Grid.Column="0" Width="14" Height="14" Margin="0,0,10,0" VerticalAlignment="Center">
                             <Canvas Width="24" Height="24">
                                 <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13"
@@ -304,7 +287,6 @@
                             </Canvas>
                         </Viewbox>
 
-                        <!-- Search Text Input -->
                         <Grid Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="Search by name, login, or email..."
                                        Foreground="{StaticResource PlaceholderTextBrush}"
@@ -323,13 +305,12 @@
                     </Grid>
                 </Border>
 
-                <!-- RIGHT: Save / Discard Buttons (Visible in Detail View) -->
+                <!-- RIGHT SAVE / DISCARD -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <!-- Save Button -->
                     <Button Style="{StaticResource OdooIconButtonStyle}"
                             BorderBrush="{StaticResource OdooTealBrush}"
                             Background="{StaticResource OdooTealSoftBrush}"
@@ -353,7 +334,6 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Discard Button -->
                     <Button Style="{StaticResource OdooIconButtonStyle}"
                             ToolTip="Discard Changes"
                             Command="{Binding DiscardCommand}">
@@ -377,105 +357,126 @@
             </Grid>
         </Border>
 
-        <!-- ======================================================================= -->
-        <!-- 2. ACTIVE VIEW AREA: KANBAN GRID VIEW (RESPONSIVE WRAPPANEL)            -->
-        <!-- ======================================================================= -->
-        <ScrollViewer Grid.Row="1"
-                      Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
-                      VerticalScrollBarVisibility="Auto"
-                      Padding="24,20">
-            <ItemsControl ItemsSource="{Binding FilteredUsers}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Button Style="{StaticResource KanbanCardButtonStyle}"
-                                Command="{Binding DataContext.SelectUserCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                CommandParameter="{Binding}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <!-- Avatar (64x64) -->
-                                    <ColumnDefinition Width="64"/>
-                                    <!-- User Data Stack -->
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+        <!-- 2. ACTIVE VIEW AREA: KANBAN GRID VIEW -->
+        <Grid Grid.Row="1"
+              Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          Padding="24,20">
+                <ItemsControl ItemsSource="{Binding FilteredUsers}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Style="{StaticResource KanbanCardButtonStyle}"
+                                    Command="{Binding DataContext.SelectUserCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="64"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <!-- Left: Avatar (Initials or Custom Image) -->
-                                <Border Grid.Column="0"
-                                        Width="64" Height="64"
-                                        CornerRadius="8"
-                                        Background="{Binding AvatarSoftBrush}"
-                                        HorizontalAlignment="Left"
-                                        VerticalAlignment="Top"
-                                        ClipToBounds="True">
-                                    <Grid>
-                                        <TextBlock Text="{Binding Initials}"
-                                                   Foreground="{Binding AvatarAccentBrush}"
-                                                   FontSize="22"
+                                    <Border Grid.Column="0"
+                                            Width="64" Height="64"
+                                            CornerRadius="8"
+                                            Background="{Binding AvatarSoftBrush}"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Top"
+                                            ClipToBounds="True">
+                                        <Grid>
+                                            <TextBlock Text="{Binding Initials}"
+                                                       Foreground="{Binding AvatarAccentBrush}"
+                                                       FontSize="22"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{Binding InitialsVisibility}"/>
+                                            <Image Source="{Binding AvatarBitmap}"
+                                                   Stretch="UniformToFill"
+                                                   Visibility="{Binding HasCustomImageVisibility}"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding Name}"
+                                                   Foreground="{StaticResource PrimaryTextBrush}"
+                                                   FontSize="15"
                                                    FontWeight="Bold"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Visibility="{Binding InitialsVisibility}"/>
-                                        <Image Source="{Binding AvatarBitmap}"
-                                               Stretch="UniformToFill"
-                                               Visibility="{Binding HasCustomImageVisibility}"/>
-                                    </Grid>
-                                </Border>
-
-                                <!-- Right: User Information -->
-                                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Top">
-                                    <TextBlock Text="{Binding Name}"
-                                               Foreground="{StaticResource PrimaryTextBrush}"
-                                               FontSize="15"
-                                               FontWeight="Bold"
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding Login}"
-                                               Foreground="{StaticResource SecondaryTextBrush}"
-                                               FontSize="12.5"
-                                               TextTrimming="CharacterEllipsis"
-                                               Margin="0,3,0,0"/>
-
-                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-                                        <!-- Status Indicator Dot -->
-                                        <Ellipse Width="8" Height="8"
-                                                 Fill="{Binding StatusDotBrush}"
-                                                 Margin="0,0,6,0"/>
-                                        <TextBlock Text="{Binding Status}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Login}"
                                                    Foreground="{StaticResource SecondaryTextBrush}"
-                                                   FontSize="11.5"
-                                                   FontWeight="Medium"/>
+                                                   FontSize="12.5"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Margin="0,3,0,0"/>
 
-                                        <!-- POS Access Badge -->
-                                        <Border Visibility="{Binding PosBadgeVisibility}"
-                                                Background="{StaticResource OdooTealSoftBrush}"
-                                                CornerRadius="4"
-                                                Padding="6,2"
-                                                Margin="12,0,0,0">
-                                            <TextBlock Text="POS ACCESS"
-                                                       Foreground="{StaticResource OdooTealBrush}"
-                                                       FontSize="10"
-                                                       FontWeight="Bold"/>
-                                        </Border>
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
+                                            <Ellipse Width="8" Height="8"
+                                                     Fill="{Binding StatusDotBrush}"
+                                                     Margin="0,0,6,0"/>
+                                            <TextBlock Text="{Binding Status}"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       FontSize="11.5"
+                                                       FontWeight="Medium"/>
+
+                                            <Border Visibility="{Binding PosBadgeVisibility}"
+                                                    Background="{StaticResource OdooTealSoftBrush}"
+                                                    CornerRadius="4"
+                                                    Padding="6,2"
+                                                    Margin="12,0,0,0">
+                                                <TextBlock Text="POS ACCESS"
+                                                           Foreground="{StaticResource OdooTealBrush}"
+                                                           FontSize="10"
+                                                           FontWeight="Bold"/>
+                                            </Border>
+                                        </StackPanel>
                                     </StackPanel>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
 
-        <!-- ======================================================================= -->
-        <!-- 3. ACTIVE VIEW AREA: USER DETAIL VIEW (READ-ONLY ODOO PROFILE)          -->
-        <!-- ======================================================================= -->
+            <!-- EMPTY STATE PLACEHOLDER -->
+            <Border Background="{StaticResource SurfaceCardBrush}"
+                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="36,32"
+                    MaxWidth="460"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Effect="{StaticResource SubtleCardShadow}"
+                    Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="No Users Synchronized Yet"
+                               FontSize="17"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource PrimaryTextBrush}"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="Click 'Sync from Odoo' to pull active users from your Odoo instance, update existing profiles, and remove deleted accounts."
+                               FontSize="13"
+                               Foreground="{StaticResource SecondaryTextBrush}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Margin="0,0,0,18"/>
+                    <Button Style="{StaticResource OdooPrimaryButtonStyle}"
+                            Command="{Binding SyncFromOdooCommand}"
+                            HorizontalAlignment="Center"
+                            Content="Sync Users from Odoo"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- 3. ACTIVE VIEW AREA: USER DETAIL VIEW -->
         <ScrollViewer Grid.Row="1"
                       Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                       VerticalScrollBarVisibility="Auto"
                       Padding="28,24">
-            <!-- Clean White Sheet Container Card on Light-Gray Background -->
             <Border MaxWidth="920"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Top"
@@ -486,7 +487,6 @@
                     Padding="40,36"
                     Effect="{StaticResource SheetShadow}">
                 <StackPanel>
-                    <!-- Odoo Synced Profile Info Banner -->
                     <Border Background="#F3ECF1"
                             BorderBrush="#E5D6E0"
                             BorderThickness="1"
@@ -517,7 +517,6 @@
                         </Grid>
                     </Border>
 
-                    <!-- HEADER SECTION: AVATAR (96x96) + NAME & LOGIN -->
                     <Grid Margin="0,0,0,36">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="96"/>
@@ -525,7 +524,6 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Left: Large Read-Only Avatar Display (96x96, Rounded Corners) -->
                         <Border Grid.Column="0"
                                 Width="96" Height="96"
                                 CornerRadius="8"
@@ -535,7 +533,6 @@
                                 ClipToBounds="True"
                                 ToolTip="Profile avatar synced from Odoo">
                             <Grid>
-                                <!-- Default User Vector Placeholder -->
                                 <Viewbox Width="44" Height="44" HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <Canvas Width="24" Height="24">
                                         <Ellipse Width="8" Height="8" Canvas.Left="8" Canvas.Top="3"
@@ -546,16 +543,13 @@
                                               StrokeStartLineCap="Round"/>
                                     </Canvas>
                                 </Viewbox>
-                                <!-- Synced Avatar Image -->
                                 <Image Source="{Binding SelectedUser.AvatarBitmap}"
                                        Stretch="UniformToFill"
                                        Visibility="{Binding SelectedUser.HasCustomImageVisibility}"/>
                             </Grid>
                         </Border>
 
-                        <!-- Right of Avatar: Large Name Display + Read-Only Login -->
                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                            <!-- Field 1: Name Label + Odoo Synced Tag -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4" VerticalAlignment="Center">
                                 <TextBlock Text="FULL NAME"
                                            Foreground="{StaticResource SecondaryTextBrush}"
@@ -565,22 +559,13 @@
                                         CornerRadius="4"
                                         Padding="6,2"
                                         Margin="10,0,0,0">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Viewbox Width="10" Height="10" Margin="0,0,4,0">
-                                            <Canvas Width="24" Height="24">
-                                                <Path Data="M 12,2 C 9.24,2 7,4.24 7,7 L 7,10 L 6,10 C 4.9,10 4,10.9 4,12 L 4,20 C 4,21.1 4.9,22 6,22 L 18,22 C 19.1,22 20,21.1 20,20 L 20,12 C 20,10.9 19.1,10 18,10 L 17,10 L 17,7 C 17,4.24 14.76,2 12,2 Z M 9,7 C 9,5.34 10.34,4 12,4 C 13.66,4 15,5.34 15,7 L 15,10 L 9,10 L 9,7 Z"
-                                                      Fill="{StaticResource OdooPurpleBrush}"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                        <TextBlock Text="Odoo Synced"
-                                                   Foreground="{StaticResource OdooPurpleBrush}"
-                                                   FontSize="10.5"
-                                                   FontWeight="SemiBold"/>
-                                    </StackPanel>
+                                    <TextBlock Text="Odoo Synced"
+                                               Foreground="{StaticResource OdooPurpleBrush}"
+                                               FontSize="10.5"
+                                               FontWeight="SemiBold"/>
                                 </Border>
                             </StackPanel>
 
-                            <!-- Prominent Name Text -->
                             <TextBlock Text="{Binding SelectedUser.Name}"
                                        Foreground="{StaticResource PrimaryTextBrush}"
                                        FontFamily="Segoe UI Variable Display, Inter, Segoe UI"
@@ -588,7 +573,6 @@
                                        FontWeight="SemiBold"
                                        Margin="0,0,0,16"/>
 
-                            <!-- Field 2: Compact Read-Only Login -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -612,50 +596,24 @@
                                         CornerRadius="8"
                                         Height="40"
                                         Padding="12,0">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="26"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <Viewbox Grid.Column="0" Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                            <Canvas Width="24" Height="24">
-                                                <Rectangle Width="20" Height="16" Canvas.Left="2" Canvas.Top="4"
-                                                           RadiusX="2" RadiusY="2"
-                                                           Stroke="{StaticResource SecondaryTextBrush}"
-                                                           StrokeThickness="1.8"/>
-                                                <Path Data="M 2,6 L 12,13 L 22,6"
-                                                      Stroke="{StaticResource SecondaryTextBrush}"
-                                                      StrokeThickness="1.8"
-                                                      StrokeStartLineCap="Round"/>
-                                            </Canvas>
-                                        </Viewbox>
-
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding SelectedUser.Login}"
-                                                   Foreground="{StaticResource PrimaryTextBrush}"
-                                                   FontSize="13"
-                                                   VerticalAlignment="Center"/>
-                                    </Grid>
+                                    <TextBlock Text="{Binding SelectedUser.Login}"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"/>
                                 </Border>
                             </Grid>
                         </StackPanel>
                     </Grid>
 
-                    <!-- Divider -->
                     <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,28"/>
 
-                    <!-- DETAILS SECTION: 2-COLUMN GRID -->
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <!-- Left: Contact Info -->
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="48"/>
-                            <!-- Right: Local POS Credentials -->
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- LEFT: CONTACT INFO (Read-Only) -->
                         <StackPanel Grid.Column="0">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,18" VerticalAlignment="Center">
                                 <TextBlock Text="CONTACT INFORMATION"
@@ -669,7 +627,6 @@
                                            VerticalAlignment="Center"/>
                             </StackPanel>
 
-                            <!-- Email -->
                             <TextBlock Text="Email Address"
                                        Foreground="{StaticResource PrimaryTextBrush}"
                                        FontSize="13"
@@ -682,31 +639,12 @@
                                     Height="42"
                                     Padding="12,0"
                                     Margin="0,0,0,18">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="28"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Viewbox Grid.Column="0" Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <Canvas Width="24" Height="24">
-                                            <Rectangle Width="20" Height="16" Canvas.Left="2" Canvas.Top="4"
-                                                       RadiusX="2" RadiusY="2"
-                                                       Stroke="{StaticResource SecondaryTextBrush}"
-                                                       StrokeThickness="1.8"/>
-                                            <Path Data="M 2,6 L 12,13 L 22,6"
-                                                  Stroke="{StaticResource SecondaryTextBrush}"
-                                                  StrokeThickness="1.8"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding SelectedUser.Email}"
-                                               Foreground="{StaticResource PrimaryTextBrush}"
-                                               FontSize="13"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
+                                <TextBlock Text="{Binding SelectedUser.Email}"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"/>
                             </Border>
 
-                            <!-- Phone -->
                             <TextBlock Text="Phone Number"
                                        Foreground="{StaticResource PrimaryTextBrush}"
                                        FontSize="13"
@@ -718,29 +656,13 @@
                                     CornerRadius="8"
                                     Height="42"
                                     Padding="12,0">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="28"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Viewbox Grid.Column="0" Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="M 6.6,10.8 C 8,13.6 10.4,15.9 13.2,17.4 L 15.4,15.2 C 15.7,14.9 16.1,14.8 16.4,14.9 C 17.5,15.3 18.7,15.5 20,15.5 C 20.6,15.5 21,15.9 21,16.5 L 21,20 C 21,20.6 20.6,21 20,21 C 10.6,21 3,13.4 3,4 C 3,3.4 3.4,3 4,3 L 7.5,3 C 8.1,3 8.5,3.4 8.5,4 C 8.5,5.2 8.7,6.4 9.1,7.6 C 9.2,7.9 9.1,8.3 8.8,8.6 L 6.6,10.8 Z"
-                                                  Stroke="{StaticResource SecondaryTextBrush}"
-                                                  StrokeThickness="1.8"
-                                                  StrokeLineJoin="Round"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding SelectedUser.Phone}"
-                                               Foreground="{StaticResource PrimaryTextBrush}"
-                                               FontSize="13"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
+                                <TextBlock Text="{Binding SelectedUser.Phone}"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"/>
                             </Border>
                         </StackPanel>
 
-                        <!-- RIGHT: LOCAL POS CREDENTIALS (Configured on Terminal) -->
                         <StackPanel Grid.Column="2">
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,18" VerticalAlignment="Center">
                                 <TextBlock Text="LOCAL POS CREDENTIALS"
@@ -754,41 +676,21 @@
                                            VerticalAlignment="Center"/>
                             </StackPanel>
 
-                            <!-- Password Input -->
                             <TextBlock Text="Password"
                                        Foreground="{StaticResource PrimaryTextBrush}"
                                        FontSize="13"
                                        FontWeight="Medium"
                                        Margin="0,0,0,6"/>
                             <Border Style="{StaticResource FormInputBoxBorderStyle}" Margin="0,0,0,18">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="28"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Viewbox Grid.Column="0" Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <Canvas Width="24" Height="24">
-                                            <Rectangle Width="18" Height="11" Canvas.Left="3" Canvas.Top="11"
-                                                       RadiusX="2" RadiusY="2"
-                                                       Stroke="{StaticResource SecondaryTextBrush}"
-                                                       StrokeThickness="2"/>
-                                            <Path Data="M 7,11 L 7,7 C 7,4.2 9.2,2 12,2 C 14.8,2 17,4.2 17,7 L 17,11"
-                                                  Stroke="{StaticResource SecondaryTextBrush}"
-                                                  StrokeThickness="2"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}"
-                                             Background="Transparent"
-                                             BorderThickness="0"
-                                             Foreground="{StaticResource PrimaryTextBrush}"
-                                             CaretBrush="{StaticResource OdooPurpleBrush}"
-                                             FontSize="14"
-                                             VerticalAlignment="Center"/>
-                                </Grid>
+                                <TextBox Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Foreground="{StaticResource PrimaryTextBrush}"
+                                         CaretBrush="{StaticResource OdooPurpleBrush}"
+                                         FontSize="14"
+                                         VerticalAlignment="Center"/>
                             </Border>
 
-                            <!-- Numeric PIN Input -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Text="POS Security PIN"
                                            Foreground="{StaticResource PrimaryTextBrush}"
@@ -800,35 +702,16 @@
                                            VerticalAlignment="Center"/>
                             </StackPanel>
                             <Border Style="{StaticResource FormInputBoxBorderStyle}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="28"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Viewbox Grid.Column="0" Width="16" Height="16" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                        <Canvas Width="24" Height="24">
-                                            <Ellipse Width="3.5" Height="3.5" Canvas.Left="5" Canvas.Top="4" Fill="{StaticResource OdooTealBrush}"/>
-                                            <Ellipse Width="3.5" Height="3.5" Canvas.Left="10.2" Canvas.Top="4" Fill="{StaticResource OdooTealBrush}"/>
-                                            <Ellipse Width="3.5" Height="3.5" Canvas.Left="15.5" Canvas.Top="4" Fill="{StaticResource OdooTealBrush}"/>
-                                            <Ellipse Width="3.5" Height="3.5" Canvas.Left="5" Canvas.Top="9.5" Fill="{StaticResource OdooTealBrush}"/>
-                                            <Ellipse Width="3.5" Height="3.5" Canvas.Left="10.2" Canvas.Top="9.5" Fill="{StaticResource OdooTealBrush}"/>
-                                            <Ellipse Width="3.5" Height="3.5" Canvas.Left="15.5" Canvas.Top="9.5" Fill="{StaticResource OdooTealBrush}"/>
-                                            <Ellipse Width="3.5" Height="3.5" Canvas.Left="10.2" Canvas.Top="15" Fill="{StaticResource OdooTealBrush}"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding Pin, UpdateSourceTrigger=PropertyChanged}"
-                                             MaxLength="6"
-                                             Background="Transparent"
-                                             BorderThickness="0"
-                                             Foreground="{StaticResource PrimaryTextBrush}"
-                                             CaretBrush="{StaticResource OdooTealBrush}"
-                                             FontSize="14"
-                                             VerticalAlignment="Center"/>
-                                </Grid>
+                                <TextBox Text="{Binding Pin, UpdateSourceTrigger=PropertyChanged}"
+                                         MaxLength="6"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Foreground="{StaticResource PrimaryTextBrush}"
+                                         CaretBrush="{StaticResource OdooTealBrush}"
+                                         FontSize="14"
+                                         VerticalAlignment="Center"/>
                             </Border>
 
-                            <!-- Visible in POS Login CheckBox -->
                             <Border Margin="0,18,0,0"
                                     Background="#F9FAFB"
                                     BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -856,7 +739,7 @@
             </Border>
         </ScrollViewer>
 
-        <!-- ==================== TOAST BANNER NOTIFICATION ==================== -->
+        <!-- TOAST BANNER NOTIFICATION -->
         <Border Visibility="{Binding IsToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                 Grid.RowSpan="2"
                 VerticalAlignment="Bottom"

@@ -22,7 +22,7 @@ public partial class ComboChoicesViewModel : ViewModelBase
     private ComboChoiceRecord? _selectedCombo;
 
     [ObservableProperty]
-    private string _pagerText = "1 / 1";
+    private string _pagerText = "0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -44,6 +44,9 @@ public partial class ComboChoicesViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _toastSeverity = "Success";
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event EventHandler? CombosUpdated;
 
@@ -96,8 +99,18 @@ public partial class ComboChoicesViewModel : ViewModelBase
             FilteredCombos.Add(c);
         }
 
+        IsEmptyStateVisible = FilteredCombos.Count == 0;
+
         if (IsDetailViewVisible)
         {
+            if (SelectedCombo != null && !FilteredCombos.Contains(SelectedCombo))
+            {
+                SelectedCombo = FilteredCombos.FirstOrDefault();
+                if (SelectedCombo == null)
+                {
+                    IsDetailViewVisible = false;
+                }
+            }
             UpdatePager();
         }
     }
@@ -170,19 +183,20 @@ public partial class ComboChoicesViewModel : ViewModelBase
     [RelayCommand]
     public async Task SyncFromOdooAsync()
     {
+        if (IsSyncing) return;
         IsSyncing = true;
         SyncButtonText = "Syncing...";
 
         try
         {
             var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
             {
-                ShowToast("Odoo connection not configured in Settings.", "Warning");
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
                 return;
             }
 
-            var (combos, lines) = await OdooSyncService.Instance.FetchOdooComboChoicesAsync(config, allowOfflineSimulation: true);
+            var (combos, lines) = await OdooSyncService.Instance.FetchOdooComboChoicesAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooCombosAsync(combos, lines);
             await SqliteDatabaseService.Instance.UpdateComboSyncStatusAsync(DateTime.Now, "Success");
 

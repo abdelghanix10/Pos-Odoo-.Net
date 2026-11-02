@@ -22,7 +22,7 @@ public partial class SessionsViewModel : ViewModelBase
     private PosSessionRecord? _selectedSession;
 
     [ObservableProperty]
-    private string _pagerText = "1 / 1";
+    private string _pagerText = "0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -44,6 +44,9 @@ public partial class SessionsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _toastSeverity = "Success";
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event Action<string>? NavigateToOrdersRequested;
     public event Action<string>? NavigateToPaymentsRequested;
@@ -99,6 +102,8 @@ public partial class SessionsViewModel : ViewModelBase
         {
             FilteredSessions.Add(s);
         }
+
+        IsEmptyStateVisible = FilteredSessions.Count == 0;
 
         if (IsDetailViewVisible)
         {
@@ -187,11 +192,17 @@ public partial class SessionsViewModel : ViewModelBase
 
         try
         {
-            var sessionsDto = await OdooSyncService.Instance.FetchOdooSessionsAsync(allowOfflineSimulation: true);
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
+            {
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
+                return;
+            }
+
+            var sessionsDto = await OdooSyncService.Instance.FetchOdooSessionsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooSessionsAsync(sessionsDto);
 
-            DateTime now = DateTime.Now;
-            await SqliteDatabaseService.Instance.UpdateSessionSyncStatusAsync(now, "Success");
+            await SqliteDatabaseService.Instance.UpdateSessionSyncStatusAsync(DateTime.Now, "Success");
 
             await ReloadSessionsAsync();
             SessionsUpdated?.Invoke(this, EventArgs.Empty);

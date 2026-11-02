@@ -46,7 +46,7 @@ public partial class UserManagementView : UserControl
     public void RefreshPosLoginUsers()
     {
         PosLoginUsers.Clear();
-        foreach (var user in ViewModel.FilteredUsers)
+        foreach (var user in ViewModel.AllUsers)
         {
             if (user.IsVisibleInPos)
             {

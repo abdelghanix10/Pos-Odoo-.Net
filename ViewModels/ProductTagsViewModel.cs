@@ -22,7 +22,7 @@ public partial class ProductTagsViewModel : ViewModelBase
     private ProductTagRecord? _selectedTag;
 
     [ObservableProperty]
-    private string _pagerText = "1 / 1";
+    private string _pagerText = "0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -44,6 +44,9 @@ public partial class ProductTagsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _toastSeverity = "Success";
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event EventHandler? TagsUpdated;
 
@@ -96,8 +99,18 @@ public partial class ProductTagsViewModel : ViewModelBase
             FilteredTags.Add(t);
         }
 
+        IsEmptyStateVisible = FilteredTags.Count == 0;
+
         if (IsDetailViewVisible)
         {
+            if (SelectedTag != null && !FilteredTags.Contains(SelectedTag))
+            {
+                SelectedTag = FilteredTags.FirstOrDefault();
+                if (SelectedTag == null)
+                {
+                    IsDetailViewVisible = false;
+                }
+            }
             UpdatePager();
         }
     }
@@ -170,19 +183,20 @@ public partial class ProductTagsViewModel : ViewModelBase
     [RelayCommand]
     public async Task SyncFromOdooAsync()
     {
+        if (IsSyncing) return;
         IsSyncing = true;
         SyncButtonText = "Syncing...";
 
         try
         {
             var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
             {
-                ShowToast("Odoo connection not configured in Settings.", "Warning");
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
                 return;
             }
 
-            var tags = await OdooSyncService.Instance.FetchOdooTagsAsync(config, allowOfflineSimulation: true);
+            var tags = await OdooSyncService.Instance.FetchOdooTagsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooTagsAsync(tags);
             await SqliteDatabaseService.Instance.UpdateTagSyncStatusAsync(DateTime.Now, "Success");
 

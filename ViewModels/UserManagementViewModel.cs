@@ -8,6 +8,7 @@ namespace OdooPosLogin.ViewModels;
 public partial class UserManagementViewModel : ViewModelBase
 {
     private readonly List<PosUserRecord> _allUsers = [];
+    public IReadOnlyList<PosUserRecord> AllUsers => _allUsers;
 
     [ObservableProperty]
     private ObservableCollection<PosUserRecord> _filteredUsers = [];
@@ -44,6 +45,9 @@ public partial class UserManagementViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _toastSeverity = "Success";
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event Action? UsersUpdated;
     public event EventHandler? RequestCloseToPos;
@@ -97,6 +101,8 @@ public partial class UserManagementViewModel : ViewModelBase
         {
             FilteredUsers.Add(u);
         }
+
+        IsEmptyStateVisible = FilteredUsers.Count == 0;
     }
 
     [RelayCommand]
@@ -155,19 +161,20 @@ public partial class UserManagementViewModel : ViewModelBase
     [RelayCommand]
     public async Task SyncFromOdooAsync()
     {
+        if (IsSyncing) return;
         IsSyncing = true;
         SyncButtonText = "Syncing...";
 
         try
         {
             var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
             {
-                ShowToast("Odoo connection not configured in Settings.", "Warning");
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
                 return;
             }
 
-            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: false);
+            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(odooUsers);
             await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(DateTime.Now, "Success");
 

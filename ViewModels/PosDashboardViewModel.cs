@@ -28,13 +28,16 @@ public partial class PosDashboardViewModel : ViewModelBase
     private bool _isToastVisible;
 
     [ObservableProperty]
-    private string _toastSeverity = "Success"; // "Success", "Warning", "Error"
+    private string _toastSeverity = "Success";
 
     [ObservableProperty]
     private int _totalShopsCount;
 
     [ObservableProperty]
     private int _activeSessionsCount;
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event Action<PosConfigRecord>? OpenRegisterRequested;
     public event Action<string>? ViewOrdersRequested;
@@ -95,6 +98,7 @@ public partial class PosDashboardViewModel : ViewModelBase
 
         TotalShopsCount = _allConfigs.Count;
         ActiveSessionsCount = _allConfigs.Count(c => !c.IsClosed);
+        IsEmptyStateVisible = FilteredConfigs.Count == 0;
     }
 
     [RelayCommand]
@@ -113,14 +117,17 @@ public partial class PosDashboardViewModel : ViewModelBase
             IsSyncing = true;
             SyncButtonText = "Syncing Shops...";
 
-            var odooConfigs = await OdooSyncService.Instance.FetchOdooPosConfigsAsync(allowOfflineSimulation: true);
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
+            {
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
+                return;
+            }
+
+            var odooConfigs = await OdooSyncService.Instance.FetchOdooPosConfigsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooPosConfigsAsync(odooConfigs);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated.";
-
+            string statusMsg = $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed.";
             await SqliteDatabaseService.Instance.UpdatePosConfigSyncStatusAsync(DateTime.Now, statusMsg);
 
             await ReloadConfigsAsync();

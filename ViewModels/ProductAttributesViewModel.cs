@@ -22,7 +22,7 @@ public partial class ProductAttributesViewModel : ViewModelBase
     private ProductAttributeRecord? _selectedAttribute;
 
     [ObservableProperty]
-    private string _pagerText = "1 / 1";
+    private string _pagerText = "0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -44,6 +44,9 @@ public partial class ProductAttributesViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _toastSeverity = "Success";
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event EventHandler? AttributesUpdated;
 
@@ -97,8 +100,18 @@ public partial class ProductAttributesViewModel : ViewModelBase
             FilteredAttributes.Add(a);
         }
 
+        IsEmptyStateVisible = FilteredAttributes.Count == 0;
+
         if (IsDetailViewVisible)
         {
+            if (SelectedAttribute != null && !FilteredAttributes.Contains(SelectedAttribute))
+            {
+                SelectedAttribute = FilteredAttributes.FirstOrDefault();
+                if (SelectedAttribute == null)
+                {
+                    IsDetailViewVisible = false;
+                }
+            }
             UpdatePager();
         }
     }
@@ -171,26 +184,27 @@ public partial class ProductAttributesViewModel : ViewModelBase
     [RelayCommand]
     public async Task SyncFromOdooAsync()
     {
+        if (IsSyncing) return;
         IsSyncing = true;
         SyncButtonText = "Syncing...";
 
         try
         {
             var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
             {
-                ShowToast("Odoo connection not configured in Settings.", "Warning");
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
                 return;
             }
 
-            var (attrs, vals) = await OdooSyncService.Instance.FetchOdooAttributesAsync(config, allowOfflineSimulation: true);
+            var (attrs, vals) = await OdooSyncService.Instance.FetchOdooAttributesAsync(config);
             var (aImp, aUpd, aDel, vImp, vUpd, vDel) = await SqliteDatabaseService.Instance.UpsertOdooAttributesAsync(attrs, vals);
             await SqliteDatabaseService.Instance.UpdateAttributeSyncStatusAsync(DateTime.Now, "Success");
 
             await ReloadAttributesAsync();
             AttributesUpdated?.Invoke(this, EventArgs.Empty);
 
-            string summary = $"Sync Complete: {aImp + aUpd} attributes, {vImp + vUpd} values";
+            string summary = $"Sync Complete: {aImp} imported, {aUpd} updated, {aDel} removed ({vals.Count} values)";
             ShowToast(summary, "Success");
         }
         catch (Exception ex)

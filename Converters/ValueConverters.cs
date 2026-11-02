@@ -12,6 +12,9 @@ namespace OdooPosLogin
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            if (targetType == typeof(bool))
+                return value is true;
+
             return value is true ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -27,6 +30,9 @@ namespace OdooPosLogin
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            if (targetType == typeof(bool))
+                return value is not true;
+
             return value is true ? Visibility.Collapsed : Visibility.Visible;
         }
 
@@ -42,13 +48,27 @@ namespace OdooPosLogin
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return value is false;
+            return value is not true;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return value is false;
+            return value is not true;
         }
+    }
+
+    public class ZeroCountToVisibilityConverter : IValueConverter
+    {
+        public static readonly ZeroCountToVisibilityConverter Instance = new();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is int count)
+                return count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            return Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotImplementedException();
     }
 
     public class StringNotEmptyToVisibilityConverter : IValueConverter
@@ -136,6 +156,10 @@ namespace OdooPosLogin.Converters
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            if (targetType == typeof(bool))
+            {
+                return value is not true;
+            }
             if (value is bool b)
             {
                 return b ? Visibility.Collapsed : Visibility.Visible;
@@ -145,6 +169,7 @@ namespace OdooPosLogin.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
+            if (value is bool b) return !b;
             return value is Visibility v && v != Visibility.Visible;
         }
     }

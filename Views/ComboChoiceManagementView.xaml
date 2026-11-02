@@ -17,7 +17,6 @@
     </UserControl.DataContext>
 
     <UserControl.Resources>
-        <!-- Design Palette Brushes -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
@@ -47,7 +46,6 @@
                           Color="#111827"
                           Opacity="0.05"/>
 
-        <!-- Primary Purple Button Style -->
         <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -82,7 +80,6 @@
             </Setter>
         </Style>
 
-        <!-- Pager Chevron Button Style -->
         <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="30"/>
             <Setter Property="Height" Value="30"/>
@@ -118,15 +115,11 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <!-- 1. Top Control Bar -->
             <RowDefinition Height="64"/>
-            <!-- 2. Workspace Body -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ======================================================================= -->
-        <!-- 1. TOP CONTROL BAR                                                      -->
-        <!-- ======================================================================= -->
+        <!-- 1. TOP CONTROL BAR -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -134,19 +127,15 @@
                 Padding="24,0">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <!-- Left: Sync Button + Title / Breadcrumb -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Center: Search Bar -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Right: Detail View Record Switcher (< >) -->
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT: Sync from Odoo Button + Breadcrumbs -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource OdooPrimaryButtonStyle}"
                             Command="{Binding SyncFromOdooCommand}"
-                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBooleanConverter}}"
                             Margin="0,0,18,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Viewbox Width="15" Height="15" Margin="0,0,8,0">
@@ -159,7 +148,6 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Breadcrumb Root: "Combo Choices" -->
                     <Button Command="{Binding BackToListCommand}"
                             Cursor="Hand"
                             Background="Transparent"
@@ -182,7 +170,6 @@
                         </Button.Template>
                     </Button>
 
-                    <!-- Breadcrumb Sub-Path (when viewing Detail View) -->
                     <StackPanel Orientation="Horizontal"
                                 Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 VerticalAlignment="Center">
@@ -200,7 +187,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER: SEARCH BAR -->
+                <!-- CENTER SEARCH BAR -->
                 <Grid Grid.Column="1" HorizontalAlignment="Center" MinWidth="220" MaxWidth="380" Width="320" Height="36" VerticalAlignment="Center">
                     <Border Background="#F3F4F6"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -250,7 +237,7 @@
                     </Border>
                 </Grid>
 
-                <!-- RIGHT: DETAIL RECORD SWITCHER (VISIBLE ONLY IN DETAIL VIEW) -->
+                <!-- RIGHT PAGER -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
@@ -295,13 +282,9 @@
             </Grid>
         </Border>
 
-        <!-- ======================================================================= -->
-        <!-- 2. WORKSPACE CONTENT AREA                                               -->
-        <!-- ======================================================================= -->
+        <!-- 2. WORKSPACE CONTENT AREA -->
         <Grid Grid.Row="1">
-            <!-- =================================================================== -->
-            <!-- VIEW 1: COMBO CHOICES LIST VIEW (TABLE)                             -->
-            <!-- =================================================================== -->
+            <!-- VIEW 1: COMBO CHOICES LIST VIEW -->
             <Grid Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                   Margin="24,20,24,28">
                 <Border Background="{StaticResource SurfaceCardBrush}"
@@ -311,13 +294,10 @@
                         Effect="{StaticResource SubtleCardShadow}">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <!-- Table Header -->
                             <RowDefinition Height="44"/>
-                            <!-- Table Data Body -->
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <!-- TABLE HEADER -->
                         <Border Grid.Row="0"
                                 Background="#F9FAFB"
                                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -331,125 +311,119 @@
                                     <ColumnDefinition Width="140"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0"
-                                           Text="Combo Choice"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-
-                                <TextBlock Grid.Column="1"
-                                           Text="Included Products"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"/>
-
-                                <TextBlock Grid.Column="2"
-                                           Text="Items Count"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"
-                                           HorizontalAlignment="Right"/>
+                                <TextBlock Grid.Column="0" Text="Combo Choice" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="Included Products" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="Items Count" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
                             </Grid>
                         </Border>
 
-                        <!-- TABLE BODY -->
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding FilteredCombos}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type local:ComboChoiceRecord}">
-                                        <Button Cursor="Hand"
-                                                Command="{Binding DataContext.SelectComboCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                HorizontalContentAlignment="Stretch">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="RowBorder"
-                                                            Background="Transparent"
-                                                            BorderBrush="{StaticResource SubtleBorderBrush}"
-                                                            BorderThickness="0,0,0,1"
-                                                            Padding="20,14">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="2.5*"/>
-                                                                <ColumnDefinition Width="4*"/>
-                                                                <ColumnDefinition Width="140"/>
-                                                            </Grid.ColumnDefinitions>
+                        <Grid Grid.Row="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding FilteredCombos}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:ComboChoiceRecord}">
+                                            <Button Cursor="Hand"
+                                                    Command="{Binding DataContext.SelectComboCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    HorizontalContentAlignment="Stretch">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="RowBorder"
+                                                                Background="Transparent"
+                                                                BorderBrush="{StaticResource SubtleBorderBrush}"
+                                                                BorderThickness="0,0,0,1"
+                                                                Padding="20,14">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="2.5*"/>
+                                                                    <ColumnDefinition Width="4*"/>
+                                                                    <ColumnDefinition Width="140"/>
+                                                                </Grid.ColumnDefinitions>
 
-                                                            <!-- Col 0: Combo Choice Name -->
-                                                            <TextBlock Grid.Column="0"
-                                                                       Text="{Binding Name}"
-                                                                       FontSize="14"
-                                                                       FontWeight="SemiBold"
-                                                                       Foreground="{StaticResource PrimaryTextBrush}"
-                                                                       VerticalAlignment="Center"/>
+                                                                <TextBlock Grid.Column="0"
+                                                                           Text="{Binding Name}"
+                                                                           FontSize="14"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                                                           VerticalAlignment="Center"/>
 
-                                                            <!-- Col 1: Included Products Pills -->
-                                                            <ItemsControl Grid.Column="1"
-                                                                          ItemsSource="{Binding IncludedProductNames}"
-                                                                          VerticalAlignment="Center">
-                                                                <ItemsControl.ItemsPanel>
-                                                                    <ItemsPanelTemplate>
-                                                                        <WrapPanel Orientation="Horizontal"/>
-                                                                    </ItemsPanelTemplate>
-                                                                </ItemsControl.ItemsPanel>
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate>
-                                                                        <Border Background="#F3F4F6"
-                                                                                BorderBrush="{StaticResource SubtleBorderBrush}"
-                                                                                BorderThickness="1"
-                                                                                CornerRadius="10"
-                                                                                Padding="8,3"
-                                                                                Margin="0,0,6,3">
-                                                                            <TextBlock Text="{Binding}"
-                                                                                       FontSize="12"
-                                                                                       Foreground="#374151"
-                                                                                       FontWeight="Medium"/>
-                                                                        </Border>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
+                                                                <ItemsControl Grid.Column="1"
+                                                                              ItemsSource="{Binding IncludedProductNames}"
+                                                                              VerticalAlignment="Center">
+                                                                    <ItemsControl.ItemsPanel>
+                                                                        <ItemsPanelTemplate>
+                                                                            <WrapPanel Orientation="Horizontal"/>
+                                                                        </ItemsPanelTemplate>
+                                                                    </ItemsControl.ItemsPanel>
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Border Background="#F3F4F6"
+                                                                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                                                                    BorderThickness="1"
+                                                                                    CornerRadius="10"
+                                                                                    Padding="8,3"
+                                                                                    Margin="0,0,6,3">
+                                                                                <TextBlock Text="{Binding}"
+                                                                                           FontSize="12"
+                                                                                           Foreground="#374151"
+                                                                                           FontWeight="Medium"/>
+                                                                            </Border>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
 
-                                                            <!-- Col 2: Items Count Badge -->
-                                                            <Border Grid.Column="2"
-                                                                    HorizontalAlignment="Right"
-                                                                    VerticalAlignment="Center"
-                                                                    Background="{StaticResource OdooTealSoftBrush}"
-                                                                    CornerRadius="12"
-                                                                    Padding="12,3">
-                                                                <TextBlock Text="{Binding ComboItemsCountDisplay}"
-                                                                           FontSize="12"
-                                                                           FontWeight="Bold"
-                                                                           Foreground="{StaticResource OdooTealBrush}"/>
-                                                            </Border>
-                                                        </Grid>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="RowBorder" Property="Background" Value="#F9FAFB"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsPressed" Value="True">
-                                                            <Setter TargetName="RowBorder" Property="Background" Value="#F3ECF1"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                                                                <Border Grid.Column="2"
+                                                                        HorizontalAlignment="Right"
+                                                                        VerticalAlignment="Center"
+                                                                        Background="{StaticResource OdooTealSoftBrush}"
+                                                                        CornerRadius="12"
+                                                                        Padding="12,3">
+                                                                    <TextBlock Text="{Binding ComboItemsCountDisplay}"
+                                                                               FontSize="12"
+                                                                               FontWeight="Bold"
+                                                                               Foreground="{StaticResource OdooTealBrush}"/>
+                                                                </Border>
+                                                            </Grid>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="RowBorder" Property="Background" Value="#F9FAFB"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsPressed" Value="True">
+                                                                <Setter TargetName="RowBorder" Property="Background" Value="#F3ECF1"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <!-- EMPTY STATE PLACEHOLDER -->
+                            <StackPanel HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="No Combo Choices Synchronized Yet"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,0,6"/>
+                                <TextBlock Text="Click 'Sync from Odoo' above to pull combo choices and combo product lines."
+                                           FontSize="13"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
 
-            <!-- =================================================================== -->
-            <!-- VIEW 2: COMBO CHOICE DETAIL / FORM VIEW (STRICTLY READ-ONLY)         -->
-            <!-- =================================================================== -->
+            <!-- VIEW 2: COMBO CHOICE DETAIL VIEW -->
             <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
@@ -461,7 +435,6 @@
                             Padding="36,32"
                             Effect="{StaticResource SubtleCardShadow}">
                         <StackPanel>
-                            <!-- HEADER -->
                             <StackPanel Margin="0,0,0,24">
                                 <TextBlock Text="Combo Choice"
                                            FontSize="12"
@@ -475,14 +448,12 @@
                                            Foreground="{StaticResource PrimaryTextBrush}"/>
                             </StackPanel>
 
-                            <!-- SECTION: COMBO PRODUCTS TABLE -->
                             <TextBlock Text="Combo Products"
                                        FontSize="15"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource PrimaryTextBrush}"
                                        Margin="0,0,0,12"/>
 
-                            <!-- TABLE HEADER -->
                             <Border Background="#F9FAFB"
                                     BorderBrush="{StaticResource SubtleBorderBrush}"
                                     BorderThickness="1"
@@ -502,7 +473,6 @@
                                 </Grid>
                             </Border>
 
-                            <!-- TABLE ROWS -->
                             <ItemsControl ItemsSource="{Binding SelectedCombo.Lines}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:ComboChoiceLineRecord}">
@@ -530,9 +500,7 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- ======================================================================= -->
-        <!-- 3. TOAST NOTIFICATION BANNER                                            -->
-        <!-- ======================================================================= -->
+        <!-- 3. TOAST NOTIFICATION BANNER -->
         <Border Visibility="{Binding IsToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                 Grid.Row="1"
                 VerticalAlignment="Bottom"

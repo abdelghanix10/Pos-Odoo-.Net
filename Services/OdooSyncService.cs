@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -6,14 +7,39 @@ namespace OdooPosLogin;
 
 public record ConnectionTestResult(bool Success, string Message, int? Uid = null);
 
+public record SyncProgressReport(
+    int StepNumber,
+    int TotalSteps,
+    string CurrentModule,
+    string StatusMessage,
+    double Percentage
+);
+
+public record SyncAllSummary(
+    bool Success,
+    string Message,
+    int UsersCount,
+    int CategoriesCount,
+    int AttributesCount,
+    int TagsCount,
+    int CombosCount,
+    int ProductsCount,
+    int PosConfigsCount,
+    int SessionsCount,
+    int OrdersCount,
+    int PaymentsCount
+);
+
 public class OdooSyncService
 {
     private static readonly Lazy<OdooSyncService> _instance = new(() => new OdooSyncService());
     public static OdooSyncService Instance => _instance.Value;
 
     private readonly HttpClient _httpClient;
+    private readonly Dictionary<string, HashSet<string>> _modelFieldsCache = new(StringComparer.OrdinalIgnoreCase);
+    private int _rpcIdCounter = 100;
 
-    public bool IsOnline { get; private set; } = false;
+    public bool IsOnline { get; private set; }
     public string ConnectionStatusLabel { get; private set; } = "Offline (Local Mode)";
     public event Action<bool>? OnlineStatusChanged;
 
@@ -21,18 +47,18 @@ public class OdooSyncService
     {
         _httpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(10)
+            Timeout = TimeSpan.FromSeconds(30)
         };
     }
 
     private static string NormalizeUrl(string? url)
     {
-        if (string.IsNullOrWhiteSpace(url)) return "https://localhost";
+        if (string.IsNullOrWhiteSpace(url)) return "http://localhost:8069";
         url = url.Trim();
         if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
             !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            url = "https://" + url;
+            url = "http://" + url;
         }
         return url.TrimEnd('/');
     }
@@ -91,7 +117,7 @@ public class OdooSyncService
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-            var resp = await _httpClient.GetAsync(baseUrl, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            var resp = await _httpClient.GetAsync($"{baseUrl}/web/login", HttpCompletionOption.ResponseHeadersRead, cts.Token);
             return (int)resp.StatusCode >= 200 && (int)resp.StatusCode < 500;
         }
         catch
@@ -99,8 +125,7 @@ public class OdooSyncService
             try
             {
                 using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-                using var req = new HttpRequestMessage(HttpMethod.Head, baseUrl);
-                var resp2 = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts2.Token);
+                var resp2 = await _httpClient.GetAsync(baseUrl, HttpCompletionOption.ResponseHeadersRead, cts2.Token);
                 return (int)resp2.StatusCode >= 200 && (int)resp2.StatusCode < 500;
             }
             catch
@@ -126,11 +151,10 @@ public class OdooSyncService
             return new ConnectionTestResult(false, "Username / Email is required.");
 
         string baseUrl = NormalizeUrl(config.ServerUrl);
+        string endpoint = $"{baseUrl}/jsonrpc";
 
         try
         {
-            // Standard Odoo JSON-RPC /jsonrpc endpoint
-            string endpoint = $"{baseUrl}/jsonrpc";
             var authPayload = new
             {
                 jsonrpc = "2.0",
@@ -141,23 +165,22 @@ public class OdooSyncService
                     method = "authenticate",
                     args = new object[]
                     {
-                        config.DatabaseName,
-                        config.Username,
+                        config.DatabaseName.Trim(),
+                        config.Username.Trim(),
                         config.ApiKey ?? "",
                         new { }
                     }
                 },
-                id = 1
+                id = Interlocked.Increment(ref _rpcIdCounter)
             };
 
-            var jsonContent = new StringContent(
+            using var jsonContent = new StringContent(
                 JsonSerializer.Serialize(authPayload),
                 Encoding.UTF8,
                 "application/json"
             );
 
             var response = await _httpClient.PostAsync(endpoint, jsonContent);
-
             if (response.IsSuccessStatusCode)
             {
                 string respString = await response.Content.ReadAsStringAsync();
@@ -169,29 +192,19 @@ public class OdooSyncService
                     if (resultProp.ValueKind == JsonValueKind.Number && resultProp.TryGetInt32(out int uid) && uid > 0)
                     {
                         UpdateStatus(true, "Odoo Online");
-                        return new ConnectionTestResult(true, $"Connected: Odoo instance verified (UID: {uid})", uid);
+                        return new ConnectionTestResult(true, $"Connected (UID: {uid})", uid);
                     }
                     if (resultProp.ValueKind == JsonValueKind.False)
                     {
-                        UpdateStatus(true, "Odoo Online"); // Host is online even if credentials failed
-                        return new ConnectionTestResult(false, "Authentication Failed: Invalid Database, Username, or API Key.");
+                        UpdateStatus(true, "Odoo Online");
+                        return new ConnectionTestResult(false, "Authentication Failed: Invalid Database, Username, or Password/API Key.");
                     }
                 }
 
                 if (root.TryGetProperty("error", out var errorProp))
                 {
                     UpdateStatus(true, "Odoo Online");
-                    string errMsg = "Odoo Error";
-                    if (errorProp.TryGetProperty("data", out var dataProp) &&
-                        dataProp.TryGetProperty("message", out var msgProp))
-                    {
-                        errMsg = msgProp.GetString() ?? errMsg;
-                    }
-                    else if (errorProp.TryGetProperty("message", out var mProp))
-                    {
-                        errMsg = mProp.GetString() ?? errMsg;
-                    }
-                    return new ConnectionTestResult(false, $"Connection Error: {errMsg}");
+                    return new ConnectionTestResult(false, $"Odoo Error: {ExtractRpcErrorMessage(errorProp)}");
                 }
             }
 
@@ -201,12 +214,12 @@ public class OdooSyncService
         catch (HttpRequestException ex)
         {
             UpdateStatus(false, "Offline (Local Mode)");
-            return new ConnectionTestResult(false, $"Cannot reach server: {ex.Message}");
+            return new ConnectionTestResult(false, $"Cannot reach Odoo server ({baseUrl}): {ex.Message}");
         }
         catch (TaskCanceledException)
         {
             UpdateStatus(false, "Offline (Local Mode)");
-            return new ConnectionTestResult(false, "Connection timed out (10s). Verify host and network.");
+            return new ConnectionTestResult(false, "Connection timed out. Verify the Odoo server URL and network.");
         }
         catch (Exception ex)
         {
@@ -215,1522 +228,1250 @@ public class OdooSyncService
         }
     }
 
-    /// <summary>
-    /// Fetches users from Odoo's res.users model via JSON-RPC.
-    /// If simulated fallback is allowed and server is online, fallback mock users are provided for demo.
-    /// </summary>
-    public async Task<List<OdooUserDto>> FetchOdooUsersAsync(OdooConfigRecord config, bool allowOfflineSimulation = true)
+    // =========================================================================
+    // LOW-LEVEL JSON-RPC HELPERS
+    // =========================================================================
+    private async Task<int> EnsureAuthenticatedUidAsync(OdooConfigRecord config)
+    {
+        var test = await TestConnectionAsync(config);
+        if (!test.Success || !test.Uid.HasValue)
+        {
+            throw new InvalidOperationException(test.Message);
+        }
+        return test.Uid.Value;
+    }
+
+    private async Task<JsonDocument> ExecuteKwAsync(
+        OdooConfigRecord config,
+        int uid,
+        string model,
+        string method,
+        object[] args,
+        object? kwargs = null)
     {
         string baseUrl = NormalizeUrl(config.ServerUrl);
         string endpoint = $"{baseUrl}/jsonrpc";
 
+        object[] rpcArgs = kwargs != null
+            ? [config.DatabaseName.Trim(), uid, config.ApiKey ?? "", model, method, args, kwargs]
+            : [config.DatabaseName.Trim(), uid, config.ApiKey ?? "", model, method, args];
+
+        var payload = new
+        {
+            jsonrpc = "2.0",
+            method = "call",
+            @params = new
+            {
+                service = "object",
+                method = "execute_kw",
+                args = rpcArgs
+            },
+            id = Interlocked.Increment(ref _rpcIdCounter)
+        };
+
+        using var reqContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync(endpoint, reqContent);
+        response.EnsureSuccessStatusCode();
+
+        string responseStr = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(responseStr);
+
+        if (doc.RootElement.TryGetProperty("error", out var errorProp))
+        {
+            string msg = ExtractRpcErrorMessage(errorProp);
+            doc.Dispose();
+            throw new InvalidOperationException($"Odoo RPC error on {model}.{method}: {msg}");
+        }
+
+        UpdateStatus(true, "Odoo Online");
+        return doc;
+    }
+
+    private async Task<HashSet<string>> GetAvailableFieldsAsync(OdooConfigRecord config, int uid, string model)
+    {
+        string cacheKey = $"{NormalizeUrl(config.ServerUrl)}|{config.DatabaseName}|{model}";
+        if (_modelFieldsCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
         try
         {
-            // 1. Authenticate to get UID
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
-            {
-                if (allowOfflineSimulation)
-                {
-                    // Sample Odoo users for demo testing
-                    return GetSimulatedOdooUsers();
-                }
-                throw new InvalidOperationException(test.Message);
-            }
-
-            int uid = test.Uid.Value;
-
-            // 2. Fetch res.users via execute_kw
-            var queryPayload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
-                {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "res.users",
-                        "search_read",
-                        new object[] { new object[] { new object[] { "active", "=", true } } },
-                        new
-                        {
-                            fields = new[] { "id", "name", "login", "email", "phone", "image_1920", "avatar_128" }
-                        }
-                    }
-                },
-                id = 2
-            };
-
-            var jsonContent = new StringContent(
-                JsonSerializer.Serialize(queryPayload),
-                Encoding.UTF8,
-                "application/json"
+            using var doc = await ExecuteKwAsync(
+                config,
+                uid,
+                model,
+                "fields_get",
+                [],
+                new { attributes = new[] { "type" } }
             );
 
-            var response = await _httpClient.PostAsync(endpoint, jsonContent);
-            response.EnsureSuccessStatusCode();
-
-            string respString = await response.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(respString);
-
-            if (doc.RootElement.TryGetProperty("error", out var errorProp))
+            var fieldSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (doc.RootElement.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.Object)
             {
-                string errMsg = "Odoo Error";
-                if (errorProp.TryGetProperty("data", out var dataProp) &&
-                    dataProp.TryGetProperty("message", out var msgProp))
+                foreach (var prop in res.EnumerateObject())
                 {
-                    errMsg = msgProp.GetString() ?? errMsg;
+                    fieldSet.Add(prop.Name);
                 }
-                else if (errorProp.TryGetProperty("message", out var mProp))
-                {
-                    errMsg = mProp.GetString() ?? errMsg;
-                }
-                throw new InvalidOperationException($"Odoo query failed: {errMsg}");
             }
 
-            if (doc.RootElement.TryGetProperty("result", out var resultList) &&
-                resultList.ValueKind == JsonValueKind.Array)
+            if (fieldSet.Count > 0)
             {
-                var list = new List<OdooUserDto>();
-                foreach (var item in resultList.EnumerateArray())
-                {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-                    string login = item.TryGetProperty("login", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() ?? "" : "";
-                    string email = item.TryGetProperty("email", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() ?? "" : "";
-                    string phone = item.TryGetProperty("phone", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() ?? "" : "";
-
-                    string? avatar = null;
-                    if (item.TryGetProperty("image_1920", out var img) && img.ValueKind == JsonValueKind.String)
-                        avatar = img.GetString();
-                    else if (item.TryGetProperty("avatar_128", out var av) && av.ValueKind == JsonValueKind.String)
-                        avatar = av.GetString();
-
-                    if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(login))
-                    {
-                        list.Add(new OdooUserDto(odooId, name, login, email, phone, avatar));
-                    }
-                }
-                UpdateStatus(true, "Odoo Online");
-                return list;
+                _modelFieldsCache[cacheKey] = fieldSet;
             }
-
-            if (allowOfflineSimulation)
-                return GetSimulatedOdooUsers();
-
-            return [];
+            return fieldSet;
         }
         catch
         {
-            if (allowOfflineSimulation)
-            {
-                return GetSimulatedOdooUsers();
-            }
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
+            return [];
         }
     }
 
-    /// <summary>
-    /// Provides simulated Odoo 20 users for demo environments.
-    /// </summary>
-    public static List<OdooUserDto> GetSimulatedOdooUsers()
+    private async Task<string[]> FilterValidFieldsAsync(OdooConfigRecord config, int uid, string model, params string[] desiredFields)
     {
-        return
-        [
-            new OdooUserDto(
-                1,
-                "Administrator",
-                "admin",
-                "admin@odoo20-pos.example.com",
-                "+1 555-0100",
-                null
-            ),
-            new OdooUserDto(
-                2,
-                "Marc Demo",
-                "demo",
-                "marc.demo@odoo20-pos.example.com",
-                "+1 555-0144",
-                null
-            ),
-            new OdooUserDto(
-                3,
-                "Mitchell Admin",
-                "mitchell",
-                "mitchell.admin@odoo20-pos.example.com",
-                "+1 555-0182",
-                null
-            ),
-            new OdooUserDto(
-                14,
-                "Sarah Connor",
-                "sconnor",
-                "sarah.connor@odoo20-pos.example.com",
-                "+1 555-0199",
-                null
-            ),
-            new OdooUserDto(
-                22,
-                "Alexandre Moreau",
-                "amoreau",
-                "alex.moreau@odoo20-pos.example.com",
-                "+33 1 42 68 00 11",
-                null
-            ),
-            new OdooUserDto(
-                35,
-                "Elena Rostova",
-                "erostova",
-                "elena.rostova@odoo20-pos.example.com",
-                "+44 20 7946 0912",
-                null
-            )
-        ];
+        var available = await GetAvailableFieldsAsync(config, uid, model);
+        if (available.Count == 0)
+        {
+            return desiredFields;
+        }
+        return desiredFields.Where(f => available.Contains(f)).ToArray();
     }
 
-    /// <summary>
-    /// Fetches POS product categories from Odoo's pos.category model via JSON-RPC.
-    /// Also queries pos.config to resolve human-readable shop names for linked POS configs.
-    /// </summary>
+    private static string ExtractRpcErrorMessage(JsonElement errorProp)
+    {
+        if (errorProp.TryGetProperty("data", out var dataProp))
+        {
+            if (dataProp.TryGetProperty("message", out var msgProp) && msgProp.ValueKind == JsonValueKind.String)
+                return msgProp.GetString() ?? "Odoo RPC Error";
+            if (dataProp.TryGetProperty("debug", out var dbgProp) && dbgProp.ValueKind == JsonValueKind.String)
+                return dbgProp.GetString() ?? "Odoo RPC Error";
+        }
+        if (errorProp.TryGetProperty("message", out var mProp) && mProp.ValueKind == JsonValueKind.String)
+        {
+            return mProp.GetString() ?? "Odoo RPC Error";
+        }
+        return "Unknown Odoo RPC Error";
+    }
+
+    private static string GetStringOrDefault(JsonElement item, string propName, string defaultValue = "")
+    {
+        if (item.TryGetProperty(propName, out var prop) && prop.ValueKind == JsonValueKind.String)
+        {
+            string? val = prop.GetString();
+            if (!string.IsNullOrWhiteSpace(val) && !val.Equals("false", StringComparison.OrdinalIgnoreCase))
+                return val;
+        }
+        return defaultValue;
+    }
+
+    private static string? GetNullableString(JsonElement item, params string[] propNames)
+    {
+        foreach (string name in propNames)
+        {
+            if (item.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String)
+            {
+                string? s = prop.GetString();
+                if (!string.IsNullOrWhiteSpace(s) && !s.Equals("false", StringComparison.OrdinalIgnoreCase))
+                    return s;
+            }
+        }
+        return null;
+    }
+
+    private static int GetIntOrDefault(JsonElement item, string propName, int defaultValue = 0)
+    {
+        if (item.TryGetProperty(propName, out var prop) && prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out int v))
+            return v;
+        return defaultValue;
+    }
+
+    private static decimal GetDecimalOrDefault(JsonElement item, string propName, decimal defaultValue = 0.00m)
+    {
+        if (item.TryGetProperty(propName, out var prop) && prop.ValueKind == JsonValueKind.Number)
+        {
+            if (prop.TryGetDecimal(out decimal d)) return d;
+            if (prop.TryGetDouble(out double db)) return Convert.ToDecimal(db);
+        }
+        return defaultValue;
+    }
+
+    private static bool GetBoolOrDefault(JsonElement item, string propName, bool defaultValue = false)
+    {
+        if (item.TryGetProperty(propName, out var prop))
+        {
+            if (prop.ValueKind == JsonValueKind.True) return true;
+            if (prop.ValueKind == JsonValueKind.False) return false;
+            if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out int i)) return i != 0;
+        }
+        return defaultValue;
+    }
+
+    private static (int? id, string name) GetMany2One(JsonElement item, string propName)
+    {
+        if (item.TryGetProperty(propName, out var prop))
+        {
+            if (prop.ValueKind == JsonValueKind.Array && prop.GetArrayLength() >= 2)
+            {
+                int? id = prop[0].ValueKind == JsonValueKind.Number ? prop[0].GetInt32() : null;
+                string name = prop[1].ValueKind == JsonValueKind.String ? prop[1].GetString() ?? "" : "";
+                return (id, name);
+            }
+            if (prop.ValueKind == JsonValueKind.Number && prop.TryGetInt32(out int idOnly))
+            {
+                return (idOnly, "");
+            }
+        }
+        return (null, "");
+    }
+
+    private static List<int> GetIdArray(JsonElement item, string propName)
+    {
+        var list = new List<int>();
+        if (item.TryGetProperty(propName, out var prop) && prop.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var el in prop.EnumerateArray())
+            {
+                if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out int id))
+                    list.Add(id);
+            }
+        }
+        return list;
+    }
+
+    private static DateTime? GetDateTimeOrNull(JsonElement item, string propName)
+    {
+        string raw = GetStringOrDefault(item, propName);
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var dt))
+            return dt.ToLocalTime();
+        if (DateTime.TryParse(raw, out var localDt))
+            return localDt;
+        return null;
+    }
+
+    // =========================================================================
+    // 1. USERS (res.users)
+    // =========================================================================
+    public async Task<List<OdooUserDto>> FetchOdooUsersAsync(OdooConfigRecord config, bool allowOfflineSimulation = false)
+    {
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooUsersInternalAsync(config, uid);
+    }
+
+    private async Task<List<OdooUserDto>> FetchOdooUsersInternalAsync(OdooConfigRecord config, int uid)
+    {
+        var fields = await FilterValidFieldsAsync(config, uid, "res.users",
+            "id", "name", "login", "email", "phone", "mobile", "image_1920", "avatar_128", "image_128");
+
+        using var doc = await ExecuteKwAsync(
+            config,
+            uid,
+            "res.users",
+            "search_read",
+            [new object[] { new object[] { "active", "=", true } }],
+            new { fields }
+        );
+
+        var list = new List<OdooUserDto>();
+        if (doc.RootElement.TryGetProperty("result", out var resultList) && resultList.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in resultList.EnumerateArray())
+            {
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                string login = GetStringOrDefault(item, "login");
+                string email = GetStringOrDefault(item, "email");
+                string phone = GetStringOrDefault(item, "phone");
+                if (string.IsNullOrWhiteSpace(phone))
+                    phone = GetStringOrDefault(item, "mobile");
+
+                string? avatar = GetNullableString(item, "image_1920", "avatar_128", "image_128");
+
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(login))
+                {
+                    list.Add(new OdooUserDto(odooId, name, login, email, phone, avatar));
+                }
+            }
+        }
+        return list;
+    }
+
+    // =========================================================================
+    // 2. POS CATEGORIES (pos.category)
+    // =========================================================================
     public async Task<List<PosCategoryDto>> FetchOdooCategoriesAsync(OdooConfigRecord config, bool allowOfflineSimulation = false)
     {
-        string baseUrl = NormalizeUrl(config.ServerUrl);
-        string endpoint = $"{baseUrl}/jsonrpc";
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooCategoriesInternalAsync(config, uid);
+    }
+
+    private async Task<List<PosCategoryDto>> FetchOdooCategoriesInternalAsync(OdooConfigRecord config, int uid)
+    {
+        // Map pos.config ID -> Name and category links
+        var shopMap = new Dictionary<int, string>();
+        var categoryToShopsMap = new Dictionary<int, HashSet<string>>();
 
         try
         {
-            // 1. Authenticate to get UID
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
+            var shopFields = await FilterValidFieldsAsync(config, uid, "pos.config",
+                "id", "name", "limit_categories", "iface_available_categ_ids");
+
+            using var shopDoc = await ExecuteKwAsync(
+                config, uid, "pos.config", "search_read",
+                [Array.Empty<object>()],
+                new { fields = shopFields }
+            );
+
+            if (shopDoc.RootElement.TryGetProperty("result", out var sList) && sList.ValueKind == JsonValueKind.Array)
             {
-                if (allowOfflineSimulation)
+                foreach (var sItem in sList.EnumerateArray())
                 {
-                    return GetSimulatedOdooCategories();
-                }
-                throw new InvalidOperationException(test.Message);
-            }
-
-            int uid = test.Uid.Value;
-
-            // 2. Query pos.config to map ID -> Shop Name
-            var shopMap = new Dictionary<int, string>();
-            try
-            {
-                var shopPayload = new
-                {
-                    jsonrpc = "2.0",
-                    method = "call",
-                    @params = new
+                    int sId = GetIntOrDefault(sItem, "id");
+                    string sName = GetStringOrDefault(sItem, "name");
+                    if (sId > 0 && !string.IsNullOrWhiteSpace(sName))
                     {
-                        service = "object",
-                        method = "execute_kw",
-                        args = new object[]
+                        shopMap[sId] = sName;
+                        var catIds = GetIdArray(sItem, "iface_available_categ_ids");
+                        foreach (int cId in catIds)
                         {
-                            config.DatabaseName,
-                            uid,
-                            config.ApiKey ?? "",
-                            "pos.config",
-                            "search_read",
-                            new object[] { new object[] { } },
-                            new { fields = new[] { "id", "name" } }
-                        }
-                    },
-                    id = 11
-                };
-
-                var shopReq = new StringContent(JsonSerializer.Serialize(shopPayload), Encoding.UTF8, "application/json");
-                var shopResp = await _httpClient.PostAsync(endpoint, shopReq);
-                if (shopResp.IsSuccessStatusCode)
-                {
-                    string s = await shopResp.Content.ReadAsStringAsync();
-                    using var sDoc = JsonDocument.Parse(s);
-                    if (sDoc.RootElement.TryGetProperty("result", out var sList) && sList.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var sItem in sList.EnumerateArray())
-                        {
-                            int sId = sItem.GetProperty("id").GetInt32();
-                            string sName = sItem.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-                            shopMap[sId] = sName;
+                            if (!categoryToShopsMap.TryGetValue(cId, out var set))
+                            {
+                                set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                categoryToShopsMap[cId] = set;
+                            }
+                            set.Add(sName);
                         }
                     }
                 }
             }
-            catch { /* Fallback to ID numbers if pos.config query fails */ }
-
-            // 3. Query pos.category records
-            var categoryPayload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
-                {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "pos.category",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new
-                        {
-                            fields = new[] { "id", "name", "parent_id", "sequence", "color", "image_128", "pos_config_ids" }
-                        }
-                    }
-                },
-                id = 12
-            };
-
-            var catReq = new StringContent(JsonSerializer.Serialize(categoryPayload), Encoding.UTF8, "application/json");
-            var catResp = await _httpClient.PostAsync(endpoint, catReq);
-            catResp.EnsureSuccessStatusCode();
-
-            string respString = await catResp.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(respString);
-
-            if (doc.RootElement.TryGetProperty("error", out var errorProp))
-            {
-                string errMsg = "Odoo Error";
-                if (errorProp.TryGetProperty("data", out var dataProp) &&
-                    dataProp.TryGetProperty("message", out var msgProp))
-                {
-                    errMsg = msgProp.GetString() ?? errMsg;
-                }
-                else if (errorProp.TryGetProperty("message", out var mProp))
-                {
-                    errMsg = mProp.GetString() ?? errMsg;
-                }
-                throw new InvalidOperationException($"Odoo categories query failed: {errMsg}");
-            }
-
-            if (doc.RootElement.TryGetProperty("result", out var resultList) &&
-                resultList.ValueKind == JsonValueKind.Array)
-            {
-                var list = new List<PosCategoryDto>();
-                foreach (var item in resultList.EnumerateArray())
-                {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-
-                    // Parent category: false or [id, "Parent Name"]
-                    int? parentId = null;
-                    string? parentName = null;
-                    if (item.TryGetProperty("parent_id", out var pProp) && pProp.ValueKind == JsonValueKind.Array && pProp.GetArrayLength() >= 2)
-                    {
-                        parentId = pProp[0].GetInt32();
-                        parentName = pProp[1].GetString();
-                    }
-
-                    int sequence = item.TryGetProperty("sequence", out var sProp) && sProp.ValueKind == JsonValueKind.Number ? sProp.GetInt32() : 10;
-                    int color = item.TryGetProperty("color", out var cProp) && cProp.ValueKind == JsonValueKind.Number ? cProp.GetInt32() : 0;
-                    string colorHex = PosCategoryRecord.GetOdooColorHex(color);
-
-                    string? imageBase64 = null;
-                    if (item.TryGetProperty("image_128", out var imgProp) && imgProp.ValueKind == JsonValueKind.String)
-                    {
-                        imageBase64 = imgProp.GetString();
-                    }
-
-                    // Linked POS config shops: [1, 2]
-                    var shops = new List<string>();
-                    if (item.TryGetProperty("pos_config_ids", out var configsProp) && configsProp.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var cId in configsProp.EnumerateArray())
-                        {
-                            int id = cId.GetInt32();
-                            if (shopMap.TryGetValue(id, out var sName))
-                                shops.Add(sName);
-                            else
-                                shops.Add($"POS {id}");
-                        }
-                    }
-                    string linkedShops = string.Join(", ", shops);
-
-                    if (!string.IsNullOrWhiteSpace(name))
-                    {
-                        list.Add(new PosCategoryDto(odooId, name, parentId, parentName, linkedShops, color, colorHex, sequence, imageBase64));
-                    }
-                }
-
-                UpdateStatus(true, "Odoo Online");
-                return list;
-            }
-
-            if (allowOfflineSimulation)
-                return GetSimulatedOdooCategories();
-
-            return [];
         }
-        catch
+        catch { /* Non-fatal if pos.config is not accessible */ }
+
+        var catFields = await FilterValidFieldsAsync(config, uid, "pos.category",
+            "id", "name", "parent_id", "sequence", "color", "image_128", "pos_config_ids");
+
+        using var doc = await ExecuteKwAsync(
+            config, uid, "pos.category", "search_read",
+            [Array.Empty<object>()],
+            new { fields = catFields }
+        );
+
+        var list = new List<PosCategoryDto>();
+        if (doc.RootElement.TryGetProperty("result", out var resultList) && resultList.ValueKind == JsonValueKind.Array)
         {
-            if (allowOfflineSimulation)
+            foreach (var item in resultList.EnumerateArray())
             {
-                return GetSimulatedOdooCategories();
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                var (parentId, parentName) = GetMany2One(item, "parent_id");
+                int sequence = GetIntOrDefault(item, "sequence", 10);
+                int color = GetIntOrDefault(item, "color", 0);
+                string colorHex = PosCategoryRecord.GetOdooColorHex(color);
+                string? imageBase64 = GetNullableString(item, "image_128");
+
+                var shops = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (int cfgId in GetIdArray(item, "pos_config_ids"))
+                {
+                    shops.Add(shopMap.TryGetValue(cfgId, out var sName) ? sName : $"POS {cfgId}");
+                }
+                if (categoryToShopsMap.TryGetValue(odooId, out var mappedShops))
+                {
+                    foreach (var s in mappedShops) shops.Add(s);
+                }
+
+                string linkedShops = string.Join(", ", shops);
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
+                {
+                    list.Add(new PosCategoryDto(odooId, name, parentId, string.IsNullOrWhiteSpace(parentName) ? null : parentName, linkedShops, color, colorHex, sequence, imageBase64));
+                }
             }
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
         }
+
+        return list;
     }
 
-    /// <summary>
-    /// Provides simulated Odoo 20 POS categories for demo / offline environments.
-    /// </summary>
-    public static List<PosCategoryDto> GetSimulatedOdooCategories()
-    {
-        return
-        [
-            new PosCategoryDto(1, "Misc", null, null, "Furniture Shop", 9, PosCategoryRecord.GetOdooColorHex(9), 1, null),
-            new PosCategoryDto(2, "Desks", null, null, "Furniture Shop", 3, PosCategoryRecord.GetOdooColorHex(3), 2, null),
-            new PosCategoryDto(3, "Chairs", null, null, "Furniture Shop", 1, PosCategoryRecord.GetOdooColorHex(1), 3, null),
-            new PosCategoryDto(4, "Upper body", null, null, "Clothes Shop", 5, PosCategoryRecord.GetOdooColorHex(5), 4, null),
-            new PosCategoryDto(5, "Lower body", null, null, "Clothes Shop", 10, PosCategoryRecord.GetOdooColorHex(10), 5, null),
-            new PosCategoryDto(6, "Others", null, null, "Clothes Shop", 3, PosCategoryRecord.GetOdooColorHex(3), 6, null),
-            new PosCategoryDto(7, "Breads", null, null, "Bakery Shop", 7, PosCategoryRecord.GetOdooColorHex(7), 7, null),
-            new PosCategoryDto(8, "Pastries", null, null, "Bakery Shop", 8, PosCategoryRecord.GetOdooColorHex(8), 8, null)
-        ];
-    }
-
-    /// <summary>
-    /// Fetches product attributes and their values from Odoo Online (product.attribute & product.attribute.value)
-    /// </summary>
+    // =========================================================================
+    // 3. PRODUCT ATTRIBUTES & VALUES (product.attribute & product.attribute.value)
+    // =========================================================================
     public async Task<(List<ProductAttributeDto> attributes, List<ProductAttributeValueDto> values)> FetchOdooAttributesAsync(
         OdooConfigRecord config,
         bool allowOfflineSimulation = false)
     {
-        string baseUrl = NormalizeUrl(config.ServerUrl);
-        string endpoint = $"{baseUrl}/jsonrpc";
-
-        try
-        {
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
-            {
-                if (allowOfflineSimulation)
-                {
-                    return GetSimulatedOdooAttributes();
-                }
-                throw new InvalidOperationException(test.Message);
-            }
-
-            int uid = test.Uid.Value;
-
-            // 1. Fetch product.attribute records
-            var attrPayload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
-                {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "product.attribute",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new
-                        {
-                            fields = new[] { "id", "name", "display_type", "create_variant", "number_related_products", "value_ids" }
-                        }
-                    }
-                },
-                id = 21
-            };
-
-            var attrReq = new StringContent(JsonSerializer.Serialize(attrPayload), Encoding.UTF8, "application/json");
-            var attrResp = await _httpClient.PostAsync(endpoint, attrReq);
-            attrResp.EnsureSuccessStatusCode();
-
-            string attrStr = await attrResp.Content.ReadAsStringAsync();
-            using var attrDoc = JsonDocument.Parse(attrStr);
-
-            if (attrDoc.RootElement.TryGetProperty("error", out var err1))
-            {
-                string msg = err1.TryGetProperty("data", out var d1) && d1.TryGetProperty("message", out var m1)
-                    ? m1.GetString() ?? "Odoo RPC Error"
-                    : err1.GetProperty("message").GetString() ?? "Odoo RPC Error";
-                throw new InvalidOperationException($"product.attribute RPC error: {msg}");
-            }
-
-            var attributes = new List<ProductAttributeDto>();
-            if (attrDoc.RootElement.TryGetProperty("result", out var attrList) && attrList.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in attrList.EnumerateArray())
-                {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-                    string displayType = item.TryGetProperty("display_type", out var dt) && dt.ValueKind == JsonValueKind.String ? dt.GetString() ?? "radio" : "radio";
-                    string createVariant = item.TryGetProperty("create_variant", out var cv) && cv.ValueKind == JsonValueKind.String ? cv.GetString() ?? "always" : "always";
-                    int relatedCount = item.TryGetProperty("number_related_products", out var nr) && nr.ValueKind == JsonValueKind.Number ? nr.GetInt32() : 0;
-
-                    var valIds = new List<int>();
-                    if (item.TryGetProperty("value_ids", out var vids) && vids.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var vid in vids.EnumerateArray())
-                        {
-                            if (vid.ValueKind == JsonValueKind.Number) valIds.Add(vid.GetInt32());
-                        }
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(name))
-                    {
-                        attributes.Add(new ProductAttributeDto(odooId, name, displayType, createVariant, relatedCount, valIds));
-                    }
-                }
-            }
-
-            // 2. Fetch product.attribute.value records
-            var valPayload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
-                {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "product.attribute.value",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new
-                        {
-                            fields = new[] { "id", "attribute_id", "name", "is_custom", "html_color", "image", "default_extra_price" }
-                        }
-                    }
-                },
-                id = 22
-            };
-
-            var valReq = new StringContent(JsonSerializer.Serialize(valPayload), Encoding.UTF8, "application/json");
-            var valResp = await _httpClient.PostAsync(endpoint, valReq);
-            valResp.EnsureSuccessStatusCode();
-
-            string valStr = await valResp.Content.ReadAsStringAsync();
-            using var valDoc = JsonDocument.Parse(valStr);
-
-            var values = new List<ProductAttributeValueDto>();
-            if (valDoc.RootElement.TryGetProperty("result", out var valList) && valList.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in valList.EnumerateArray())
-                {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-
-                    int attrId = 0;
-                    if (item.TryGetProperty("attribute_id", out var aProp))
-                    {
-                        if (aProp.ValueKind == JsonValueKind.Array && aProp.GetArrayLength() > 0)
-                            attrId = aProp[0].GetInt32();
-                        else if (aProp.ValueKind == JsonValueKind.Number)
-                            attrId = aProp.GetInt32();
-                    }
-
-                    bool isCustom = item.TryGetProperty("is_custom", out var ic) && (ic.ValueKind == JsonValueKind.True || (ic.ValueKind == JsonValueKind.Number && ic.GetInt32() == 1));
-
-                    string? htmlColor = null;
-                    if (item.TryGetProperty("html_color", out var hc) && hc.ValueKind == JsonValueKind.String)
-                    {
-                        htmlColor = hc.GetString();
-                    }
-
-                    string? imageBase64 = null;
-                    if (item.TryGetProperty("image", out var img) && img.ValueKind == JsonValueKind.String)
-                    {
-                        imageBase64 = img.GetString();
-                    }
-
-                    double extraPrice = 0.0;
-                    if (item.TryGetProperty("default_extra_price", out var ep) && ep.ValueKind == JsonValueKind.Number)
-                    {
-                        extraPrice = ep.GetDouble();
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(name) && attrId > 0)
-                    {
-                        values.Add(new ProductAttributeValueDto(odooId, attrId, name, isCustom, htmlColor, imageBase64, extraPrice));
-                    }
-                }
-            }
-
-            UpdateStatus(true, "Odoo Online");
-            return (attributes, values);
-        }
-        catch
-        {
-            if (allowOfflineSimulation)
-            {
-                return GetSimulatedOdooAttributes();
-            }
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
-        }
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooAttributesInternalAsync(config, uid);
     }
 
-    /// <summary>
-    /// Fetches product tags from Odoo Online (product.tag)
-    /// </summary>
+    private async Task<(List<ProductAttributeDto> attributes, List<ProductAttributeValueDto> values)> FetchOdooAttributesInternalAsync(
+        OdooConfigRecord config,
+        int uid)
+    {
+        var attrFields = await FilterValidFieldsAsync(config, uid, "product.attribute",
+            "id", "name", "display_type", "create_variant", "number_related_products", "product_tmpl_ids", "value_ids");
+
+        using var attrDoc = await ExecuteKwAsync(
+            config, uid, "product.attribute", "search_read",
+            [Array.Empty<object>()],
+            new { fields = attrFields }
+        );
+
+        var attributes = new List<ProductAttributeDto>();
+        if (attrDoc.RootElement.TryGetProperty("result", out var attrList) && attrList.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in attrList.EnumerateArray())
+            {
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                string displayType = GetStringOrDefault(item, "display_type", "radio");
+                string createVariant = GetStringOrDefault(item, "create_variant", "always");
+                int relatedCount = GetIntOrDefault(item, "number_related_products", -1);
+                if (relatedCount < 0)
+                {
+                    relatedCount = GetIdArray(item, "product_tmpl_ids").Count;
+                }
+                var valIds = GetIdArray(item, "value_ids");
+
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
+                {
+                    attributes.Add(new ProductAttributeDto(odooId, name, displayType, createVariant, relatedCount, valIds));
+                }
+            }
+        }
+
+        var valFields = await FilterValidFieldsAsync(config, uid, "product.attribute.value",
+            "id", "attribute_id", "name", "is_custom", "html_color", "image", "default_extra_price");
+
+        using var valDoc = await ExecuteKwAsync(
+            config, uid, "product.attribute.value", "search_read",
+            [Array.Empty<object>()],
+            new { fields = valFields }
+        );
+
+        var values = new List<ProductAttributeValueDto>();
+        if (valDoc.RootElement.TryGetProperty("result", out var valList) && valList.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in valList.EnumerateArray())
+            {
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                var (attrId, _) = GetMany2One(item, "attribute_id");
+                bool isCustom = GetBoolOrDefault(item, "is_custom");
+                string? htmlColor = GetNullableString(item, "html_color");
+                string? imageBase64 = GetNullableString(item, "image");
+                double extraPrice = (double)GetDecimalOrDefault(item, "default_extra_price");
+
+                if (odooId > 0 && attrId.HasValue && attrId.Value > 0 && !string.IsNullOrWhiteSpace(name))
+                {
+                    values.Add(new ProductAttributeValueDto(odooId, attrId.Value, name, isCustom, htmlColor, imageBase64, extraPrice));
+                }
+            }
+        }
+
+        return (attributes, values);
+    }
+
+    // =========================================================================
+    // 4. PRODUCT TAGS (product.tag)
+    // =========================================================================
     public async Task<List<ProductTagDto>> FetchOdooTagsAsync(
         OdooConfigRecord config,
         bool allowOfflineSimulation = false)
     {
-        string baseUrl = NormalizeUrl(config.ServerUrl);
-        string endpoint = $"{baseUrl}/jsonrpc";
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooTagsInternalAsync(config, uid);
+    }
 
-        try
+    private async Task<List<ProductTagDto>> FetchOdooTagsInternalAsync(OdooConfigRecord config, int uid)
+    {
+        var tagFields = await FilterValidFieldsAsync(config, uid, "product.tag",
+            "id", "name", "color", "product_template_ids", "product_ids");
+
+        using var tagDoc = await ExecuteKwAsync(
+            config, uid, "product.tag", "search_read",
+            [Array.Empty<object>()],
+            new { fields = tagFields }
+        );
+
+        var tags = new List<ProductTagDto>();
+        if (tagDoc.RootElement.TryGetProperty("result", out var tagList) && tagList.ValueKind == JsonValueKind.Array)
         {
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
+            foreach (var item in tagList.EnumerateArray())
             {
-                if (allowOfflineSimulation)
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                int color = GetIntOrDefault(item, "color");
+                int productsCount = GetIdArray(item, "product_template_ids").Count;
+                if (productsCount == 0)
                 {
-                    return GetSimulatedOdooTags();
+                    productsCount = GetIdArray(item, "product_ids").Count;
                 }
-                throw new InvalidOperationException(test.Message);
-            }
 
-            int uid = test.Uid.Value;
-
-            var tagPayload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
                 {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "product.tag",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new
-                        {
-                            fields = new[] { "id", "name", "color", "product_template_ids" }
-                        }
-                    }
-                },
-                id = 23
-            };
-
-            var tagReq = new StringContent(JsonSerializer.Serialize(tagPayload), Encoding.UTF8, "application/json");
-            var tagResp = await _httpClient.PostAsync(endpoint, tagReq);
-            tagResp.EnsureSuccessStatusCode();
-
-            string tagStr = await tagResp.Content.ReadAsStringAsync();
-            using var tagDoc = JsonDocument.Parse(tagStr);
-
-            var tags = new List<ProductTagDto>();
-            if (tagDoc.RootElement.TryGetProperty("result", out var tagList) && tagList.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in tagList.EnumerateArray())
-                {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-                    int color = item.TryGetProperty("color", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : 0;
-
-                    int productsCount = 0;
-                    if (item.TryGetProperty("product_template_ids", out var pt) && pt.ValueKind == JsonValueKind.Array)
-                    {
-                        productsCount = pt.GetArrayLength();
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(name))
-                    {
-                        tags.Add(new ProductTagDto(odooId, name, color, productsCount));
-                    }
+                    tags.Add(new ProductTagDto(odooId, name, color, productsCount));
                 }
             }
+        }
 
-            UpdateStatus(true, "Odoo Online");
-            return tags;
-        }
-        catch
-        {
-            if (allowOfflineSimulation)
-            {
-                return GetSimulatedOdooTags();
-            }
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
-        }
+        return tags;
     }
 
-    public static (List<ProductAttributeDto>, List<ProductAttributeValueDto>) GetSimulatedOdooAttributes()
-    {
-        var attrs = new List<ProductAttributeDto>
-        {
-            new(1, "Brand", "radio", "always", 0, [1, 2, 3, 4, 5, 6]),
-            new(2, "Size", "pills", "always", 5, [41, 42, 43, 44, 45]),
-            new(3, "Color", "color", "always", 3, [50, 51, 52, 53, 54]),
-            new(4, "Material", "radio", "always", 0, [70, 71, 72]),
-            new(13, "Shoes size", "pills", "no_variant", 2, [97, 98, 99, 100, 101])
-        };
-
-        var vals = new List<ProductAttributeValueDto>
-        {
-            new(1, 1, "Adidas", false, null, null, 0.0),
-            new(2, 1, "Apple", false, null, null, 0.0),
-            new(3, 1, "Ariel", false, null, null, 0.0),
-            new(4, 1, "Canon", false, null, null, 0.0),
-            new(5, 1, "Coca-Cola", false, null, null, 0.0),
-            new(6, 1, "Nike", false, null, null, 0.0),
-            new(41, 2, "XS", false, null, null, 0.0),
-            new(42, 2, "S", false, null, null, 0.0),
-            new(43, 2, "M", false, null, null, 0.0),
-            new(44, 2, "L", false, null, null, 0.0),
-            new(45, 2, "XL", false, null, null, 0.0),
-            new(50, 3, "White", false, "#FFFFFF", null, 0.0),
-            new(51, 3, "Black", false, "#000000", null, 0.0),
-            new(52, 3, "Red", false, "#EF4444", null, 2.50),
-            new(53, 3, "Blue", false, "#3B82F6", null, 2.50),
-            new(54, 3, "Green", false, "#10B981", null, 0.0),
-            new(70, 4, "Cotton", false, null, null, 0.0),
-            new(71, 4, "Leather", false, null, null, 15.0),
-            new(72, 4, "Wood", false, null, null, 0.0),
-            new(97, 13, "38", false, null, null, 0.0),
-            new(98, 13, "39", false, null, null, 0.0),
-            new(99, 13, "40", false, null, null, 0.0),
-            new(100, 13, "41", false, null, null, 0.0),
-            new(101, 13, "42", false, null, null, 0.0)
-        };
-
-        return (attrs, vals);
-    }
-
-    public static List<ProductTagDto> GetSimulatedOdooTags()
-    {
-        return
-        [
-            new(1, "Bestseller", 1, 12),
-            new(2, "New Arrival", 10, 8),
-            new(3, "Organic", 7, 5),
-            new(4, "Featured", 5, 4),
-            new(5, "Special Offer", 2, 9)
-        ];
-    }
-
-    /// <summary>
-    /// Fetches products from Odoo Online (product.template)
-    /// </summary>
-    public async Task<List<ProductDto>> FetchOdooProductsAsync(
-        OdooConfigRecord config,
-        bool allowOfflineSimulation = false)
-    {
-        string baseUrl = NormalizeUrl(config.ServerUrl);
-        string endpoint = $"{baseUrl}/jsonrpc";
-
-        try
-        {
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
-            {
-                if (allowOfflineSimulation) return GetSimulatedOdooProducts();
-                throw new InvalidOperationException(test.Message);
-            }
-
-            int uid = test.Uid.Value;
-
-            var productPayload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
-                {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "product.template",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new
-                        {
-                            fields = new[]
-                            {
-                                "id", "name", "type", "list_price", "standard_price",
-                                "default_code", "barcode", "pos_categ_id", "product_variant_count",
-                                "image_1920", "product_tag_ids"
-                            }
-                        }
-                    }
-                },
-                id = 45
-            };
-
-            var prodReq = new StringContent(JsonSerializer.Serialize(productPayload), Encoding.UTF8, "application/json");
-            var prodResp = await _httpClient.PostAsync(endpoint, prodReq);
-            prodResp.EnsureSuccessStatusCode();
-
-            string prodStr = await prodResp.Content.ReadAsStringAsync();
-            using var prodDoc = JsonDocument.Parse(prodStr);
-
-            var products = new List<ProductDto>();
-            if (prodDoc.RootElement.TryGetProperty("result", out var prodList) && prodList.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in prodList.EnumerateArray())
-                {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-                    string type = item.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() ?? "consu" : "consu";
-                    decimal listPrice = item.TryGetProperty("list_price", out var lp) && lp.ValueKind == JsonValueKind.Number ? lp.GetDecimal() : 0.00m;
-                    decimal stdPrice = item.TryGetProperty("standard_price", out var sp) && sp.ValueKind == JsonValueKind.Number ? sp.GetDecimal() : 0.00m;
-                    string sku = item.TryGetProperty("default_code", out var dc) && dc.ValueKind == JsonValueKind.String ? dc.GetString() ?? "" : "";
-                    string barcode = item.TryGetProperty("barcode", out var bc) && bc.ValueKind == JsonValueKind.String ? bc.GetString() ?? "" : "";
-
-                    int? catId = null;
-                    string? catName = null;
-                    if (item.TryGetProperty("pos_categ_id", out var pc) && pc.ValueKind == JsonValueKind.Array && pc.GetArrayLength() >= 2)
-                    {
-                        catId = pc[0].GetInt32();
-                        catName = pc[1].GetString();
-                    }
-
-                    int variantCount = item.TryGetProperty("product_variant_count", out var vc) && vc.ValueKind == JsonValueKind.Number ? vc.GetInt32() : 1;
-                    if (variantCount < 1) variantCount = 1;
-
-                    string? imageBase64 = null;
-                    if (item.TryGetProperty("image_1920", out var img) && img.ValueKind == JsonValueKind.String)
-                    {
-                        string s = img.GetString() ?? "";
-                        if (!string.IsNullOrWhiteSpace(s) && !s.Equals("false", StringComparison.OrdinalIgnoreCase))
-                        {
-                            imageBase64 = s;
-                        }
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(name))
-                    {
-                        products.Add(new ProductDto(odooId, name, type, listPrice, stdPrice, sku, barcode, catId, catName, variantCount, imageBase64, null, null, null));
-                    }
-                }
-            }
-
-            UpdateStatus(true, "Odoo Online");
-            return products;
-        }
-        catch
-        {
-            if (allowOfflineSimulation) return GetSimulatedOdooProducts();
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Fetches combo choices and combo lines from Odoo Online (pos.combo & pos.combo.line)
-    /// </summary>
+    // =========================================================================
+    // 5. COMBO CHOICES (product.combo / product.combo.item OR pos.combo / pos.combo.line)
+    // =========================================================================
     public async Task<(List<ComboChoiceDto> combos, List<ComboChoiceLineDto> lines)> FetchOdooComboChoicesAsync(
         OdooConfigRecord config,
         bool allowOfflineSimulation = false)
     {
-        string baseUrl = NormalizeUrl(config.ServerUrl);
-        string endpoint = $"{baseUrl}/jsonrpc";
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooComboChoicesInternalAsync(config, uid);
+    }
+
+    private async Task<(List<ComboChoiceDto> combos, List<ComboChoiceLineDto> lines)> FetchOdooComboChoicesInternalAsync(
+        OdooConfigRecord config,
+        int uid)
+    {
+        // Determine whether this Odoo version uses product.combo (Odoo 18+) or pos.combo (Odoo 17)
+        var productComboFields = await GetAvailableFieldsAsync(config, uid, "product.combo");
+        string comboModel = productComboFields.Count > 0 ? "product.combo" : "pos.combo";
+        string lineModel = productComboFields.Count > 0 ? "product.combo.item" : "pos.combo.line";
+
+        var combos = new List<ComboChoiceDto>();
+        var lines = new List<ComboChoiceLineDto>();
 
         try
         {
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
-            {
-                if (allowOfflineSimulation) return GetSimulatedOdooCombos();
-                throw new InvalidOperationException(test.Message);
-            }
+            var cFields = await FilterValidFieldsAsync(config, uid, comboModel,
+                "id", "name", "combo_item_ids", "combo_line_ids");
 
-            int uid = test.Uid.Value;
+            using var comboDoc = await ExecuteKwAsync(
+                config, uid, comboModel, "search_read",
+                [Array.Empty<object>()],
+                new { fields = cFields }
+            );
 
-            var comboPayload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
-                {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "pos.combo",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new { fields = new[] { "id", "name", "combo_line_ids" } }
-                    }
-                },
-                id = 55
-            };
-
-            var comboReq = new StringContent(JsonSerializer.Serialize(comboPayload), Encoding.UTF8, "application/json");
-            var comboResp = await _httpClient.PostAsync(endpoint, comboReq);
-            comboResp.EnsureSuccessStatusCode();
-
-            string comboStr = await comboResp.Content.ReadAsStringAsync();
-            using var comboDoc = JsonDocument.Parse(comboStr);
-
-            var combos = new List<ComboChoiceDto>();
             if (comboDoc.RootElement.TryGetProperty("result", out var cList) && cList.ValueKind == JsonValueKind.Array)
             {
                 foreach (var item in cList.EnumerateArray())
                 {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-                    var lineIds = new List<int>();
-                    if (item.TryGetProperty("combo_line_ids", out var lids) && lids.ValueKind == JsonValueKind.Array)
-                    {
-                        foreach (var id in lids.EnumerateArray()) lineIds.Add(id.GetInt32());
-                    }
-                    if (!string.IsNullOrWhiteSpace(name))
+                    int odooId = GetIntOrDefault(item, "id");
+                    string name = GetStringOrDefault(item, "name");
+                    var lineIds = GetIdArray(item, "combo_item_ids");
+                    if (lineIds.Count == 0)
+                        lineIds = GetIdArray(item, "combo_line_ids");
+
+                    if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
                     {
                         combos.Add(new ComboChoiceDto(odooId, name, lineIds));
                     }
                 }
             }
 
-            // Fetch combo lines
-            var linesPayload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
-                {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "pos.combo.line",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new { fields = new[] { "id", "combo_id", "product_id", "combo_price" } }
-                    }
-                },
-                id = 56
-            };
+            var lFields = await FilterValidFieldsAsync(config, uid, lineModel,
+                "id", "combo_id", "product_id", "extra_price", "combo_price", "lst_price");
 
-            var lineReq = new StringContent(JsonSerializer.Serialize(linesPayload), Encoding.UTF8, "application/json");
-            var lineResp = await _httpClient.PostAsync(endpoint, lineReq);
-            lineResp.EnsureSuccessStatusCode();
+            using var lineDoc = await ExecuteKwAsync(
+                config, uid, lineModel, "search_read",
+                [Array.Empty<object>()],
+                new { fields = lFields }
+            );
 
-            string lineStr = await lineResp.Content.ReadAsStringAsync();
-            using var lineDoc = JsonDocument.Parse(lineStr);
+            var productIdsToLookupPrice = new HashSet<int>();
+            var rawLines = new List<(int odooId, int comboId, int? prodId, string prodName, decimal origPrice, decimal extraPrice)>();
 
-            var lines = new List<ComboChoiceLineDto>();
             if (lineDoc.RootElement.TryGetProperty("result", out var lList) && lList.ValueKind == JsonValueKind.Array)
             {
                 foreach (var item in lList.EnumerateArray())
                 {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    int comboId = 0;
-                    if (item.TryGetProperty("combo_id", out var cid) && cid.ValueKind == JsonValueKind.Array && cid.GetArrayLength() > 0)
-                    {
-                        comboId = cid[0].GetInt32();
-                    }
-                    int? prodId = null;
-                    string prodName = "";
-                    if (item.TryGetProperty("product_id", out var pid) && pid.ValueKind == JsonValueKind.Array && pid.GetArrayLength() >= 2)
-                    {
-                        prodId = pid[0].GetInt32();
-                        prodName = pid[1].GetString() ?? "";
-                    }
-                    decimal extraPrice = item.TryGetProperty("combo_price", out var cp) && cp.ValueKind == JsonValueKind.Number ? cp.GetDecimal() : 0.00m;
+                    int odooId = GetIntOrDefault(item, "id");
+                    var (comboId, _) = GetMany2One(item, "combo_id");
+                    var (prodId, prodName) = GetMany2One(item, "product_id");
+                    decimal extraPrice = GetDecimalOrDefault(item, "extra_price", GetDecimalOrDefault(item, "combo_price", 0.00m));
+                    decimal origPrice = GetDecimalOrDefault(item, "lst_price", 0.00m);
 
-                    lines.Add(new ComboChoiceLineDto(odooId, comboId, prodId, prodName, 10.00m, extraPrice));
+                    if (prodId.HasValue && origPrice == 0.00m)
+                        productIdsToLookupPrice.Add(prodId.Value);
+
+                    if (odooId > 0 && comboId.HasValue)
+                    {
+                        rawLines.Add((odooId, comboId.Value, prodId, prodName, origPrice, extraPrice));
+                    }
                 }
             }
 
-            UpdateStatus(true, "Odoo Online");
-            return (combos, lines);
+            // Lookup product.product lst_price for combo items
+            var prodPriceMap = new Dictionary<int, decimal>();
+            if (productIdsToLookupPrice.Count > 0)
+            {
+                try
+                {
+                    using var pDoc = await ExecuteKwAsync(
+                        config, uid, "product.product", "search_read",
+                        [new object[] { new object[] { "id", "in", productIdsToLookupPrice.ToArray() } }],
+                        new { fields = new[] { "id", "lst_price" } }
+                    );
+                    if (pDoc.RootElement.TryGetProperty("result", out var pArr) && pArr.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var pEl in pArr.EnumerateArray())
+                        {
+                            int pid = GetIntOrDefault(pEl, "id");
+                            decimal price = GetDecimalOrDefault(pEl, "lst_price");
+                            if (pid > 0) prodPriceMap[pid] = price;
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            foreach (var rl in rawLines)
+            {
+                decimal origPrice = rl.origPrice;
+                if (origPrice == 0.00m && rl.prodId.HasValue && prodPriceMap.TryGetValue(rl.prodId.Value, out decimal lookupPrice))
+                {
+                    origPrice = lookupPrice;
+                }
+                lines.Add(new ComboChoiceLineDto(rl.odooId, rl.comboId, rl.prodId, rl.prodName, origPrice, rl.extraPrice));
+            }
         }
         catch
         {
-            if (allowOfflineSimulation) return GetSimulatedOdooCombos();
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
+            // Model may not exist if POS module is not installed yet
         }
-    }
-
-    public static List<ProductDto> GetSimulatedOdooProducts()
-    {
-        return
-        [
-            new(1, "Acoustic Bloc Screens", "consu", 295.00m, 180.00m, "DEMO-0008", "08472910384", 2, "Desks", 2, null, "[\"Bestseller\", \"Featured\"]", "[{\"AttributeName\":\"Color\",\"Values\":\"White, Black\"}]", null),
-            new(2, "Black embroidered t-shirt", "consu", 35.00m, 12.50m, "E-COM11", "09182371928", 4, "Upper body", 8, null, "[\"New Arrival\"]", "[{\"AttributeName\":\"Size\",\"Values\":\"S, M, L, XL\"},{\"AttributeName\":\"Color\",\"Values\":\"Black, White\"}]", null),
-            new(3, "Office Chair Black", "consu", 159.00m, 85.00m, "FURN-0012", "07182937461", 3, "Chairs", 1, null, "[\"Featured\"]", null, null),
-            new(4, "Large Meeting Table", "consu", 850.00m, 450.00m, "CONF-0001", "08291048291", 2, "Desks", 3, null, "[\"Bestseller\"]", "[{\"AttributeName\":\"Size\",\"Values\":\"Small, Medium, Large\"}]", null),
-            new(5, "Desk Pad", "consu", 19.99m, 8.00m, "MISC-0034", "01928471928", 1, "Misc", 1, null, "[\"Special Offer\"]", null, null),
-            new(6, "Lunch Burger Combo", "combo", 14.50m, 7.00m, "COMBO-001", "09988112233", 6, "Others", 1, null, "[\"Featured\"]", null, "[{\"ComboName\":\"Burger Choice\",\"ItemsCount\":\"4 items\"},{\"ComboName\":\"Drink Choice\",\"ItemsCount\":\"4 items\"},{\"ComboName\":\"Side Choice\",\"ItemsCount\":\"3 items\"}]"),
-            new(7, "Breakfast Pastry Combo", "combo", 8.50m, 3.50m, "COMBO-002", "09988112244", 7, "Breads", 1, null, "[\"Bestseller\"]", null, "[{\"ComboName\":\"Pastry Choice\",\"ItemsCount\":\"3 items\"},{\"ComboName\":\"Drink Choice\",\"ItemsCount\":\"4 items\"}]"),
-            new(8, "Croissant", "consu", 3.50m, 1.20m, "BAKE-0001", "06677889900", 8, "Pastries", 1, null, "[\"Organic\"]", null, null),
-            new(9, "Baguette", "consu", 2.80m, 0.90m, "BAKE-0002", "06677889911", 7, "Breads", 1, null, "[\"Organic\"]", null, null),
-            new(10, "Maintenance Service", "service", 75.00m, 30.00m, "SERV-0005", "05544332211", 1, "Misc", 1, null, null, null, null),
-            new(11, "Ergonomic Desk", "consu", 420.00m, 260.00m, "FURN-0055", "03322114455", 2, "Desks", 2, null, "[\"Featured\"]", "[{\"AttributeName\":\"Color\",\"Values\":\"White, Oak\"}]", null),
-            new(12, "Conference Chair", "consu", 110.00m, 60.00m, "FURN-0023", "04455667788", 3, "Chairs", 4, null, "[\"Bestseller\"]", "[{\"AttributeName\":\"Color\",\"Values\":\"Grey, Black, Blue, Red\"}]", null)
-        ];
-    }
-
-    public static (List<ComboChoiceDto> combos, List<ComboChoiceLineDto> lines) GetSimulatedOdooCombos()
-    {
-        var combos = new List<ComboChoiceDto>
-        {
-            new(1, "Burger Choice", [1, 2, 3, 4]),
-            new(2, "Drink Choice", [5, 6, 7, 8]),
-            new(3, "Side Choice", [9, 10, 11]),
-            new(4, "Pastry Choice", [12, 13, 14])
-        };
-
-        var lines = new List<ComboChoiceLineDto>
-        {
-            new(1, 1, 101, "Classic Beef Burger", 12.00m, 0.00m),
-            new(2, 1, 102, "Double Cheeseburger", 14.00m, 2.00m),
-            new(3, 1, 103, "Veggie Burger", 11.50m, 0.00m),
-            new(4, 1, 104, "Crispy Chicken Burger", 13.00m, 1.00m),
-
-            new(5, 2, 201, "Soda Can 330ml", 2.50m, 0.00m),
-            new(6, 2, 202, "Mineral Water 500ml", 2.00m, 0.00m),
-            new(7, 2, 203, "Fresh Orange Juice", 4.50m, 1.50m),
-            new(8, 2, 204, "Iced Lemon Tea", 3.50m, 0.50m),
-
-            new(9, 3, 301, "French Fries", 3.50m, 0.00m),
-            new(10, 3, 302, "Onion Rings", 4.00m, 0.50m),
-            new(11, 3, 303, "Caesar Salad", 5.00m, 1.50m),
-
-            new(12, 4, 401, "Butter Croissant", 3.50m, 0.00m),
-            new(13, 4, 402, "Pain au Chocolat", 4.00m, 0.50m),
-            new(14, 4, 403, "Almond Danish", 4.50m, 1.00m)
-        };
 
         return (combos, lines);
     }
 
-    public async Task<List<PosSessionDto>> FetchOdooSessionsAsync(bool allowOfflineSimulation = true)
+    // =========================================================================
+    // 6. PRODUCTS (product.template)
+    // =========================================================================
+    public async Task<List<ProductDto>> FetchOdooProductsAsync(
+        OdooConfigRecord config,
+        bool allowOfflineSimulation = false)
     {
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooProductsInternalAsync(config, uid);
+    }
+
+    private async Task<List<ProductDto>> FetchOdooProductsInternalAsync(OdooConfigRecord config, int uid)
+    {
+        // Build lookup maps for categories, tags, attribute lines, and combos
+        var posCategoryMap = new Dictionary<int, string>();
         try
         {
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                if (allowOfflineSimulation) return GetSimulatedOdooSessions();
-                throw new InvalidOperationException("Odoo Server URL is not configured.");
-            }
-
-            string baseUrl = NormalizeUrl(config.ServerUrl);
-            string endpoint = $"{baseUrl}/jsonrpc";
-
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
-            {
-                if (allowOfflineSimulation) return GetSimulatedOdooSessions();
-                throw new InvalidOperationException(test.Message);
-            }
-
-            int uid = test.Uid.Value;
-
-            var payload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
-                {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "pos.session",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new { fields = new[] { "id", "name", "config_id", "user_id", "start_at", "stop_at", "state", "cash_register_balance_start", "cash_register_balance_end_real", "order_count", "total_payments_amount" } }
-                    }
-                },
-                id = 60
-            };
-
-            var req = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-            var resp = await _httpClient.PostAsync(endpoint, req);
-            resp.EnsureSuccessStatusCode();
-
-            string resStr = await resp.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(resStr);
-
-            var list = new List<PosSessionDto>();
-            if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in items.EnumerateArray())
-                {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-                    int? cfgId = null;
-                    string cfgName = "";
-                    if (item.TryGetProperty("config_id", out var cid) && cid.ValueKind == JsonValueKind.Array && cid.GetArrayLength() >= 2)
-                    {
-                        cfgId = cid[0].GetInt32();
-                        cfgName = cid[1].GetString() ?? "";
-                    }
-                    int? userId = null;
-                    string userName = "";
-                    if (item.TryGetProperty("user_id", out var uidProp) && uidProp.ValueKind == JsonValueKind.Array && uidProp.GetArrayLength() >= 2)
-                    {
-                        userId = uidProp[0].GetInt32();
-                        userName = uidProp[1].GetString() ?? "";
-                    }
-                    DateTime? startAt = null;
-                    if (item.TryGetProperty("start_at", out var sProp) && sProp.ValueKind == JsonValueKind.String && DateTime.TryParse(sProp.GetString(), out var st))
-                    {
-                        startAt = st;
-                    }
-                    DateTime? stopAt = null;
-                    if (item.TryGetProperty("stop_at", out var spProp) && spProp.ValueKind == JsonValueKind.String && DateTime.TryParse(spProp.GetString(), out var sp))
-                    {
-                        stopAt = sp;
-                    }
-                    string state = item.TryGetProperty("state", out var stp) && stp.ValueKind == JsonValueKind.String ? stp.GetString() ?? "opened" : "opened";
-                    decimal openBal = item.TryGetProperty("cash_register_balance_start", out var ob) && ob.ValueKind == JsonValueKind.Number ? ob.GetDecimal() : 0.00m;
-                    decimal closeBal = item.TryGetProperty("cash_register_balance_end_real", out var cb) && cb.ValueKind == JsonValueKind.Number ? cb.GetDecimal() : 0.00m;
-                    int ordersCount = item.TryGetProperty("order_count", out var oc) && oc.ValueKind == JsonValueKind.Number ? oc.GetInt32() : 0;
-                    decimal totalPayments = item.TryGetProperty("total_payments_amount", out var tp) && tp.ValueKind == JsonValueKind.Number ? tp.GetDecimal() : 0.00m;
-
-                    list.Add(new PosSessionDto(odooId, name, cfgId, cfgName, userId, userName, null, startAt, stopAt, state, openBal, closeBal, ordersCount, totalPayments, userName));
-                }
-            }
-
-            UpdateStatus(true, "Odoo Online");
-            return list.Count > 0 ? list : GetSimulatedOdooSessions();
+            var cats = await FetchOdooCategoriesInternalAsync(config, uid);
+            foreach (var c in cats) posCategoryMap[c.OdooId] = c.Name;
         }
-        catch
-        {
-            if (allowOfflineSimulation) return GetSimulatedOdooSessions();
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
-        }
-    }
+        catch { }
 
-    public async Task<(List<PosOrderDto> orders, List<PosOrderLineDto> lines, List<PosPaymentDto> payments)> FetchOdooOrdersAsync(bool allowOfflineSimulation = true)
-    {
+        var tagMap = new Dictionary<int, string>();
         try
         {
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                if (allowOfflineSimulation) return GetSimulatedOdooOrders();
-                throw new InvalidOperationException("Odoo Server URL is not configured.");
-            }
-
-            string baseUrl = NormalizeUrl(config.ServerUrl);
-            string endpoint = $"{baseUrl}/jsonrpc";
-
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
-            {
-                if (allowOfflineSimulation) return GetSimulatedOdooOrders();
-                throw new InvalidOperationException(test.Message);
-            }
-
-            int uid = test.Uid.Value;
-
-            var payload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
-                {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "pos.order",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new { fields = new[] { "id", "name", "pos_reference", "tracking_number", "session_id", "date_order", "user_id", "fiscal_position_id", "amount_total", "amount_tax", "amount_paid", "margin", "margin_ratio", "state" } }
-                    }
-                },
-                id = 61
-            };
-
-            var req = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-            var resp = await _httpClient.PostAsync(endpoint, req);
-            resp.EnsureSuccessStatusCode();
-
-            string resStr = await resp.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(resStr);
-
-            var orders = new List<PosOrderDto>();
-            if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in items.EnumerateArray())
-                {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
-                    string posRef = item.TryGetProperty("pos_reference", out var pr) && pr.ValueKind == JsonValueKind.String ? pr.GetString() ?? "" : "";
-                    string trackNum = item.TryGetProperty("tracking_number", out var tn) && tn.ValueKind == JsonValueKind.String ? tn.GetString() ?? "" : "";
-                    int? sessOdooId = null;
-                    string sessName = "";
-                    if (item.TryGetProperty("session_id", out var sid) && sid.ValueKind == JsonValueKind.Array && sid.GetArrayLength() >= 2)
-                    {
-                        sessOdooId = sid[0].GetInt32();
-                        sessName = sid[1].GetString() ?? "";
-                    }
-                    string cfgName = sessName.Contains('/') ? sessName.Split('/')[0].Trim() : "Point of Sale";
-                    DateTime? dateOrder = null;
-                    if (item.TryGetProperty("date_order", out var doProp) && doProp.ValueKind == JsonValueKind.String && DateTime.TryParse(doProp.GetString(), out var dt))
-                    {
-                        dateOrder = dt;
-                    }
-                    int? cashierId = null;
-                    string cashierName = "";
-                    if (item.TryGetProperty("user_id", out var uidProp) && uidProp.ValueKind == JsonValueKind.Array && uidProp.GetArrayLength() >= 2)
-                    {
-                        cashierId = uidProp[0].GetInt32();
-                        cashierName = uidProp[1].GetString() ?? "";
-                    }
-                    string fiscal = item.TryGetProperty("fiscal_position_id", out var fp) && fp.ValueKind == JsonValueKind.Array && fp.GetArrayLength() >= 2
-                        ? fp[1].GetString() ?? "Standard Tax" : "Standard Tax";
-
-                    decimal amountTotal = item.TryGetProperty("amount_total", out var at) && at.ValueKind == JsonValueKind.Number ? at.GetDecimal() : 0.00m;
-                    decimal amountTax = item.TryGetProperty("amount_tax", out var atx) && atx.ValueKind == JsonValueKind.Number ? atx.GetDecimal() : 0.00m;
-                    decimal amountPaid = item.TryGetProperty("amount_paid", out var ap) && ap.ValueKind == JsonValueKind.Number ? ap.GetDecimal() : amountTotal;
-                    decimal margin = item.TryGetProperty("margin", out var mg) && mg.ValueKind == JsonValueKind.Number ? mg.GetDecimal() : amountTotal * 0.45m;
-                    decimal marginRatio = item.TryGetProperty("margin_ratio", out var mr) && mr.ValueKind == JsonValueKind.Number ? mr.GetDecimal() : 0.45m;
-                    string state = item.TryGetProperty("state", out var stp) && stp.ValueKind == JsonValueKind.String ? stp.GetString() ?? "paid" : "paid";
-
-                    orders.Add(new PosOrderDto(odooId, name, posRef, trackNum, null, sessOdooId, sessName, cfgName, dateOrder, cashierId, cashierName, null, fiscal, amountTotal, amountTax, amountPaid, margin, marginRatio, state, false, "My Company", "", null, null));
-                }
-            }
-
-            UpdateStatus(true, "Odoo Online");
-            return orders.Count > 0 ? (orders, new List<PosOrderLineDto>(), new List<PosPaymentDto>()) : GetSimulatedOdooOrders();
+            var tags = await FetchOdooTagsInternalAsync(config, uid);
+            foreach (var t in tags) tagMap[t.OdooId] = t.Name;
         }
-        catch
-        {
-            if (allowOfflineSimulation) return GetSimulatedOdooOrders();
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
-        }
-    }
+        catch { }
 
-    public async Task<List<PosPaymentDto>> FetchOdooPaymentsAsync(bool allowOfflineSimulation = true)
-    {
+        var comboMap = new Dictionary<int, (string Name, int Count)>();
         try
         {
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            var (combos, _) = await FetchOdooComboChoicesInternalAsync(config, uid);
+            foreach (var c in combos) comboMap[c.OdooId] = (c.Name, c.LineIds.Count);
+        }
+        catch { }
+
+        // Map product.template.attribute.line -> AttributeName + Value names
+        var templateAttrLinesMap = new Dictionary<int, List<object>>();
+        try
+        {
+            var ptalFields = await FilterValidFieldsAsync(config, uid, "product.template.attribute.line",
+                "id", "product_tmpl_id", "attribute_id", "value_ids");
+
+            using var ptalDoc = await ExecuteKwAsync(
+                config, uid, "product.template.attribute.line", "search_read",
+                [Array.Empty<object>()],
+                new { fields = ptalFields }
+            );
+
+            // Also map value_ids -> value names
+            var (_, attrVals) = await FetchOdooAttributesInternalAsync(config, uid);
+            var valNameMap = attrVals.ToDictionary(v => v.OdooId, v => v.Name);
+
+            if (ptalDoc.RootElement.TryGetProperty("result", out var ptalList) && ptalList.ValueKind == JsonValueKind.Array)
             {
-                if (allowOfflineSimulation) return GetSimulatedOdooPayments();
-                throw new InvalidOperationException("Odoo Server URL is not configured.");
-            }
-
-            string baseUrl = NormalizeUrl(config.ServerUrl);
-            string endpoint = $"{baseUrl}/jsonrpc";
-
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
-            {
-                if (allowOfflineSimulation) return GetSimulatedOdooPayments();
-                throw new InvalidOperationException(test.Message);
-            }
-
-            int uid = test.Uid.Value;
-
-            var payload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
+                foreach (var item in ptalList.EnumerateArray())
                 {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "pos.payment",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new { fields = new[] { "id", "pos_order_id", "session_id", "payment_method_id", "amount", "payment_date" } }
-                    }
-                },
-                id = 62
-            };
+                    var (tmplId, _) = GetMany2One(item, "product_tmpl_id");
+                    var (_, attrName) = GetMany2One(item, "attribute_id");
+                    var valIds = GetIdArray(item, "value_ids");
+                    var valNames = valIds
+                        .Select(id => valNameMap.TryGetValue(id, out var vn) ? vn : null)
+                        .Where(vn => !string.IsNullOrWhiteSpace(vn))
+                        .ToList();
 
-            var req = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-            var resp = await _httpClient.PostAsync(endpoint, req);
-            resp.EnsureSuccessStatusCode();
-
-            string resStr = await resp.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(resStr);
-
-            var list = new List<PosPaymentDto>();
-            if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in items.EnumerateArray())
-                {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    int? orderOdooId = null;
-                    string orderName = "";
-                    if (item.TryGetProperty("pos_order_id", out var oid) && oid.ValueKind == JsonValueKind.Array && oid.GetArrayLength() >= 2)
+                    if (tmplId.HasValue && !string.IsNullOrWhiteSpace(attrName))
                     {
-                        orderOdooId = oid[0].GetInt32();
-                        orderName = oid[1].GetString() ?? "";
+                        if (!templateAttrLinesMap.TryGetValue(tmplId.Value, out var list))
+                        {
+                            list = [];
+                            templateAttrLinesMap[tmplId.Value] = list;
+                        }
+                        list.Add(new
+                        {
+                            AttributeName = attrName,
+                            Values = string.Join(", ", valNames)
+                        });
                     }
-                    int? sessionOdooId = null;
-                    string sessionName = "";
-                    if (item.TryGetProperty("session_id", out var sid) && sid.ValueKind == JsonValueKind.Array && sid.GetArrayLength() >= 2)
-                    {
-                        sessionOdooId = sid[0].GetInt32();
-                        sessionName = sid[1].GetString() ?? "";
-                    }
-                    int? methodId = null;
-                    string methodName = "Cash";
-                    if (item.TryGetProperty("payment_method_id", out var pmid) && pmid.ValueKind == JsonValueKind.Array && pmid.GetArrayLength() >= 2)
-                    {
-                        methodId = pmid[0].GetInt32();
-                        methodName = pmid[1].GetString() ?? "Cash";
-                    }
-                    decimal amount = item.TryGetProperty("amount", out var am) && am.ValueKind == JsonValueKind.Number ? am.GetDecimal() : 0.00m;
-                    DateTime? payDate = null;
-                    if (item.TryGetProperty("payment_date", out var pd) && pd.ValueKind == JsonValueKind.String && DateTime.TryParse(pd.GetString(), out var pdt))
-                    {
-                        payDate = pdt;
-                    }
-
-                    list.Add(new PosPaymentDto(odooId, orderOdooId, orderName, sessionOdooId, sessionName, "Cashier", methodId, methodName, amount, "USD ($)", "—", payDate));
                 }
             }
-
-            UpdateStatus(true, "Odoo Online");
-            return list.Count > 0 ? list : GetSimulatedOdooPayments();
         }
-        catch
+        catch { }
+
+        var prodFields = await FilterValidFieldsAsync(config, uid, "product.template",
+            "id", "name", "type", "detailed_type", "list_price", "standard_price",
+            "default_code", "barcode", "pos_categ_ids", "pos_categ_id", "categ_id",
+            "product_variant_count", "image_1920", "image_128", "product_tag_ids",
+            "attribute_line_ids", "combo_ids", "available_in_pos");
+
+        using var prodDoc = await ExecuteKwAsync(
+            config, uid, "product.template", "search_read",
+            [new object[] { new object[] { "active", "=", true } }],
+            new { fields = prodFields }
+        );
+
+        var products = new List<ProductDto>();
+        if (prodDoc.RootElement.TryGetProperty("result", out var prodList) && prodList.ValueKind == JsonValueKind.Array)
         {
-            if (allowOfflineSimulation) return GetSimulatedOdooPayments();
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
+            foreach (var item in prodList.EnumerateArray())
+            {
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                string type = GetStringOrDefault(item, "type", GetStringOrDefault(item, "detailed_type", "consu"));
+                decimal listPrice = GetDecimalOrDefault(item, "list_price");
+                decimal stdPrice = GetDecimalOrDefault(item, "standard_price");
+                string sku = GetStringOrDefault(item, "default_code");
+                string barcode = GetStringOrDefault(item, "barcode");
+
+                // Resolve POS Category (Odoo 17+ pos_categ_ids Many2many, or Odoo 16 pos_categ_id Many2one)
+                int? catId = null;
+                string? catName = null;
+
+                var posCategIds = GetIdArray(item, "pos_categ_ids");
+                if (posCategIds.Count > 0)
+                {
+                    catId = posCategIds[0];
+                    if (posCategoryMap.TryGetValue(catId.Value, out var resolvedCatName))
+                        catName = resolvedCatName;
+                }
+                if (!catId.HasValue)
+                {
+                    var (singleCatId, singleCatName) = GetMany2One(item, "pos_categ_id");
+                    if (singleCatId.HasValue)
+                    {
+                        catId = singleCatId;
+                        catName = singleCatName;
+                    }
+                }
+
+                int variantCount = Math.Max(1, GetIntOrDefault(item, "product_variant_count", 1));
+                string? imageBase64 = GetNullableString(item, "image_1920", "image_128");
+
+                // Resolve TagsJson
+                string? tagsJson = null;
+                var tagIds = GetIdArray(item, "product_tag_ids");
+                if (tagIds.Count > 0)
+                {
+                    var tagNames = tagIds
+                        .Select(id => tagMap.TryGetValue(id, out var tn) ? tn : null)
+                        .Where(tn => !string.IsNullOrWhiteSpace(tn))
+                        .ToList();
+                    if (tagNames.Count > 0)
+                        tagsJson = JsonSerializer.Serialize(tagNames);
+                }
+
+                // Resolve AttributesJson
+                string? attributesJson = null;
+                if (templateAttrLinesMap.TryGetValue(odooId, out var attrObjs) && attrObjs.Count > 0)
+                {
+                    attributesJson = JsonSerializer.Serialize(attrObjs);
+                }
+
+                // Resolve ComboChoicesJson
+                string? combosJson = null;
+                var comboIds = GetIdArray(item, "combo_ids");
+                if (comboIds.Count > 0)
+                {
+                    var comboObjs = new List<object>();
+                    foreach (int cid in comboIds)
+                    {
+                        if (comboMap.TryGetValue(cid, out var cInfo))
+                        {
+                            comboObjs.Add(new
+                            {
+                                ComboName = cInfo.Name,
+                                ItemsCount = $"{cInfo.Count} {(cInfo.Count == 1 ? "item" : "items")}"
+                            });
+                        }
+                    }
+                    if (comboObjs.Count > 0)
+                        combosJson = JsonSerializer.Serialize(comboObjs);
+                }
+
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
+                {
+                    products.Add(new ProductDto(
+                        odooId, name, type, listPrice, stdPrice,
+                        sku, barcode, catId, catName, variantCount,
+                        imageBase64, tagsJson, attributesJson, combosJson
+                    ));
+                }
+            }
         }
+
+        return products;
     }
 
-    public static List<PosSessionRecord> GetSimulatedSessionsRecords()
+    // =========================================================================
+    // 7. POS SESSIONS (pos.session)
+    // =========================================================================
+    public async Task<List<PosSessionDto>> FetchOdooSessionsAsync(bool allowOfflineSimulation = false)
     {
-        return GetSimulatedOdooSessions().Select(s => new PosSessionRecord
-        {
-            OdooId = s.OdooId,
-            Name = s.Name,
-            PosConfigId = s.PosConfigId,
-            PosConfigName = s.PosConfigName ?? "",
-            UserId = s.UserId,
-            UserName = s.UserName ?? "",
-            StartAt = s.StartAt,
-            StopAt = s.StopAt,
-            State = s.State,
-            OpeningBalance = s.OpeningBalance,
-            ClosingBalance = s.ClosingBalance,
-            OrdersCount = s.OrdersCount,
-            TotalPaymentsAmount = s.TotalPaymentsAmount,
-            Employees = s.Employees
-        }).ToList();
+        var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+        return await FetchOdooSessionsAsync(config, allowOfflineSimulation);
     }
 
-    public static List<PosSessionDto> GetSimulatedOdooSessions()
+    public async Task<List<PosSessionDto>> FetchOdooSessionsAsync(OdooConfigRecord config, bool allowOfflineSimulation = false)
     {
-        return
-        [
-            new(4, "Bakery Shop/00004", 3, "Bakery Shop", 3, "Mitchell Admin", null, new DateTime(2026, 10, 31, 8, 30, 0), null, "opened", 100.00m, 0.00m, 4, 248.50m, "Mitchell Admin, Marc Demo"),
-            new(3, "Bakery Shop/00003", 3, "Bakery Shop", 1, "Administrator", null, new DateTime(2026, 10, 30, 8, 0, 0), new DateTime(2026, 10, 30, 18, 0, 0), "closed", 100.00m, 684.20m, 12, 584.20m, "Administrator"),
-            new(2, "Furniture Shop/00002", 1, "Furniture Shop", 2, "Marc Demo", null, new DateTime(2026, 10, 31, 9, 15, 0), null, "opened", 150.00m, 0.00m, 3, 1295.00m, "Marc Demo"),
-            new(1, "Clothes Shop/00001", 2, "Clothes Shop", 3, "Mitchell Admin", null, new DateTime(2026, 10, 29, 10, 0, 0), new DateTime(2026, 10, 29, 20, 0, 0), "closed", 80.00m, 425.00m, 8, 345.00m, "Mitchell Admin")
-        ];
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooSessionsInternalAsync(config, uid);
     }
 
-    public static (List<PosOrderDto> orders, List<PosOrderLineDto> lines, List<PosPaymentDto> payments) GetSimulatedOdooOrders()
+    private async Task<List<PosSessionDto>> FetchOdooSessionsInternalAsync(OdooConfigRecord config, int uid)
     {
-        var orders = new List<PosOrderDto>
-        {
-            new(101, "Bakery Shop - 000001", "Order 00001-002-0001", "00001", null, 4, "Bakery Shop/00004", "Bakery Shop", new DateTime(2026, 10, 31, 9, 12, 15), 3, "Mitchell Admin", null, "Standard Tax", 24.50m, 3.20m, 24.50m, 11.20m, 0.457m, "paid", false, "My Company", "", null, null),
-            new(102, "Bakery Shop - 000002", "Order 00001-002-0002", "00002", null, 4, "Bakery Shop/00004", "Bakery Shop", new DateTime(2026, 10, 31, 10, 45, 0), 3, "Mitchell Admin", null, "Standard Tax", 42.00m, 5.48m, 42.00m, 20.10m, 0.478m, "done", false, "My Company", "", null, null),
-            new(103, "Furniture Shop - 000001", "Order 00002-001-0001", "00001", null, 2, "Furniture Shop/00002", "Furniture Shop", new DateTime(2026, 10, 31, 11, 20, 0), 2, "Marc Demo", null, "Standard Tax", 454.00m, 59.22m, 454.00m, 189.00m, 0.416m, "paid", false, "My Company", "", null, null),
-            new(104, "Bakery Shop - 000003", "Order 00001-002-0003", "00003", null, 4, "Bakery Shop/00004", "Bakery Shop", new DateTime(2026, 10, 31, 13, 5, 0), 3, "Mitchell Admin", null, "Standard Tax", 18.00m, 2.35m, 18.00m, 8.50m, 0.472m, "cancel", false, "My Company", "", null, null)
-        };
+        var fields = await FilterValidFieldsAsync(config, uid, "pos.session",
+            "id", "name", "config_id", "user_id", "start_at", "stop_at", "state",
+            "cash_register_balance_start", "cash_register_balance_end_real",
+            "order_count", "total_payments_amount");
 
-        var lines = new List<PosOrderLineDto>
-        {
-            new(1001, 101, 7, "Breakfast Pastry Combo", false, 2m, 8.50m, 0m, "15%", 14.78m, 17.00m),
-            new(1002, 101, 8, "Croissant", false, 2m, 3.50m, 0m, "15%", 6.09m, 7.00m),
-            new(1003, 101, 6, "Mineral Water 500ml", false, 1m, 2.00m, 75m, "15%", 0.43m, 0.50m),
-            new(1004, 102, 6, "Lunch Burger Combo", false, 2m, 14.50m, 0m, "15%", 25.22m, 29.00m),
-            new(1005, 102, 1, "Acoustic Bloc Screens", false, 1m, 13.00m, 0m, "15%", 11.30m, 13.00m),
-            new(1006, 103, 11, "Ergonomic Desk", false, 1m, 420.00m, 0m, "15%", 365.22m, 420.00m),
-            new(1007, 103, 8, "Soda Can 330ml", false, 2m, 2.50m, 0m, "15%", 4.35m, 5.00m),
-            new(1008, 103, 5, "Desk Pad", false, 1m, 29.00m, 0m, "15%", 25.21m, 29.00m),
-            new(1009, 104, 8, "Croissant", false, 3m, 3.50m, 0m, "15%", 9.13m, 10.50m),
-            new(1010, 104, 7, "Breakfast Pastry Combo", false, 1m, 7.50m, 0m, "15%", 6.52m, 7.50m)
-        };
+        using var doc = await ExecuteKwAsync(
+            config, uid, "pos.session", "search_read",
+            [Array.Empty<object>()],
+            new { fields }
+        );
 
-        var payments = GetSimulatedOdooPayments();
+        var list = new List<PosSessionDto>();
+        if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in items.EnumerateArray())
+            {
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                var (cfgId, cfgName) = GetMany2One(item, "config_id");
+                var (userId, userName) = GetMany2One(item, "user_id");
+                DateTime? startAt = GetDateTimeOrNull(item, "start_at");
+                DateTime? stopAt = GetDateTimeOrNull(item, "stop_at");
+                string state = GetStringOrDefault(item, "state", "opened");
+                decimal openBal = GetDecimalOrDefault(item, "cash_register_balance_start");
+                decimal closeBal = GetDecimalOrDefault(item, "cash_register_balance_end_real");
+                int ordersCount = GetIntOrDefault(item, "order_count");
+                decimal totalPayments = GetDecimalOrDefault(item, "total_payments_amount");
+
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
+                {
+                    list.Add(new PosSessionDto(
+                        odooId, name, cfgId, cfgName, userId, userName,
+                        null, startAt, stopAt, state, openBal, closeBal,
+                        ordersCount, totalPayments, userName
+                    ));
+                }
+            }
+        }
+
+        return list;
+    }
+
+    // =========================================================================
+    // 8. POS ORDERS & ORDER LINES (pos.order & pos.order.line)
+    // =========================================================================
+    public async Task<(List<PosOrderDto> orders, List<PosOrderLineDto> lines, List<PosPaymentDto> payments)> FetchOdooOrdersAsync(bool allowOfflineSimulation = false)
+    {
+        var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+        return await FetchOdooOrdersAsync(config, allowOfflineSimulation);
+    }
+
+    public async Task<(List<PosOrderDto> orders, List<PosOrderLineDto> lines, List<PosPaymentDto> payments)> FetchOdooOrdersAsync(
+        OdooConfigRecord config,
+        bool allowOfflineSimulation = false)
+    {
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooOrdersInternalAsync(config, uid);
+    }
+
+    private async Task<(List<PosOrderDto> orders, List<PosOrderLineDto> lines, List<PosPaymentDto> payments)> FetchOdooOrdersInternalAsync(
+        OdooConfigRecord config,
+        int uid)
+    {
+        var orderFields = await FilterValidFieldsAsync(config, uid, "pos.order",
+            "id", "name", "pos_reference", "tracking_number", "session_id", "config_id",
+            "date_order", "user_id", "cashier", "fiscal_position_id",
+            "amount_total", "amount_tax", "amount_paid", "margin", "margin_percent", "margin_ratio",
+            "state", "is_edited", "company_id", "general_note", "note");
+
+        using var doc = await ExecuteKwAsync(
+            config, uid, "pos.order", "search_read",
+            [Array.Empty<object>()],
+            new { fields = orderFields }
+        );
+
+        var orders = new List<PosOrderDto>();
+        if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in items.EnumerateArray())
+            {
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                string posRef = GetStringOrDefault(item, "pos_reference");
+                string trackNum = GetStringOrDefault(item, "tracking_number");
+                var (sessOdooId, sessName) = GetMany2One(item, "session_id");
+                var (_, cfgNameFromField) = GetMany2One(item, "config_id");
+                string cfgName = !string.IsNullOrWhiteSpace(cfgNameFromField)
+                    ? cfgNameFromField
+                    : (sessName.Contains('/') ? sessName.Split('/')[0].Trim() : "Point of Sale");
+
+                DateTime? dateOrder = GetDateTimeOrNull(item, "date_order");
+                var (cashierId, userName) = GetMany2One(item, "user_id");
+                string cashierName = GetStringOrDefault(item, "cashier", userName);
+                var (_, fiscalName) = GetMany2One(item, "fiscal_position_id");
+                string fiscal = string.IsNullOrWhiteSpace(fiscalName) ? "Standard Tax" : fiscalName;
+                var (_, companyName) = GetMany2One(item, "company_id");
+                string company = string.IsNullOrWhiteSpace(companyName) ? "My Company" : companyName;
+
+                decimal amountTotal = GetDecimalOrDefault(item, "amount_total");
+                decimal amountTax = GetDecimalOrDefault(item, "amount_tax");
+                decimal amountPaid = GetDecimalOrDefault(item, "amount_paid", amountTotal);
+                decimal margin = GetDecimalOrDefault(item, "margin", 0.00m);
+                decimal marginRatio = GetDecimalOrDefault(item, "margin_percent", GetDecimalOrDefault(item, "margin_ratio", 0.00m));
+                string state = GetStringOrDefault(item, "state", "paid");
+                bool isEdited = GetBoolOrDefault(item, "is_edited");
+                string note = GetStringOrDefault(item, "general_note", GetStringOrDefault(item, "note"));
+
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
+                {
+                    orders.Add(new PosOrderDto(
+                        odooId, name, posRef, trackNum, null, sessOdooId,
+                        sessName, cfgName, dateOrder, cashierId, cashierName,
+                        null, fiscal, amountTotal, amountTax, amountPaid,
+                        margin, marginRatio, state, isEdited, company, note, null, null
+                    ));
+                }
+            }
+        }
+
+        // Fetch pos.order.line records
+        var lines = new List<PosOrderLineDto>();
+        try
+        {
+            var lineFields = await FilterValidFieldsAsync(config, uid, "pos.order.line",
+                "id", "order_id", "product_id", "full_product_name", "name",
+                "qty", "price_unit", "discount", "price_subtotal", "price_subtotal_incl");
+
+            using var lineDoc = await ExecuteKwAsync(
+                config, uid, "pos.order.line", "search_read",
+                [Array.Empty<object>()],
+                new { fields = lineFields }
+            );
+
+            if (lineDoc.RootElement.TryGetProperty("result", out var lItems) && lItems.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var lItem in lItems.EnumerateArray())
+                {
+                    int lineOdooId = GetIntOrDefault(lItem, "id");
+                    var (orderOdooId, _) = GetMany2One(lItem, "order_id");
+                    var (prodId, prodNameFromRel) = GetMany2One(lItem, "product_id");
+                    string prodName = GetStringOrDefault(lItem, "full_product_name",
+                        !string.IsNullOrWhiteSpace(prodNameFromRel) ? prodNameFromRel : GetStringOrDefault(lItem, "name"));
+
+                    decimal qty = GetDecimalOrDefault(lItem, "qty", 1.00m);
+                    decimal priceUnit = GetDecimalOrDefault(lItem, "price_unit");
+                    decimal discount = GetDecimalOrDefault(lItem, "discount");
+                    decimal subTotal = GetDecimalOrDefault(lItem, "price_subtotal");
+                    decimal subTotalIncl = GetDecimalOrDefault(lItem, "price_subtotal_incl");
+
+                    string taxLabel = subTotal > 0 && subTotalIncl > subTotal
+                        ? $"{Math.Round(((subTotalIncl - subTotal) / subTotal) * 100m, 0)}%"
+                        : "0%";
+
+                    if (lineOdooId > 0 && orderOdooId.HasValue)
+                    {
+                        lines.Add(new PosOrderLineDto(
+                            lineOdooId, orderOdooId.Value, prodId, prodName,
+                            false, qty, priceUnit, discount, taxLabel, subTotal, subTotalIncl
+                        ));
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // Fetch pos.payment records
+        var payments = await FetchOdooPaymentsInternalAsync(config, uid);
+
         return (orders, lines, payments);
     }
 
-    public static List<PosPaymentDto> GetSimulatedOdooPayments()
+    // =========================================================================
+    // 9. POS PAYMENTS (pos.payment)
+    // =========================================================================
+    public async Task<List<PosPaymentDto>> FetchOdooPaymentsAsync(bool allowOfflineSimulation = false)
     {
-        return
-        [
-            new(201, 101, "Bakery Shop - 000001", 4, "Bakery Shop/00004", "Mitchell Admin", 1, "Cash", 24.50m, "USD ($)", "—", new DateTime(2026, 10, 31, 9, 12, 15)),
-            new(202, 102, "Bakery Shop - 000002", 4, "Bakery Shop/00004", "Mitchell Admin", 2, "Bank", 42.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 10, 45, 0)),
-            new(203, 103, "Furniture Shop - 000001", 2, "Furniture Shop/00002", "Marc Demo", 2, "Bank", 454.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 11, 20, 0)),
-            new(204, 101, "Bakery Shop - 000001", 4, "Bakery Shop/00004", "Mitchell Admin", 1, "Cash", 35.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 14, 10, 0)),
-            new(205, 102, "Bakery Shop - 000002", 4, "Bakery Shop/00004", "Mitchell Admin", 1, "Cash", 55.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 14, 35, 0)),
-            new(206, 103, "Furniture Shop - 000001", 2, "Furniture Shop/00002", "Marc Demo", 2, "Bank", 841.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 15, 50, 0)),
-            new(207, 101, "Bakery Shop - 000001", 4, "Bakery Shop/00004", "Mitchell Admin", 1, "Cash", 92.00m, "USD ($)", "—", new DateTime(2026, 10, 31, 16, 15, 0))
-        ];
+        var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+        return await FetchOdooPaymentsAsync(config, allowOfflineSimulation);
+    }
+
+    public async Task<List<PosPaymentDto>> FetchOdooPaymentsAsync(OdooConfigRecord config, bool allowOfflineSimulation = false)
+    {
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooPaymentsInternalAsync(config, uid);
+    }
+
+    private async Task<List<PosPaymentDto>> FetchOdooPaymentsInternalAsync(OdooConfigRecord config, int uid)
+    {
+        var fields = await FilterValidFieldsAsync(config, uid, "pos.payment",
+            "id", "pos_order_id", "session_id", "payment_method_id", "amount", "payment_date", "currency_id", "cashier");
+
+        using var doc = await ExecuteKwAsync(
+            config, uid, "pos.payment", "search_read",
+            [Array.Empty<object>()],
+            new { fields }
+        );
+
+        var list = new List<PosPaymentDto>();
+        if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in items.EnumerateArray())
+            {
+                int odooId = GetIntOrDefault(item, "id");
+                var (orderOdooId, orderName) = GetMany2One(item, "pos_order_id");
+                var (sessionOdooId, sessionName) = GetMany2One(item, "session_id");
+                var (methodId, methodName) = GetMany2One(item, "payment_method_id");
+                var (_, currencyName) = GetMany2One(item, "currency_id");
+                decimal amount = GetDecimalOrDefault(item, "amount");
+                DateTime? payDate = GetDateTimeOrNull(item, "payment_date");
+                string cashier = GetStringOrDefault(item, "cashier", "Cashier");
+
+                if (odooId > 0)
+                {
+                    list.Add(new PosPaymentDto(
+                        odooId,
+                        orderOdooId,
+                        orderName,
+                        sessionOdooId,
+                        sessionName,
+                        cashier,
+                        methodId,
+                        string.IsNullOrWhiteSpace(methodName) ? "Cash" : methodName,
+                        amount,
+                        string.IsNullOrWhiteSpace(currencyName) ? "MAD" : currencyName,
+                        "—",
+                        payDate
+                    ));
+                }
+            }
+        }
+
+        return list;
     }
 
     // =========================================================================
-    // POS CONFIGURATIONS (pos.config) SYNCHRONIZATION
+    // 10. POS CONFIGURATIONS (pos.config)
     // =========================================================================
-    public async Task<List<PosConfigDto>> FetchOdooPosConfigsAsync(bool allowOfflineSimulation = true)
+    public async Task<List<PosConfigDto>> FetchOdooPosConfigsAsync(bool allowOfflineSimulation = false)
     {
-        try
+        var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+        return await FetchOdooPosConfigsAsync(config, allowOfflineSimulation);
+    }
+
+    public async Task<List<PosConfigDto>> FetchOdooPosConfigsAsync(OdooConfigRecord config, bool allowOfflineSimulation = false)
+    {
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooPosConfigsInternalAsync(config, uid);
+    }
+
+    private async Task<List<PosConfigDto>> FetchOdooPosConfigsInternalAsync(
+        OdooConfigRecord config,
+        int uid,
+        List<PosSessionDto>? preloadedSessions = null)
+    {
+        var sessions = preloadedSessions ?? await FetchOdooSessionsInternalAsync(config, uid);
+        var sessionsById = sessions.ToDictionary(s => s.OdooId, s => s);
+        var sessionsByConfigId = sessions
+            .Where(s => s.PosConfigId.HasValue)
+            .GroupBy(s => s.PosConfigId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.OdooId).Take(5).Reverse().ToList());
+
+        var fields = await FilterValidFieldsAsync(config, uid, "pos.config",
+            "id", "name", "current_session_id", "current_session_state",
+            "last_session_closing_date", "last_session_closing_cash", "pos_session_username");
+
+        using var doc = await ExecuteKwAsync(
+            config, uid, "pos.config", "search_read",
+            [Array.Empty<object>()],
+            new { fields }
+        );
+
+        var list = new List<PosConfigDto>();
+        if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
         {
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            foreach (var item in items.EnumerateArray())
             {
-                if (allowOfflineSimulation) return GetSimulatedOdooPosConfigs();
-                throw new InvalidOperationException("Odoo Server URL is not configured.");
-            }
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                var (sessId, sessName) = GetMany2One(item, "current_session_id");
+                string state = GetStringOrDefault(item, "current_session_state", "closed");
+                DateTime? lastCloseDate = GetDateTimeOrNull(item, "last_session_closing_date");
+                decimal lastCloseCash = GetDecimalOrDefault(item, "last_session_closing_cash");
 
-            string baseUrl = NormalizeUrl(config.ServerUrl);
-            string endpoint = $"{baseUrl}/jsonrpc";
+                decimal openingBal = 0.00m;
+                int? activeUserId = null;
+                string? activeUserName = GetNullableString(item, "pos_session_username");
 
-            var test = await TestConnectionAsync(config);
-            if (!test.Success || !test.Uid.HasValue)
-            {
-                if (allowOfflineSimulation) return GetSimulatedOdooPosConfigs();
-                throw new InvalidOperationException(test.Message);
-            }
-
-            int uid = test.Uid.Value;
-
-            var payload = new
-            {
-                jsonrpc = "2.0",
-                method = "call",
-                @params = new
+                if (sessId.HasValue && sessionsById.TryGetValue(sessId.Value, out var activeSess))
                 {
-                    service = "object",
-                    method = "execute_kw",
-                    args = new object[]
-                    {
-                        config.DatabaseName,
-                        uid,
-                        config.ApiKey ?? "",
-                        "pos.config",
-                        "search_read",
-                        new object[] { new object[] { } },
-                        new { fields = new[] { "id", "name", "current_session_id", "current_session_state", "last_session_closing_date", "last_session_closing_cash" } }
-                    }
-                },
-                id = 85
-            };
+                    openingBal = activeSess.OpeningBalance;
+                    activeUserId = activeSess.UserId;
+                    if (string.IsNullOrWhiteSpace(activeUserName))
+                        activeUserName = activeSess.UserName;
+                    if (activeSess.StartAt.HasValue && !lastCloseDate.HasValue)
+                        lastCloseDate = activeSess.StartAt;
+                }
 
-            var req = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-            var resp = await _httpClient.PostAsync(endpoint, req);
-            resp.EnsureSuccessStatusCode();
-
-            string resStr = await resp.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(resStr);
-
-            var list = new List<PosConfigDto>();
-            if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in items.EnumerateArray())
+                // Build sparkline from recent sessions of this POS config
+                List<double> salesPoints = [0, 0, 0, 0, 0];
+                if (sessionsByConfigId.TryGetValue(odooId, out var recentSessions) && recentSessions.Count > 0)
                 {
-                    int odooId = item.GetProperty("id").GetInt32();
-                    string name = item.TryGetProperty("name", out var np) && np.ValueKind == JsonValueKind.String ? np.GetString() ?? "" : "";
-                    int? sessId = null;
-                    string sessName = "";
-                    if (item.TryGetProperty("current_session_id", out var sid) && sid.ValueKind == JsonValueKind.Array && sid.GetArrayLength() >= 2)
-                    {
-                        sessId = sid[0].GetInt32();
-                        sessName = sid[1].GetString() ?? "";
-                    }
+                    salesPoints = recentSessions.Select(s => (double)s.TotalPaymentsAmount).ToList();
+                    while (salesPoints.Count < 5)
+                        salesPoints.Insert(0, 0.0);
+                }
 
-                    string state = "closed";
-                    if (item.TryGetProperty("current_session_state", out var stp) && stp.ValueKind == JsonValueKind.String)
-                    {
-                        state = stp.GetString() ?? "closed";
-                    }
+                string salesJson = JsonSerializer.Serialize(salesPoints);
 
-                    DateTime? lastCloseDate = null;
-                    if (item.TryGetProperty("last_session_closing_date", out var lcd) && lcd.ValueKind == JsonValueKind.String && DateTime.TryParse(lcd.GetString(), out var ld))
-                    {
-                        lastCloseDate = ld;
-                    }
-
-                    decimal lastCloseCash = item.TryGetProperty("last_session_closing_cash", out var lcc) && lcc.ValueKind == JsonValueKind.Number ? lcc.GetDecimal() : 0.00m;
-
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
+                {
                     list.Add(new PosConfigDto(
                         odooId,
                         name,
                         sessId,
-                        sessName,
+                        string.IsNullOrWhiteSpace(sessName) ? null : sessName,
                         state,
                         lastCloseDate,
                         lastCloseCash,
-                        0.00m,
+                        openingBal,
+                        activeUserId,
+                        activeUserName,
                         null,
-                        null,
-                        null,
-                        "[100, 200, 150, 300, 250]"
+                        salesJson
                     ));
                 }
             }
+        }
 
-            UpdateStatus(true, "Odoo Online");
-            return list.Count > 0 ? list : GetSimulatedOdooPosConfigs();
-        }
-        catch
-        {
-            if (allowOfflineSimulation) return GetSimulatedOdooPosConfigs();
-            UpdateStatus(false, "Offline (Local Mode)");
-            throw;
-        }
+        return list;
     }
 
-    public static List<PosConfigDto> GetSimulatedOdooPosConfigs()
+    // =========================================================================
+    // MASTER SYNCHRONIZATION PIPELINE (ALL 10 ENTITIES IN DEPENDENCY ORDER)
+    // =========================================================================
+    public async Task<SyncAllSummary> SyncAllFromOdooAsync(
+        OdooConfigRecord? overrideConfig = null,
+        IProgress<SyncProgressReport>? progress = null)
     {
-        return
-        [
-            // 1. Furniture Shop: Closed State, Closing Oct 20, Balance $ 51.49, active sparkline
-            new(1, "Furniture Shop", null, "Furniture Shop/00002", "closed", new DateTime(2026, 10, 20, 18, 0, 0), 51.49m, 0.00m, null, null, null, "[140.0, 310.0, 220.0, 480.0, 390.0]"),
-            // 2. Clothes Shop: Opening Control State, Opening $ 0.00, flat zero sparkline
-            new(2, "Clothes Shop", 5, "Clothes Shop/00005", "opening_control", null, 0.00m, 0.00m, 3, "Mitchell Admin", null, "[0.0, 0.0, 0.0, 0.0, 0.0]"),
-            // 3. Bakery Shop: Active / To Close State, Date Oct 27, Opening $ 25.59, active sparkline
-            new(3, "Bakery Shop", 4, "Bakery Shop/00004", "opened", new DateTime(2026, 10, 27, 8, 30, 0), 0.00m, 25.59m, 3, "Mitchell Admin", null, "[65.0, 140.0, 95.0, 210.0, 248.5]")
-        ];
+        var config = overrideConfig ?? await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+        const int totalSteps = 10;
+
+        void Report(int step, string module, string message)
+        {
+            double pct = Math.Round((double)step / totalSteps * 100.0, 0);
+            progress?.Report(new SyncProgressReport(step, totalSteps, module, message, pct));
+        }
+
+        Report(0, "Authentication", "Authenticating with Odoo server...");
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        _modelFieldsCache.Clear();
+
+        DateTime now = DateTime.Now;
+
+        // 1. Users
+        Report(1, "Users", "Fetching & reconciling Users (res.users)...");
+        var users = await FetchOdooUsersInternalAsync(config, uid);
+        var (uImp, uUpd, uDel) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(users);
+        await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(now, $"Users: {uImp} imported, {uUpd} updated, {uDel} removed");
+
+        // 2. POS Categories
+        Report(2, "PoS Categories", "Fetching & reconciling PoS Categories (pos.category)...");
+        var categories = await FetchOdooCategoriesInternalAsync(config, uid);
+        var (cImp, cUpd, cDel) = await SqliteDatabaseService.Instance.UpsertOdooCategoriesAsync(categories);
+        await SqliteDatabaseService.Instance.UpdateCategorySyncStatusAsync(now, $"Categories: {cImp} imported, {cUpd} updated, {cDel} removed");
+
+        // 3. Product Attributes & Values
+        Report(3, "Attributes", "Fetching & reconciling Product Attributes & Values...");
+        var (attrs, attrVals) = await FetchOdooAttributesInternalAsync(config, uid);
+        await SqliteDatabaseService.Instance.UpsertOdooAttributesAsync(attrs, attrVals);
+        await SqliteDatabaseService.Instance.UpdateAttributeSyncStatusAsync(now, $"Attributes: {attrs.Count} attributes, {attrVals.Count} values");
+
+        // 4. Product Tags
+        Report(4, "Product Tags", "Fetching & reconciling Product Tags (product.tag)...");
+        var tags = await FetchOdooTagsInternalAsync(config, uid);
+        var (tImp, tUpd, tDel) = await SqliteDatabaseService.Instance.UpsertOdooTagsAsync(tags);
+        await SqliteDatabaseService.Instance.UpdateTagSyncStatusAsync(now, $"Tags: {tImp} imported, {tUpd} updated, {tDel} removed");
+
+        // 5. Combo Choices
+        Report(5, "Combo Choices", "Fetching & reconciling Combo Choices...");
+        var (combos, comboLines) = await FetchOdooComboChoicesInternalAsync(config, uid);
+        var (cbImp, cbUpd, cbDel) = await SqliteDatabaseService.Instance.UpsertOdooCombosAsync(combos, comboLines);
+        await SqliteDatabaseService.Instance.UpdateComboSyncStatusAsync(now, $"Combos: {cbImp} imported, {cbUpd} updated, {cbDel} removed");
+
+        // 6. Products
+        Report(6, "Products", "Fetching & reconciling Products (product.template)...");
+        var products = await FetchOdooProductsInternalAsync(config, uid);
+        var (pImp, pUpd, pDel) = await SqliteDatabaseService.Instance.UpsertOdooProductsAsync(products);
+        await SqliteDatabaseService.Instance.UpdateProductSyncStatusAsync(now, $"Products: {pImp} imported, {pUpd} updated, {pDel} removed");
+
+        // 7. POS Sessions
+        Report(7, "Sessions", "Fetching & reconciling POS Sessions (pos.session)...");
+        var sessions = await FetchOdooSessionsInternalAsync(config, uid);
+        var (sImp, sUpd, sDel) = await SqliteDatabaseService.Instance.UpsertOdooSessionsAsync(sessions);
+        await SqliteDatabaseService.Instance.UpdateSessionSyncStatusAsync(now, $"Sessions: {sImp} imported, {sUpd} updated, {sDel} removed");
+
+        // 8. POS Configurations (uses sessions for sparkline & active balance)
+        Report(8, "POS Shops", "Fetching & reconciling POS Configurations (pos.config)...");
+        var posConfigs = await FetchOdooPosConfigsInternalAsync(config, uid, sessions);
+        var (cfgImp, cfgUpd, cfgDel) = await SqliteDatabaseService.Instance.UpsertOdooPosConfigsAsync(posConfigs);
+        await SqliteDatabaseService.Instance.UpdatePosConfigSyncStatusAsync(now, $"POS Shops: {cfgImp} imported, {cfgUpd} updated, {cfgDel} removed");
+
+        // 9. POS Orders & Order Lines
+        Report(9, "Orders", "Fetching & reconciling POS Orders & Order Lines...");
+        var (orders, orderLines, payments) = await FetchOdooOrdersInternalAsync(config, uid);
+        var (oImp, oUpd, oDel) = await SqliteDatabaseService.Instance.UpsertOdooOrdersAsync(orders, orderLines, payments);
+        await SqliteDatabaseService.Instance.UpdateOrderSyncStatusAsync(now, $"Orders: {oImp} imported, {oUpd} updated, {oDel} removed");
+
+        // 10. POS Payments
+        Report(10, "Payments", "Reconciling POS Payments (pos.payment)...");
+        var (payImp, payUpd, payDel) = await SqliteDatabaseService.Instance.UpsertOdooPaymentsAsync(payments);
+        await SqliteDatabaseService.Instance.UpdatePaymentSyncStatusAsync(now, $"Payments: {payImp} imported, {payUpd} updated, {payDel} removed");
+
+        string summaryMsg = $"Synchronized {posConfigs.Count} shops, {products.Count} products, {categories.Count} categories, {orders.Count} orders, {users.Count} users.";
+        return new SyncAllSummary(
+            true,
+            summaryMsg,
+            users.Count,
+            categories.Count,
+            attrs.Count,
+            tags.Count,
+            combos.Count,
+            products.Count,
+            posConfigs.Count,
+            sessions.Count,
+            orders.Count,
+            payments.Count
+        );
     }
 }

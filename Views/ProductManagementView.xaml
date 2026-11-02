@@ -17,7 +17,6 @@
     </UserControl.DataContext>
 
     <UserControl.Resources>
-        <!-- Design Palette Brushes -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
@@ -54,7 +53,6 @@
                           Color="#714B67"
                           Opacity="0.12"/>
 
-        <!-- Primary Purple Button Style -->
         <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -89,7 +87,6 @@
             </Setter>
         </Style>
 
-        <!-- Tab Buttons -->
         <Style x:Key="OdooDetailTabStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
@@ -120,7 +117,6 @@
             </Setter>
         </Style>
 
-        <!-- Chevron Button Style for Detail Record Switcher -->
         <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#F3F4F6"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
@@ -156,7 +152,6 @@
             </Setter>
         </Style>
 
-        <!-- Kanban Card Button Style -->
         <Style x:Key="ProductKanbanCardButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource SurfaceCardBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
@@ -187,15 +182,11 @@
 
     <Grid Background="{StaticResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
-            <!-- Row 0: Top Control Bar -->
             <RowDefinition Height="Auto"/>
-            <!-- Row 1: Workspace Content -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ======================================================================= -->
-        <!-- 1. TOP CONTROL BAR                                                      -->
-        <!-- ======================================================================= -->
+        <!-- 1. TOP CONTROL BAR -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -203,19 +194,15 @@
                 Padding="24,14">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <!-- Left: Sync Button + Title / Breadcrumb -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Center: Search Bar -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Right: Detail View Record Switcher (< >) -->
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT: Sync from Odoo Button + Breadcrumbs -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource OdooPrimaryButtonStyle}"
                             Command="{Binding SyncFromOdooCommand}"
-                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBooleanConverter}}"
                             Margin="0,0,18,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Viewbox Width="15" Height="15" Margin="0,0,8,0">
@@ -228,7 +215,6 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Breadcrumb Root: "Products" -->
                     <Button Command="{Binding BackToListCommand}"
                             Cursor="Hand"
                             Background="Transparent"
@@ -251,7 +237,6 @@
                         </Button.Template>
                     </Button>
 
-                    <!-- Breadcrumb Sub-Path (when viewing Detail View) -->
                     <StackPanel Orientation="Horizontal"
                                 Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 VerticalAlignment="Center">
@@ -269,7 +254,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER: RESPONSIVE SEARCH BAR -->
+                <!-- CENTER SEARCH BAR -->
                 <Grid Grid.Column="1" HorizontalAlignment="Center" MinWidth="220" MaxWidth="380" Width="320" Height="36" VerticalAlignment="Center">
                     <Border Background="#F3F4F6"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -319,7 +304,7 @@
                     </Border>
                 </Grid>
 
-                <!-- RIGHT: DETAIL RECORD SWITCHER (VISIBLE ONLY IN DETAIL VIEW) -->
+                <!-- RIGHT PAGER -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
@@ -364,134 +349,145 @@
             </Grid>
         </Border>
 
-        <!-- ======================================================================= -->
-        <!-- 2. WORKSPACE CONTENT AREA                                               -->
-        <!-- ======================================================================= -->
+        <!-- 2. WORKSPACE CONTENT AREA -->
         <Grid Grid.Row="1">
-            <!-- =================================================================== -->
-            <!-- VIEW 1: PRODUCTS KANBAN VIEW (RESPONSIVE WRAPPANEL)                 -->
-            <!-- =================================================================== -->
-            <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled">
-                <Grid Margin="20,20,20,32">
-                    <ItemsControl ItemsSource="{Binding FilteredProducts}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel Orientation="Horizontal"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type local:ProductRecord}">
-                                <Button Style="{StaticResource ProductKanbanCardButtonStyle}"
-                                        Command="{Binding DataContext.SelectProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}"
-                                        Width="280"
-                                        Height="98"
-                                        Margin="6">
-                                    <Grid Margin="14,12">
-                                        <Grid.ColumnDefinitions>
-                                            <!-- Left Side: Name, Variant Count, Price & SKU -->
-                                            <ColumnDefinition Width="*"/>
-                                            <!-- Right Side: 64x64 Image Thumbnail -->
-                                            <ColumnDefinition Width="70"/>
-                                        </Grid.ColumnDefinitions>
+            <!-- VIEW 1: PRODUCTS KANBAN VIEW -->
+            <Grid Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="20,20,20,32">
+                        <ItemsControl ItemsSource="{Binding FilteredProducts}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:ProductRecord}">
+                                    <Button Style="{StaticResource ProductKanbanCardButtonStyle}"
+                                            Command="{Binding DataContext.SelectProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            Width="280"
+                                            Height="98"
+                                            Margin="6">
+                                        <Grid Margin="14,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="70"/>
+                                            </Grid.ColumnDefinitions>
 
-                                        <!-- LEFT SIDE -->
-                                        <Grid Grid.Column="0" Margin="0,0,8,0">
-                                            <Grid.RowDefinitions>
-                                                <!-- Top Line: Product Name -->
-                                                <RowDefinition Height="Auto"/>
-                                                <!-- Middle Line: Variant Count (Conditional) -->
-                                                <RowDefinition Height="Auto"/>
-                                                <!-- Bottom Line: Price & SKU -->
-                                                <RowDefinition Height="*"/>
-                                            </Grid.RowDefinitions>
+                                            <Grid Grid.Column="0" Margin="0,0,8,0">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
 
-                                            <!-- Product Name -->
-                                            <TextBlock Grid.Row="0"
-                                                       Text="{Binding Name}"
-                                                       FontSize="13.5"
-                                                       FontWeight="Bold"
-                                                       Foreground="{StaticResource PrimaryTextBrush}"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       TextWrapping="Wrap"
-                                                       MaxHeight="36"
-                                                       LineHeight="17"/>
-
-                                            <!-- Middle: Variant Count (Conditional: visible only when VariantCount > 1) -->
-                                            <TextBlock Grid.Row="1"
-                                                       Text="{Binding VariantCountDisplay}"
-                                                       FontSize="11.5"
-                                                       FontWeight="Bold"
-                                                       Foreground="{StaticResource OdooTealBrush}"
-                                                       Visibility="{Binding HasMultipleVariants, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                       Margin="0,2,0,0"/>
-
-                                            <!-- Bottom Line: Bold Price + SKU/Internal Reference -->
-                                            <StackPanel Grid.Row="2"
-                                                        Orientation="Horizontal"
-                                                        VerticalAlignment="Bottom">
-                                                <TextBlock Text="{Binding PriceDisplay}"
-                                                           FontSize="13"
+                                                <TextBlock Grid.Row="0"
+                                                           Text="{Binding Name}"
+                                                           FontSize="13.5"
                                                            FontWeight="Bold"
                                                            Foreground="{StaticResource PrimaryTextBrush}"
-                                                           VerticalAlignment="Center"/>
-
-                                                <!-- Muted gray SKU -->
-                                                <TextBlock Text="{Binding SkuDisplay}"
-                                                           FontSize="11.5"
-                                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                                           Margin="8,0,0,0"
-                                                           VerticalAlignment="Center"
                                                            TextTrimming="CharacterEllipsis"
-                                                           Visibility="{Binding HasSku, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                            </StackPanel>
-                                        </Grid>
+                                                           TextWrapping="Wrap"
+                                                           MaxHeight="36"
+                                                           LineHeight="17"/>
 
-                                        <!-- RIGHT SIDE: 64x64 THUMBNAIL -->
-                                        <Border Grid.Column="1"
-                                                Width="64" Height="64"
-                                                CornerRadius="6"
-                                                Background="#F3F4F6"
-                                                BorderBrush="{StaticResource SubtleBorderBrush}"
-                                                BorderThickness="1"
-                                                HorizontalAlignment="Right"
-                                                VerticalAlignment="Center">
-                                            <Grid>
-                                                <!-- If image exists -->
-                                                <Image Source="{Binding ImageBitmap}"
-                                                       Stretch="UniformToFill"
-                                                       Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <TextBlock Grid.Row="1"
+                                                           Text="{Binding VariantCountDisplay}"
+                                                           FontSize="11.5"
+                                                           FontWeight="Bold"
+                                                           Foreground="{StaticResource OdooTealBrush}"
+                                                           Visibility="{Binding HasMultipleVariants, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                           Margin="0,2,0,0"/>
 
-                                                <!-- Placeholder Icon if no image -->
-                                                <Viewbox Width="24" Height="24"
-                                                         HorizontalAlignment="Center"
-                                                         VerticalAlignment="Center"
-                                                         Visibility="{Binding HasNoImage, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <Canvas Width="24" Height="24">
-                                                        <Path Data="M 21,19 V 5 C 21,3.9 20.1,3 19,3 H 5 C 3.9,3 3,3.9 3,5 V 19 C 3,20.1 3.9,21 5,21 H 19 C 20.1,21 21,20.1 21,19 Z M 8.5,13.5 L 11,16.51 L 14.5,12 L 19,18 H 5 L 8.5,13.5 Z"
-                                                              Fill="{StaticResource PlaceholderTextBrush}"/>
-                                                    </Canvas>
-                                                </Viewbox>
+                                                <StackPanel Grid.Row="2"
+                                                            Orientation="Horizontal"
+                                                            VerticalAlignment="Bottom">
+                                                    <TextBlock Text="{Binding PriceDisplay}"
+                                                               FontSize="13"
+                                                               FontWeight="Bold"
+                                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                                               VerticalAlignment="Center"/>
+
+                                                    <TextBlock Text="{Binding SkuDisplay}"
+                                                               FontSize="11.5"
+                                                               Foreground="{StaticResource SecondaryTextBrush}"
+                                                               Margin="8,0,0,0"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Visibility="{Binding HasSku, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </StackPanel>
                                             </Grid>
-                                        </Border>
-                                    </Grid>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </Grid>
-            </ScrollViewer>
 
-            <!-- =================================================================== -->
-            <!-- VIEW 2: PRODUCT DETAIL / FORM VIEW (STRICTLY READ-ONLY)             -->
-            <!-- =================================================================== -->
+                                            <Border Grid.Column="1"
+                                                    Width="64" Height="64"
+                                                    CornerRadius="6"
+                                                    Background="#F3F4F6"
+                                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                                    BorderThickness="1"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center">
+                                                <Grid>
+                                                    <Image Source="{Binding ImageBitmap}"
+                                                           Stretch="UniformToFill"
+                                                           Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    <Viewbox Width="24" Height="24"
+                                                             HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center"
+                                                             Visibility="{Binding HasNoImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Canvas Width="24" Height="24">
+                                                            <Path Data="M 21,19 V 5 C 21,3.9 20.1,3 19,3 H 5 C 3.9,3 3,3.9 3,5 V 19 C 3,20.1 3.9,21 5,21 H 19 C 20.1,21 21,20.1 21,19 Z M 8.5,13.5 L 11,16.51 L 14.5,12 L 19,18 H 5 L 8.5,13.5 Z"
+                                                                  Fill="{StaticResource PlaceholderTextBrush}"/>
+                                                        </Canvas>
+                                                    </Viewbox>
+                                                </Grid>
+                                            </Border>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                </ScrollViewer>
+
+                <!-- EMPTY STATE PLACEHOLDER -->
+                <Border Background="{StaticResource SurfaceCardBrush}"
+                        BorderBrush="{StaticResource SubtleBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="36,32"
+                        MaxWidth="460"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Effect="{StaticResource SubtleCardShadow}"
+                        Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="No Products Synchronized Yet"
+                                   FontSize="17"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource PrimaryTextBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="Click 'Sync from Odoo' to pull product templates, prices, categories, and variants from your Odoo instance."
+                                   FontSize="13"
+                                   Foreground="{StaticResource SecondaryTextBrush}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   Margin="0,0,0,18"/>
+                        <Button Style="{StaticResource OdooPrimaryButtonStyle}"
+                                Command="{Binding SyncFromOdooCommand}"
+                                HorizontalAlignment="Center"
+                                Content="Sync Products from Odoo"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- VIEW 2: PRODUCT DETAIL / FORM VIEW -->
             <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="28,24,28,48">
-                    <!-- SLEEK ODOO 20 SHEET CARD -->
                     <Border Background="{StaticResource SurfaceCardBrush}"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -499,14 +495,12 @@
                             Padding="36,32"
                             Effect="{StaticResource SubtleCardShadow}">
                         <StackPanel>
-                            <!-- HEADER ROW: TITLE & TAGS ON LEFT, IMAGE ON RIGHT -->
                             <Grid Margin="0,0,0,24">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="100"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- LEFT: PRODUCT NAME & TAG PILLS -->
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
                                     <TextBlock Text="Product"
                                                FontSize="12"
@@ -520,7 +514,6 @@
                                                Foreground="{StaticResource PrimaryTextBrush}"
                                                TextWrapping="Wrap"/>
 
-                                    <!-- Product Tags Pills -->
                                     <ItemsControl ItemsSource="{Binding SelectedProduct.TagBadges}" Margin="0,10,0,0">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -548,7 +541,6 @@
                                     </ItemsControl>
                                 </StackPanel>
 
-                                <!-- RIGHT: 88x88 IMAGE CONTAINER -->
                                 <Border Grid.Column="1"
                                         Width="88" Height="88"
                                         Background="#F9FAFB"
@@ -574,7 +566,6 @@
                                 </Border>
                             </Grid>
 
-                            <!-- HORIZONTAL TAB BAR -->
                             <Border BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Margin="0,0,0,24">
                                 <StackPanel Orientation="Horizontal">
                                     <Button Content="General Information"
@@ -624,7 +615,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- ==================== TAB 1 BODY: GENERAL INFORMATION ==================== -->
+                            <!-- TAB 1: GENERAL INFORMATION -->
                             <Grid Visibility="{Binding ActiveTabIndex, Converter={StaticResource IntEqualToVisibilityConverter}, ConverterParameter=1}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -632,9 +623,7 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- LEFT COLUMN -->
                                 <StackPanel Grid.Column="0">
-                                    <!-- Product Type -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="150"/>
@@ -644,7 +633,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedProduct.ProductTypeDisplay}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                     </Grid>
 
-                                    <!-- Sales Price -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="150"/>
@@ -654,7 +642,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedProduct.PriceDisplay}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                     </Grid>
 
-                                    <!-- Cost -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="150"/>
@@ -665,9 +652,7 @@
                                     </Grid>
                                 </StackPanel>
 
-                                <!-- RIGHT COLUMN -->
                                 <StackPanel Grid.Column="2">
-                                    <!-- Internal Reference -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="160"/>
@@ -677,7 +662,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedProduct.SkuDisplay}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                     </Grid>
 
-                                    <!-- Barcode -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="160"/>
@@ -687,7 +671,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedProduct.BarcodeDisplay}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                     </Grid>
 
-                                    <!-- PoS Product Category -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="160"/>
@@ -699,7 +682,7 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- ==================== TAB 2 BODY: ATTRIBUTES & VARIANTS ==================== -->
+                            <!-- TAB 2: ATTRIBUTES & VARIANTS -->
                             <StackPanel Visibility="{Binding ActiveTabIndex, Converter={StaticResource IntEqualToVisibilityConverter}, ConverterParameter=2}">
                                 <Border Background="#F9FAFB"
                                         BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -737,7 +720,7 @@
                                 </ItemsControl>
                             </StackPanel>
 
-                            <!-- ==================== TAB 3 BODY: COMBO CHOICES ==================== -->
+                            <!-- TAB 3: COMBO CHOICES -->
                             <StackPanel Visibility="{Binding ActiveTabIndex, Converter={StaticResource IntEqualToVisibilityConverter}, ConverterParameter=3}">
                                 <Border Background="#F9FAFB"
                                         BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -780,9 +763,7 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- ======================================================================= -->
-        <!-- 3. TOAST NOTIFICATION BANNER                                            -->
-        <!-- ======================================================================= -->
+        <!-- 3. TOAST NOTIFICATION BANNER -->
         <Border Visibility="{Binding IsToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                 Grid.Row="1"
                 VerticalAlignment="Bottom"

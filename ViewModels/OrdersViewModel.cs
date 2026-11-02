@@ -23,7 +23,7 @@ public partial class OrdersViewModel : ViewModelBase
     private PosOrderRecord? _selectedOrder;
 
     [ObservableProperty]
-    private string _pagerText = "1 / 1";
+    private string _pagerText = "0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -35,7 +35,7 @@ public partial class OrdersViewModel : ViewModelBase
     private string _grandTotalText = "$ 0.00";
 
     [ObservableProperty]
-    private string _activeTab = "Products"; // Products, Payments, ExtraInfo
+    private string _activeTab = "Products";
 
     [ObservableProperty]
     private bool _isProductsTab = true;
@@ -63,6 +63,9 @@ public partial class OrdersViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _toastSeverity = "Success";
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event EventHandler? OrdersUpdated;
 
@@ -145,6 +148,7 @@ public partial class OrdersViewModel : ViewModelBase
         }
 
         GrandTotalText = $"$ {grandTotal.ToString("N2", CultureInfo.InvariantCulture)}";
+        IsEmptyStateVisible = FilteredOrders.Count == 0;
 
         if (IsDetailViewVisible)
         {
@@ -243,11 +247,17 @@ public partial class OrdersViewModel : ViewModelBase
 
         try
         {
-            var (orders, lines, payments) = await OdooSyncService.Instance.FetchOdooOrdersAsync(allowOfflineSimulation: true);
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
+            {
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
+                return;
+            }
+
+            var (orders, lines, payments) = await OdooSyncService.Instance.FetchOdooOrdersAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooOrdersAsync(orders, lines, payments);
 
-            DateTime now = DateTime.Now;
-            await SqliteDatabaseService.Instance.UpdateOrderSyncStatusAsync(now, "Success");
+            await SqliteDatabaseService.Instance.UpdateOrderSyncStatusAsync(DateTime.Now, "Success");
 
             await ReloadOrdersAsync();
             OrdersUpdated?.Invoke(this, EventArgs.Empty);

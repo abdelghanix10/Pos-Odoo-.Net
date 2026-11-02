@@ -17,23 +17,22 @@
     </UserControl.DataContext>
 
     <UserControl.Resources>
-        <!-- Design Palette Brushes -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
         <SolidColorBrush x:Key="InputBorderBrush" Color="#D1D5DB"/>
-        
+
         <SolidColorBrush x:Key="OdooPurpleBrush" Color="#714B67"/>
         <SolidColorBrush x:Key="OdooPurpleHoverBrush" Color="#5D3D54"/>
         <SolidColorBrush x:Key="OdooPurpleSoftBrush" Color="#F3ECF1"/>
-        
+
         <SolidColorBrush x:Key="OdooTealBrush" Color="#017E84"/>
         <SolidColorBrush x:Key="OdooTealSoftBrush" Color="#E6F4F5"/>
-        
+
         <SolidColorBrush x:Key="PrimaryTextBrush" Color="#111827"/>
         <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6B7280"/>
         <SolidColorBrush x:Key="PlaceholderTextBrush" Color="#9CA3AF"/>
-        
+
         <SolidColorBrush x:Key="ActiveGreenBrush" Color="#10B981"/>
         <SolidColorBrush x:Key="ActiveGreenSoftBrush" Color="#ECFDF5"/>
         <SolidColorBrush x:Key="WarningAmberBrush" Color="#F59E0B"/>
@@ -46,7 +45,6 @@
                           Color="#111827"
                           Opacity="0.04"/>
 
-        <!-- Primary Purple Button Style -->
         <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -81,7 +79,6 @@
             </Setter>
         </Style>
 
-        <!-- Pager Chevron Button Style -->
         <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="30"/>
             <Setter Property="Height" Value="30"/>
@@ -117,15 +114,11 @@
 
     <Grid Background="{StaticResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
-            <!-- Row 0: Top Control Bar -->
             <RowDefinition Height="64"/>
-            <!-- Row 1: Workspace Content -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ======================================================================= -->
-        <!-- 1. STANDARDIZED TOP CONTROL BAR                                         -->
-        <!-- ======================================================================= -->
+        <!-- 1. TOP CONTROL BAR -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -133,19 +126,15 @@
                 Padding="24,0">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <!-- Left: "Sync from Odoo" Button + Breadcrumb -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Center: Search Bar -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Right: Pager -->
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT: "Sync from Odoo" Button + Breadcrumb -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource OdooPrimaryButtonStyle}"
                             Command="{Binding SyncFromOdooCommand}"
-                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBooleanConverter}}"
                             Margin="0,0,18,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Viewbox Width="15" Height="15" Margin="0,0,8,0">
@@ -158,7 +147,6 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Breadcrumb Root: "Product Tags" -->
                     <Button Command="{Binding BackToListCommand}"
                             Cursor="Hand"
                             Background="Transparent"
@@ -181,7 +169,6 @@
                         </Button.Template>
                     </Button>
 
-                    <!-- Breadcrumb Sub-Path (when viewing Detail View) -->
                     <StackPanel Orientation="Horizontal"
                                 Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 VerticalAlignment="Center">
@@ -199,7 +186,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER: SEARCH BAR -->
+                <!-- CENTER SEARCH BAR -->
                 <Grid Grid.Column="1" HorizontalAlignment="Center" MinWidth="220" MaxWidth="380" Width="320" Height="36" VerticalAlignment="Center">
                     <Border Background="#F3F4F6"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -249,7 +236,7 @@
                     </Border>
                 </Grid>
 
-                <!-- RIGHT: DETAIL RECORD SWITCHER (VISIBLE ONLY IN DETAIL VIEW) -->
+                <!-- RIGHT PAGER -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
@@ -294,13 +281,9 @@
             </Grid>
         </Border>
 
-        <!-- ======================================================================= -->
-        <!-- 2. WORKSPACE CONTENT AREA                                               -->
-        <!-- ======================================================================= -->
+        <!-- 2. WORKSPACE CONTENT AREA -->
         <Grid Grid.Row="1">
-            <!-- =================================================================== -->
-            <!-- VIEW 1: PRODUCT TAGS LIST VIEW (TABLE)                              -->
-            <!-- =================================================================== -->
+            <!-- VIEW 1: PRODUCT TAGS LIST VIEW -->
             <Grid Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
                   Margin="24,20,24,28">
                 <Border Background="{StaticResource SurfaceCardBrush}"
@@ -310,13 +293,10 @@
                         Effect="{StaticResource SubtleCardShadow}">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <!-- Table Header -->
                             <RowDefinition Height="44"/>
-                            <!-- Table Data Body -->
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <!-- TABLE HEADER -->
                         <Border Grid.Row="0"
                                 Background="#F9FAFB"
                                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -336,91 +316,103 @@
                             </Grid>
                         </Border>
 
-                        <!-- TABLE DATA ROWS -->
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding FilteredTags}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type local:ProductTagRecord}">
-                                        <Button Command="{Binding DataContext.SelectTagCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"
-                                                Cursor="Hand"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                HorizontalContentAlignment="Stretch"
-                                                VerticalContentAlignment="Stretch"
-                                                Padding="0">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="RowBorder"
-                                                            Background="#FFFFFF"
-                                                            BorderBrush="{StaticResource SubtleBorderBrush}"
-                                                            BorderThickness="0,0,0,1"
-                                                            Padding="20,13"
-                                                            MinHeight="48">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="2.5*"/>
-                                                                <ColumnDefinition Width="2*"/>
-                                                                <ColumnDefinition Width="1.5*"/>
-                                                            </Grid.ColumnDefinitions>
+                        <Grid Grid.Row="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding FilteredTags}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:ProductTagRecord}">
+                                            <Button Command="{Binding DataContext.SelectTagCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Cursor="Hand"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    HorizontalContentAlignment="Stretch"
+                                                    VerticalContentAlignment="Stretch"
+                                                    Padding="0">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="RowBorder"
+                                                                Background="#FFFFFF"
+                                                                BorderBrush="{StaticResource SubtleBorderBrush}"
+                                                                BorderThickness="0,0,0,1"
+                                                                Padding="20,13"
+                                                                MinHeight="48">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="2.5*"/>
+                                                                    <ColumnDefinition Width="2*"/>
+                                                                    <ColumnDefinition Width="1.5*"/>
+                                                                </Grid.ColumnDefinitions>
 
-                                                            <!-- Col 0: Tag Name -->
-                                                            <TextBlock Grid.Column="0"
-                                                                       Text="{Binding Name}"
-                                                                       FontSize="14"
-                                                                       FontWeight="SemiBold"
-                                                                       Foreground="{StaticResource PrimaryTextBrush}"
-                                                                       VerticalAlignment="Center"/>
+                                                                <TextBlock Grid.Column="0"
+                                                                           Text="{Binding Name}"
+                                                                           FontSize="14"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                                                           VerticalAlignment="Center"/>
 
-                                                            <!-- Col 1: Color Pill Badge with Colored Dot -->
-                                                            <Border Grid.Column="1"
-                                                                    HorizontalAlignment="Left"
-                                                                    VerticalAlignment="Center"
-                                                                    Background="{Binding SoftBackgroundBrush}"
-                                                                    BorderBrush="{Binding ColorBrush}"
-                                                                    BorderThickness="1"
-                                                                    CornerRadius="12"
-                                                                    Padding="10,4">
-                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                    <Ellipse Width="10" Height="10" Fill="{Binding ColorBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                                    <TextBlock Text="{Binding Name}"
-                                                                               FontSize="12"
-                                                                               FontWeight="SemiBold"
-                                                                               Foreground="{Binding ColorBrush}"
-                                                                               VerticalAlignment="Center"/>
-                                                                </StackPanel>
-                                                            </Border>
+                                                                <Border Grid.Column="1"
+                                                                        HorizontalAlignment="Left"
+                                                                        VerticalAlignment="Center"
+                                                                        Background="{Binding SoftBackgroundBrush}"
+                                                                        BorderBrush="{Binding ColorBrush}"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="12"
+                                                                        Padding="10,4">
+                                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                        <Ellipse Width="10" Height="10" Fill="{Binding ColorBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                                        <TextBlock Text="{Binding Name}"
+                                                                                   FontSize="12"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Foreground="{Binding ColorBrush}"
+                                                                                   VerticalAlignment="Center"/>
+                                                                    </StackPanel>
+                                                                </Border>
 
-                                                            <!-- Col 2: Linked Products Count -->
-                                                            <TextBlock Grid.Column="2"
-                                                                       Text="{Binding ProductsCountDisplay}"
-                                                                       FontSize="13.5"
-                                                                       Foreground="{StaticResource SecondaryTextBrush}"
-                                                                       VerticalAlignment="Center"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="RowBorder" Property="Background" Value="#F9FAFB"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsPressed" Value="True">
-                                                            <Setter TargetName="RowBorder" Property="Background" Value="#F3ECF1"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                                                                <TextBlock Grid.Column="2"
+                                                                           Text="{Binding ProductsCountDisplay}"
+                                                                           FontSize="13.5"
+                                                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                                                           VerticalAlignment="Center"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="RowBorder" Property="Background" Value="#F9FAFB"/>
+                                                            </Trigger>
+                                                            <Trigger Property="IsPressed" Value="True">
+                                                                <Setter TargetName="RowBorder" Property="Background" Value="#F3ECF1"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <!-- EMPTY STATE PLACEHOLDER -->
+                            <StackPanel HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="No Product Tags Synchronized Yet"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,0,6"/>
+                                <TextBlock Text="Click 'Sync from Odoo' above to pull product tags and color badges."
+                                           FontSize="13"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
 
-            <!-- =================================================================== -->
-            <!-- VIEW 2: PRODUCT TAG DETAIL VIEW (STRICTLY READ-ONLY CARD)           -->
-            <!-- =================================================================== -->
+            <!-- VIEW 2: PRODUCT TAG DETAIL VIEW -->
             <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
@@ -432,14 +424,12 @@
                             Padding="32,28"
                             Effect="{StaticResource SubtleCardShadow}">
                         <StackPanel>
-                            <!-- TOP BAR: BREADCRUMB / TITLE + SMART PRODUCTS BADGE -->
                             <Grid Margin="0,0,0,24">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Left: Tag Subtitle & Name -->
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Text="Product Tag"
                                                FontSize="12"
@@ -452,7 +442,6 @@
                                                Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </StackPanel>
 
-                                <!-- Right: "Products" Smart Badge Button -->
                                 <Border Grid.Column="1"
                                         Background="#F9FAFB"
                                         BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -482,7 +471,6 @@
                                 </Border>
                             </Grid>
 
-                            <!-- DETAILS GRID: COLOR INDICATOR & BADGE DISPLAY -->
                             <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="220"/>
@@ -490,7 +478,6 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- COLOR COLUMN -->
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Text="Tag Color"
                                                FontSize="12.5"
@@ -512,7 +499,6 @@
                                     </StackPanel>
                                 </StackPanel>
 
-                                <!-- BADGE PREVIEW COLUMN -->
                                 <StackPanel Grid.Column="2">
                                     <TextBlock Text="Tag Preview"
                                                FontSize="12.5"
@@ -542,9 +528,7 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- ======================================================================= -->
-        <!-- 3. TOAST BANNER NOTIFICATION                                            -->
-        <!-- ======================================================================= -->
+        <!-- 3. TOAST BANNER NOTIFICATION -->
         <Border Visibility="{Binding IsToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                 Grid.Row="1"
                 VerticalAlignment="Bottom"

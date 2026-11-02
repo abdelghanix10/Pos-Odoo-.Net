@@ -15,17 +15,8 @@ public partial class MainWindow : Window
     private readonly Ellipse[] _pinDots;
 
     private PosUserRecord? _selectedUser;
-    private string _selectedRole = string.Empty;
     private string _currentPin = string.Empty;
     private const int RequiredPinLength = 4;
-
-    // Demo role PINs (replace with your authentication service)
-    private readonly Dictionary<string, string> _rolePins = new()
-    {
-        ["Administrator"] = "1234",
-        ["Manager"] = "1234",
-        ["Employee"] = "1234"
-    };
 
     public MainWindow()
     {
@@ -34,14 +25,16 @@ public partial class MainWindow : Window
         _pinDots = [PinDot1, PinDot2, PinDot3, PinDot4];
 
         // Hook up MainShellModule's UsersControl with POS Login Screen
-        MainShellModule.UsersControl.UsersUpdated += RefreshLoginCards;
-        RefreshLoginCards();
+        MainShellModule.UsersControl.UsersUpdated += () => _ = RefreshLoginCardsAsync();
+        _ = RefreshLoginCardsAsync();
 
         // Hook up MainShellModule Logout
         MainShellModule.LogoutRequested += (_, _) =>
         {
             MainShellModule.Visibility = Visibility.Collapsed;
-            RefreshLoginCards();
+            LoginWorkspaceGrid.Visibility = Visibility.Visible;
+            HeaderQuickSetupBtn.Visibility = Visibility.Visible;
+            _ = RefreshLoginCardsAsync();
         };
 
         // Live Header Clock Timer
@@ -98,11 +91,81 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshLoginCards()
+    public async Task RefreshLoginCardsAsync()
     {
-        MainShellModule.UsersControl.RefreshPosLoginUsers();
-        PosLoginUsersItemsControl.ItemsSource = null;
-        PosLoginUsersItemsControl.ItemsSource = MainShellModule.UsersControl.PosLoginUsers;
+        try
+        {
+            var allUsers = await SqliteDatabaseService.Instance.LoadAllUsersAsync();
+            var visibleUsers = allUsers.Where(u => u.IsVisibleInPos).ToList();
+
+            PosLoginUsersItemsControl.ItemsSource = visibleUsers;
+
+            if (visibleUsers.Count > 0)
+            {
+                UsersScrollViewer.Visibility = Visibility.Visible;
+                NoUsersEmptyStateCard.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                UsersScrollViewer.Visibility = Visibility.Collapsed;
+                NoUsersEmptyStateCard.Visibility = Visibility.Visible;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading login cards: {ex.Message}");
+        }
+    }
+
+    // ==================== INITIAL SETUP / QUICK SYNC FROM LOGIN ====================
+    private async void QuickSyncFromLogin_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            QuickSyncLoginBtn.IsEnabled = false;
+            OpenSetupFromLoginBtn.IsEnabled = false;
+
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName) || string.IsNullOrWhiteSpace(config.Username))
+            {
+                OpenSetupSettings_Click(sender, e);
+                MainShellModule.ShowToast("Please enter your Odoo Server URL, Database Name, and Username.", isWarning: true);
+                return;
+            }
+
+            var progress = new Progress<SyncProgressReport>(report =>
+            {
+                QuickSyncLoginBtnText.Text = $"Syncing {report.CurrentModule} ({report.Percentage:0}%)...";
+                NoUsersSubtitleText.Text = report.StatusMessage;
+            });
+
+            var summary = await OdooSyncService.Instance.SyncAllFromOdooAsync(config, progress);
+            await MainShellModule.RefreshConfigAndCountsAsync();
+            await MainShellModule.ReloadAllChildViewsAsync();
+            await RefreshLoginCardsAsync();
+
+            ShowLoginToast(summary.Message);
+        }
+        catch (Exception ex)
+        {
+            NoUsersSubtitleText.Text = $"Sync Failed: {ex.Message}";
+            ShowLoginToast($"Sync Failed: {ex.Message}");
+        }
+        finally
+        {
+            QuickSyncLoginBtnText.Text = "Sync All Data from Odoo Now";
+            QuickSyncLoginBtn.IsEnabled = true;
+            OpenSetupFromLoginBtn.IsEnabled = true;
+        }
+    }
+
+    private void OpenSetupSettings_Click(object sender, RoutedEventArgs e)
+    {
+        LoginWorkspaceGrid.Visibility = Visibility.Collapsed;
+        HeaderQuickSetupBtn.Visibility = Visibility.Collapsed;
+        MainShellModule.Visibility = Visibility.Visible;
+        MainShellModule.SetCurrentUser("Administrator");
+        MainShellModule.SwitchToSettings();
     }
 
     // ==================== POS USER CARD SELECTION ====================
@@ -112,46 +175,24 @@ public partial class MainWindow : Window
             return;
 
         _selectedUser = user;
-        _selectedRole = user.Name;
 
-        // If no PIN configured, log in instantly
+        // If no PIN configured, log in immediately
         if (string.IsNullOrWhiteSpace(user.Pin))
         {
             StartPosSession(user.Name);
             return;
         }
 
-        // Open Touch PIN Pad Modal for protected user
+        // Open Touch PIN Pad Modal for PIN-protected user
         _currentPin = string.Empty;
         ModalRoleTitleText.Text = user.Name.Trim();
         ModalRoleBadge.Background = user.AvatarSoftBrush;
 
-        PinPromptText.Text = "Enter 4-digit security PIN (Demo: 1234)";
+        PinPromptText.Text = $"Enter {user.Pin.Length}-digit security PIN";
         PinPromptText.Foreground = (Brush)FindResource("SecondaryTextBrush");
         UpdatePinDotsVisual();
 
         PinPadModalOverlay.Visibility = Visibility.Visible;
-    }
-
-    // Legacy handler fallback
-    private void UserRoleCard_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: string role })
-        {
-            _selectedUser = null;
-            _selectedRole = role;
-            if (role == "Guest")
-            {
-                StartPosSession(role);
-                return;
-            }
-            _currentPin = string.Empty;
-            ModalRoleTitleText.Text = role;
-            PinPromptText.Text = "Enter 4-digit security PIN (Demo: 1234)";
-            PinPromptText.Foreground = (Brush)FindResource("SecondaryTextBrush");
-            UpdatePinDotsVisual();
-            PinPadModalOverlay.Visibility = Visibility.Visible;
-        }
     }
 
     // ==================== TOUCH PIN PAD LOGIC ====================
@@ -165,13 +206,14 @@ public partial class MainWindow : Window
 
     private void AppendPinDigit(string digit)
     {
-        if (_currentPin.Length >= RequiredPinLength)
+        int targetLen = (_selectedUser?.Pin.Length > 0) ? _selectedUser.Pin.Length : RequiredPinLength;
+        if (_currentPin.Length >= targetLen)
             return;
 
         _currentPin += digit;
         UpdatePinDotsVisual();
 
-        if (_currentPin.Length == RequiredPinLength)
+        if (_currentPin.Length == targetLen)
         {
             ValidateEnteredPin();
         }
@@ -196,26 +238,15 @@ public partial class MainWindow : Window
 
     private void ValidateEnteredPin()
     {
-        bool isValid = false;
-
-        if (_selectedUser is not null)
-        {
-            isValid = _currentPin == _selectedUser.Pin;
-        }
-        else if (_rolePins.TryGetValue(_selectedRole, out string? expectedPin))
-        {
-            isValid = _currentPin == expectedPin;
-        }
+        bool isValid = _selectedUser is not null && _currentPin == _selectedUser.Pin;
 
         if (isValid)
         {
             PinPadModalOverlay.Visibility = Visibility.Collapsed;
-            string userName = _selectedUser?.Name ?? _selectedRole;
-            StartPosSession(userName);
+            StartPosSession(_selectedUser?.Name ?? "User");
         }
         else
         {
-            // Show error state in red and reset PIN
             PinPromptText.Text = "Invalid PIN code. Please try again.";
             PinPromptText.Foreground = (Brush)FindResource("DangerRedBrush");
             _currentPin = string.Empty;
@@ -289,13 +320,20 @@ public partial class MainWindow : Window
     }
 
     // ==================== SESSION START & EXIT LOGIC ====================
-    private void StartPosSession(string role)
+    private void StartPosSession(string userName)
     {
+        LoginWorkspaceGrid.Visibility = Visibility.Collapsed;
+        HeaderQuickSetupBtn.Visibility = Visibility.Collapsed;
         MainShellModule.Visibility = Visibility.Visible;
-        MainShellModule.SetCurrentUser(role);
+        MainShellModule.SetCurrentUser(userName);
         MainShellModule.SwitchToDashboard();
 
-        ToastMessageText.Text = $"Authenticated as {role} — Active POS Session";
+        ShowLoginToast($"Authenticated as {userName} — Active POS Session");
+    }
+
+    private void ShowLoginToast(string message)
+    {
+        ToastMessageText.Text = message;
         SessionToastBanner.Visibility = Visibility.Visible;
         _toastTimer.Stop();
         _toastTimer.Start();

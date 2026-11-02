@@ -22,7 +22,7 @@ public partial class PosCategoriesViewModel : ViewModelBase
     private PosCategoryRecord? _selectedCategory;
 
     [ObservableProperty]
-    private string _pagerText = "1 / 1";
+    private string _pagerText = "0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -44,6 +44,9 @@ public partial class PosCategoriesViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _toastSeverity = "Success";
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event EventHandler? CategoriesUpdated;
 
@@ -97,8 +100,18 @@ public partial class PosCategoriesViewModel : ViewModelBase
             FilteredCategories.Add(c);
         }
 
+        IsEmptyStateVisible = FilteredCategories.Count == 0;
+
         if (IsDetailViewVisible)
         {
+            if (SelectedCategory != null && !FilteredCategories.Contains(SelectedCategory))
+            {
+                SelectedCategory = FilteredCategories.FirstOrDefault();
+                if (SelectedCategory == null)
+                {
+                    IsDetailViewVisible = false;
+                }
+            }
             UpdatePager();
         }
     }
@@ -171,19 +184,20 @@ public partial class PosCategoriesViewModel : ViewModelBase
     [RelayCommand]
     public async Task SyncFromOdooAsync()
     {
+        if (IsSyncing) return;
         IsSyncing = true;
         SyncButtonText = "Syncing...";
 
         try
         {
             var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
             {
-                ShowToast("Odoo connection not configured in Settings.", "Warning");
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
                 return;
             }
 
-            var categories = await OdooSyncService.Instance.FetchOdooCategoriesAsync(config, allowOfflineSimulation: true);
+            var categories = await OdooSyncService.Instance.FetchOdooCategoriesAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooCategoriesAsync(categories);
             await SqliteDatabaseService.Instance.UpdateCategorySyncStatusAsync(DateTime.Now, "Success");
 

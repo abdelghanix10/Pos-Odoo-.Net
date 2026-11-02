@@ -9,7 +9,7 @@ namespace OdooPosLogin;
 public partial class MainShellView : UserControl
 {
     private bool _isSidebarCollapsed = false;
-    private readonly double _expandedSidebarWidth = 180.0;
+    private readonly double _expandedSidebarWidth = 190.0;
     private readonly double _collapsedSidebarWidth = 56.0;
 
     private bool _isPasswordRevealed = false;
@@ -22,6 +22,8 @@ public partial class MainShellView : UserControl
     public PosDashboardView DashboardControl => DashboardViewControl;
     public UserManagementView UsersControl => UsersViewControl;
     public PosCategoryManagementView CategoriesControl => CategoriesViewControl;
+    public ProductAttributeManagementView AttributesControl => AttributesViewControl;
+    public ProductTagManagementView TagsControl => TagsViewControl;
     public ProductManagementView ProductsControl => ProductsViewControl;
     public ComboChoiceManagementView CombosControl => ComboChoicesViewControl;
     public SessionManagementView SessionsControl => SessionsViewControl;
@@ -32,7 +34,7 @@ public partial class MainShellView : UserControl
     {
         InitializeComponent();
 
-        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3.5) };
         _toastTimer.Tick += (_, _) =>
         {
             _toastTimer.Stop();
@@ -57,12 +59,13 @@ public partial class MainShellView : UserControl
             RegisterViewControl.Visibility = Visibility.Collapsed;
             await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
             await SessionsViewControl.ReloadSessionsFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
         };
         DashboardViewControl.VM.ViewOrdersRequested += shopName =>
         {
             SwitchToOrders(shopName);
         };
-        DashboardViewControl.VM.ViewSessionsRequested += shopName =>
+        DashboardViewControl.VM.ViewSessionsRequested += _ =>
         {
             SwitchToSessions();
         };
@@ -80,6 +83,18 @@ public partial class MainShellView : UserControl
         {
             SwitchToPayments(sessionName);
         };
+
+        // Refresh counts & timestamps when child views trigger their own sync
+        UsersViewControl.UsersUpdated += () => _ = RefreshConfigAndCountsAsync();
+        CategoriesViewControl.CategoriesUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
+        AttributesViewControl.AttributesUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
+        TagsViewControl.TagsUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
+        ProductsViewControl.ProductsUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
+        ComboChoicesViewControl.CombosUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
+        DashboardViewControl.VM.ConfigsUpdated += (_, _) => _ = RefreshDatabaseCountsAsync();
+        SessionsViewControl.VM.SessionsUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
+        OrdersViewControl.VM.OrdersUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
+        PaymentsViewControl.VM.PaymentsUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
 
         // Listen for live online status updates
         OdooSyncService.Instance.OnlineStatusChanged += isOnline =>
@@ -99,8 +114,13 @@ public partial class MainShellView : UserControl
             });
         };
 
-        // Load persisted Odoo configuration from SQLite
+        // Load persisted Odoo configuration and database counts
         _ = LoadSavedConfigAsync();
+    }
+
+    public async Task RefreshConfigAndCountsAsync()
+    {
+        await LoadSavedConfigAsync();
     }
 
     private async Task LoadSavedConfigAsync()
@@ -118,58 +138,49 @@ public partial class MainShellView : UserControl
                 : $"Last Synced: {config.LastSyncedAt}";
 
             var lastCatSync = await SqliteDatabaseService.Instance.GetLastCategorySyncStatusAsync();
-            if (!string.IsNullOrEmpty(lastCatSync))
-            {
-                LastCategoriesSyncedStatusText.Text = $"Last Synced: {lastCatSync}";
-            }
+            LastCategoriesSyncedStatusText.Text = string.IsNullOrEmpty(lastCatSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastCatSync}";
 
             var lastAttrSync = await SqliteDatabaseService.Instance.GetLastAttributeSyncStatusAsync();
-            if (!string.IsNullOrEmpty(lastAttrSync))
-            {
-                LastAttributesSyncedStatusText.Text = $"Last Synced: {lastAttrSync}";
-            }
+            LastAttributesSyncedStatusText.Text = string.IsNullOrEmpty(lastAttrSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastAttrSync}";
 
             var lastTagSync = await SqliteDatabaseService.Instance.GetLastTagSyncStatusAsync();
-            if (!string.IsNullOrEmpty(lastTagSync))
-            {
-                LastTagsSyncedStatusText.Text = $"Last Synced: {lastTagSync}";
-            }
+            LastTagsSyncedStatusText.Text = string.IsNullOrEmpty(lastTagSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastTagSync}";
 
             var lastProdSync = await SqliteDatabaseService.Instance.GetLastProductSyncStatusAsync();
-            if (!string.IsNullOrEmpty(lastProdSync))
-            {
-                LastProductsSyncedStatusText.Text = $"Last Synced: {lastProdSync}";
-            }
+            LastProductsSyncedStatusText.Text = string.IsNullOrEmpty(lastProdSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastProdSync}";
 
             var lastComboSync = await SqliteDatabaseService.Instance.GetLastComboSyncStatusAsync();
-            if (!string.IsNullOrEmpty(lastComboSync))
-            {
-                LastCombosSyncedStatusText.Text = $"Last Synced: {lastComboSync}";
-            }
+            LastCombosSyncedStatusText.Text = string.IsNullOrEmpty(lastComboSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastComboSync}";
 
             var lastSessionSync = await SqliteDatabaseService.Instance.GetLastSessionSyncStatusAsync();
-            if (!string.IsNullOrEmpty(lastSessionSync))
-            {
-                LastSessionsSyncedStatusText.Text = $"Last Synced: {lastSessionSync}";
-            }
+            LastSessionsSyncedStatusText.Text = string.IsNullOrEmpty(lastSessionSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastSessionSync}";
 
             var lastOrderSync = await SqliteDatabaseService.Instance.GetLastOrderSyncStatusAsync();
-            if (!string.IsNullOrEmpty(lastOrderSync))
-            {
-                LastOrdersSyncedStatusText.Text = $"Last Synced: {lastOrderSync}";
-            }
+            LastOrdersSyncedStatusText.Text = string.IsNullOrEmpty(lastOrderSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastOrderSync}";
 
             var lastPaymentSync = await SqliteDatabaseService.Instance.GetLastPaymentSyncStatusAsync();
-            if (!string.IsNullOrEmpty(lastPaymentSync))
-            {
-                LastPaymentsSyncedStatusText.Text = $"Last Synced: {lastPaymentSync}";
-            }
+            LastPaymentsSyncedStatusText.Text = string.IsNullOrEmpty(lastPaymentSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastPaymentSync}";
 
             var lastConfigSync = await SqliteDatabaseService.Instance.GetLastPosConfigSyncStatusAsync();
-            if (!string.IsNullOrEmpty(lastConfigSync))
-            {
-                LastPosConfigsSyncedStatusText.Text = $"Last Synced: {lastConfigSync}";
-            }
+            LastPosConfigsSyncedStatusText.Text = string.IsNullOrEmpty(lastConfigSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastConfigSync}";
 
             if (!string.IsNullOrEmpty(config.LastStatus))
             {
@@ -177,14 +188,54 @@ public partial class MainShellView : UserControl
                 if (config.LastStatus.StartsWith("Connected", StringComparison.OrdinalIgnoreCase) ||
                     config.LastStatus.Equals("Odoo Online", StringComparison.OrdinalIgnoreCase))
                 {
-                    ConnectionStatusDot.Fill = (Brush)FindResource("ActiveGreenBrush");
+                    ConnectionStatusDot.Fill = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
                 }
             }
+
+            await RefreshDatabaseCountsAsync();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error loading Odoo config: {ex.Message}");
         }
+    }
+
+    public async Task RefreshDatabaseCountsAsync()
+    {
+        try
+        {
+            var counts = await SqliteDatabaseService.Instance.GetDatabaseCountsAsync();
+
+            static string FormatCount(int count) => count == 1 ? "1 record" : $"{count} records";
+
+            PosConfigsCountBadgeText.Text = FormatCount(counts.PosConfigsCount);
+            SessionsCountBadgeText.Text = FormatCount(counts.SessionsCount);
+            OrdersCountBadgeText.Text = FormatCount(counts.OrdersCount);
+            PaymentsCountBadgeText.Text = FormatCount(counts.PaymentsCount);
+            ProductsCountBadgeText.Text = FormatCount(counts.ProductsCount);
+            CombosCountBadgeText.Text = FormatCount(counts.CombosCount);
+            CategoriesCountBadgeText.Text = FormatCount(counts.CategoriesCount);
+            AttributesCountBadgeText.Text = FormatCount(counts.AttributesCount);
+            TagsCountBadgeText.Text = FormatCount(counts.TagsCount);
+            UsersCountBadgeText.Text = FormatCount(counts.UsersCount);
+        }
+        catch { }
+    }
+
+    public async Task ReloadAllChildViewsAsync()
+    {
+        await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
+        await SessionsViewControl.ReloadSessionsFromDatabaseAsync();
+        await OrdersViewControl.ReloadOrdersFromDatabaseAsync();
+        await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync();
+        await ProductsViewControl.ReloadProductsFromDatabaseAsync();
+        await ComboChoicesViewControl.ReloadCombosFromDatabaseAsync();
+        await CategoriesViewControl.ReloadCategoriesFromDatabaseAsync();
+        await AttributesViewControl.ReloadAttributesFromDatabaseAsync();
+        await TagsViewControl.ReloadTagsFromDatabaseAsync();
+        await UsersViewControl.ReloadUsersFromDatabaseAsync();
+        UsersViewControl.NotifyUsersUpdated();
+        await RefreshDatabaseCountsAsync();
     }
 
     public void SetCurrentUser(string userName)
@@ -198,49 +249,35 @@ public partial class MainShellView : UserControl
     private void SidebarToggle_Click(object sender, RoutedEventArgs e)
     {
         _isSidebarCollapsed = !_isSidebarCollapsed;
+        Visibility labelVis = _isSidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
 
-        if (_isSidebarCollapsed)
-        {
-            // Collapse navigation panel into icon-only mode
-            SidebarMenuColumn.Width = new GridLength(_collapsedSidebarWidth);
-            SessionsLabel.Visibility = Visibility.Collapsed;
-            OrdersLabel.Visibility = Visibility.Collapsed;
-            PaymentsLabel.Visibility = Visibility.Collapsed;
-            UsersLabel.Visibility = Visibility.Collapsed;
-            ProductsLabel.Visibility = Visibility.Collapsed;
-            CombosLabel.Visibility = Visibility.Collapsed;
-            CategoriesLabel.Visibility = Visibility.Collapsed;
-            AttributesLabel.Visibility = Visibility.Collapsed;
-            ProductTagsLabel.Visibility = Visibility.Collapsed;
-            SettingsLabel.Visibility = Visibility.Collapsed;
-            LogoutLabel.Visibility = Visibility.Collapsed;
+        SidebarMenuColumn.Width = new GridLength(_isSidebarCollapsed ? _collapsedSidebarWidth : _expandedSidebarWidth);
 
-            ToggleIconScale.ScaleX = -1; // Flip glyph horizontally to >|
-            SidebarToggleButton.ToolTip = "Expand Navigation Sidebar (>|)";
-        }
-        else
-        {
-            // Expand navigation panel to show icons & labels
-            SidebarMenuColumn.Width = new GridLength(_expandedSidebarWidth);
-            SessionsLabel.Visibility = Visibility.Visible;
-            OrdersLabel.Visibility = Visibility.Visible;
-            PaymentsLabel.Visibility = Visibility.Visible;
-            UsersLabel.Visibility = Visibility.Visible;
-            ProductsLabel.Visibility = Visibility.Visible;
-            CombosLabel.Visibility = Visibility.Visible;
-            CategoriesLabel.Visibility = Visibility.Visible;
-            AttributesLabel.Visibility = Visibility.Visible;
-            ProductTagsLabel.Visibility = Visibility.Visible;
-            SettingsLabel.Visibility = Visibility.Visible;
-            LogoutLabel.Visibility = Visibility.Visible;
+        SectionRegisterHeader.Visibility = labelVis;
+        SectionCatalogHeader.Visibility = labelVis;
+        SectionAdminHeader.Visibility = labelVis;
 
-            ToggleIconScale.ScaleX = 1; // Default glyph |<
-            SidebarToggleButton.ToolTip = "Collapse Navigation Sidebar (|&lt;)";
-        }
+        DashboardLabel.Visibility = labelVis;
+        SessionsLabel.Visibility = labelVis;
+        OrdersLabel.Visibility = labelVis;
+        PaymentsLabel.Visibility = labelVis;
+        ProductsLabel.Visibility = labelVis;
+        CombosLabel.Visibility = labelVis;
+        CategoriesLabel.Visibility = labelVis;
+        AttributesLabel.Visibility = labelVis;
+        ProductTagsLabel.Visibility = labelVis;
+        UsersLabel.Visibility = labelVis;
+        SettingsLabel.Visibility = labelVis;
+        LogoutLabel.Visibility = labelVis;
+
+        ToggleIconScale.ScaleX = _isSidebarCollapsed ? -1 : 1;
+        SidebarToggleButton.ToolTip = _isSidebarCollapsed
+            ? "Expand Navigation Sidebar (>|)"
+            : "Collapse Navigation Sidebar (|<)";
     }
 
     // =========================================================================
-    // 2. PRIMARY NAVIGATION (DASHBOARD, SESSIONS, ORDERS, PAYMENTS, USERS, PRODUCTS, COMBOS, CATEGORIES, ATTRIBUTES, TAGS, SETTINGS)
+    // 2. PRIMARY NAVIGATION
     // =========================================================================
     private void NavDashboard_Click(object sender, RoutedEventArgs e) => SwitchToDashboard();
     private void NavSessions_Click(object sender, RoutedEventArgs e) => SwitchToSessions();
@@ -338,6 +375,7 @@ public partial class MainShellView : UserControl
         HideAllMainViews();
         UsersViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavUsersBtn, UsersLabel);
+        _ = UsersViewControl.ReloadUsersFromDatabaseAsync();
     }
 
     public void SwitchToProducts()
@@ -385,6 +423,7 @@ public partial class MainShellView : UserControl
         HideAllMainViews();
         SettingsViewPanel.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavSettingsBtn, SettingsLabel);
+        _ = RefreshConfigAndCountsAsync();
     }
 
     private void LogoutItem_Click(object sender, RoutedEventArgs e)
@@ -402,14 +441,12 @@ public partial class MainShellView : UserControl
         Style activeStyle = (Style)FindResource("OdooActiveTabButtonStyle");
         Style defaultStyle = (Style)FindResource("OdooTabButtonStyle");
 
-        // Reset all 5 tabs to default
         TabGeneral.Style = defaultStyle;
         TabLocale.Style = defaultStyle;
         TabPaymentMethod.Style = defaultStyle;
         TabPeripherals.Style = defaultStyle;
         TabSystemOptions.Style = defaultStyle;
 
-        // Apply active accent style (bold bottom accent line) to clicked tab
         clickedTab.Style = activeStyle;
 
         string tabTag = clickedTab.Tag as string ?? "General";
@@ -426,7 +463,7 @@ public partial class MainShellView : UserControl
     }
 
     // =========================================================================
-    // 4. PASSWORD MASK / REVEAL TOGGLE
+    // 4. PASSWORD MASK / REVEAL TOGGLE & CREDENTIAL PERSISTENCE HELPER
     // =========================================================================
     private void TogglePasswordView_Click(object sender, RoutedEventArgs e)
     {
@@ -457,6 +494,23 @@ public partial class MainShellView : UserControl
         CfgPasswordRevealed.Text = password;
     }
 
+    private async Task<OdooConfigRecord> GetAndSaveCurrentFormConfigAsync()
+    {
+        string url = CfgServerUrlTextBox.Text.Trim();
+        string db = CfgDatabaseTextBox.Text.Trim();
+        string user = CfgUsernameTextBox.Text.Trim();
+        string pwd = GetCurrentPassword();
+
+        if (!string.IsNullOrWhiteSpace(url) && !string.IsNullOrWhiteSpace(db) && !string.IsNullOrWhiteSpace(user))
+        {
+            var config = new OdooConfigRecord(url, db, user, pwd, null, ConnectionStatusText.Text);
+            await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config);
+            return config;
+        }
+
+        return await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+    }
+
     // =========================================================================
     // 5. ODOO CONNECTION ACTIONS (SAVE & TEST)
     // =========================================================================
@@ -476,7 +530,6 @@ public partial class MainShellView : UserControl
             await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config);
             ShowToast("Odoo connection credentials saved to local SQLite.");
 
-            // Immediately check live connectivity with new settings
             _ = OdooSyncService.Instance.CheckConnectivityAsync();
         }
         catch (Exception ex)
@@ -492,13 +545,14 @@ public partial class MainShellView : UserControl
         return new SolidColorBrush(fallbackColor);
     }
 
-    private void SetSettingsSyncLoadingState(bool isLoading)
+    private static void SetButtonSpinAnimation(Button button, RotateTransform rotation, ProgressBar? progressBar, TextBlock buttonText, bool isLoading, string loadingText, string defaultText)
     {
         if (isLoading)
         {
-            SyncUsersNowBtn.IsEnabled = false;
-            SettingsSyncButtonText.Text = "Syncing Users...";
-            SyncProgressBar.Visibility = Visibility.Visible;
+            button.IsEnabled = false;
+            buttonText.Text = loadingText;
+            if (progressBar != null) progressBar.Visibility = Visibility.Visible;
+
             var spinAnim = new DoubleAnimation
             {
                 From = 0,
@@ -506,15 +560,15 @@ public partial class MainShellView : UserControl
                 Duration = TimeSpan.FromSeconds(0.9),
                 RepeatBehavior = RepeatBehavior.Forever
             };
-            SettingsSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
+            rotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
         }
         else
         {
-            SettingsSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsSyncIconRotation.Angle = 0;
-            SettingsSyncButtonText.Text = "Sync Users Now";
-            SyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncUsersNowBtn.IsEnabled = true;
+            rotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            rotation.Angle = 0;
+            buttonText.Text = defaultText;
+            if (progressBar != null) progressBar.Visibility = Visibility.Collapsed;
+            button.IsEnabled = true;
         }
     }
 
@@ -551,7 +605,6 @@ public partial class MainShellView : UserControl
                 ShowToast(result.Message, isError: true);
             }
 
-            // Persist status and re-verify connectivity
             await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config with { LastStatus = ConnectionStatusText.Text });
             _ = OdooSyncService.Instance.CheckConnectivityAsync();
         }
@@ -569,60 +622,120 @@ public partial class MainShellView : UserControl
     }
 
     // =========================================================================
-    // 6. USER SYNCHRONIZATION FROM ODOO TO SQLITE
+    // 6. MASTER ONE-CLICK SYNCHRONIZATION & CLEAR LOCAL DATA
+    // =========================================================================
+    private async void SyncAllNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        await RunFullSynchronizationAsync();
+    }
+
+    public async Task<bool> RunFullSynchronizationAsync()
+    {
+        try
+        {
+            SetButtonSpinAnimation(SyncAllNowBtn, MasterSyncIconRotation, null, MasterSyncButtonText, true, "Synchronizing All Odoo Data...", "Sync All Data from Odoo");
+            ClearLocalCacheBtn.IsEnabled = false;
+
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName) || string.IsNullOrWhiteSpace(config.Username))
+            {
+                MasterSyncStepText.Text = "Configuration Incomplete";
+                MasterSyncSummaryText.Text = "Please enter your Odoo Server URL, Database Name, Username, and Password/API Key first.";
+                MasterSyncSummaryText.Foreground = GetSafeBrush("WarningAmberBrush", Color.FromRgb(0xF5, 0x9E, 0x0B));
+                ShowToast("Please fill in your Odoo connection credentials first.", isWarning: true);
+                return false;
+            }
+
+            var progress = new Progress<SyncProgressReport>(report =>
+            {
+                MasterSyncStepText.Text = $"Step {report.StepNumber}/{report.TotalSteps}: {report.StatusMessage}";
+                MasterSyncPercentText.Text = $"{report.Percentage:0}%";
+                MasterSyncProgressBar.Value = report.Percentage;
+            });
+
+            var summary = await OdooSyncService.Instance.SyncAllFromOdooAsync(config, progress);
+
+            MasterSyncStepText.Text = "All 10 Odoo Modules Synchronized Successfully";
+            MasterSyncPercentText.Text = "100%";
+            MasterSyncProgressBar.Value = 100;
+            MasterSyncSummaryText.Text = summary.Message;
+            MasterSyncSummaryText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await LoadSavedConfigAsync();
+            await ReloadAllChildViewsAsync();
+
+            ShowToast(summary.Message);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            MasterSyncStepText.Text = "Synchronization Interrupted";
+            MasterSyncSummaryText.Text = $"Sync Failed: {ex.Message}";
+            MasterSyncSummaryText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+            return false;
+        }
+        finally
+        {
+            SetButtonSpinAnimation(SyncAllNowBtn, MasterSyncIconRotation, null, MasterSyncButtonText, false, "Synchronizing All Odoo Data...", "Sync All Data from Odoo");
+            ClearLocalCacheBtn.IsEnabled = true;
+        }
+    }
+
+    private async void ClearLocalCacheBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var confirm = MessageBox.Show(
+            "Are you sure you want to clear all locally cached POS, Catalog, Order, Session, and User records?\n\nYour Odoo Server connection credentials will be kept intact.",
+            "Clear Local Database",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirm != MessageBoxResult.Yes) return;
+
+        try
+        {
+            await SqliteDatabaseService.Instance.ClearAllLocalDataAsync();
+            MasterSyncProgressBar.Value = 0;
+            MasterSyncPercentText.Text = "0%";
+            MasterSyncStepText.Text = "Local database cleared";
+            MasterSyncSummaryText.Text = "All local tables are now empty. Click 'Sync All Data from Odoo' to pull fresh records.";
+            MasterSyncSummaryText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
+
+            await LoadSavedConfigAsync();
+            await ReloadAllChildViewsAsync();
+            ShowToast("All local entity data cleared.");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Failed to clear local data: {ex.Message}", isError: true);
+        }
+    }
+
+    // =========================================================================
+    // 7. INDIVIDUAL MODULE SYNCHRONIZATION HANDLERS
     // =========================================================================
     private async void SyncUsersNowBtn_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            SetSettingsSyncLoadingState(true);
-            SyncDetailText.Text = "Connecting to Odoo & synchronizing res.users...";
+            SetButtonSpinAnimation(SyncUsersNowBtn, SettingsSyncIconRotation, SyncProgressBar, SettingsSyncButtonText, true, "Syncing...", "Sync Users");
+            SyncDetailText.Text = "Connecting to Odoo & reconciling res.users...";
             SyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            string url = CfgServerUrlTextBox.Text.Trim();
-            string db = CfgDatabaseTextBox.Text.Trim();
-            string user = CfgUsernameTextBox.Text.Trim();
-            string pwd = GetCurrentPassword();
-
-            OdooConfigRecord config;
-            if (!string.IsNullOrWhiteSpace(url) && !string.IsNullOrWhiteSpace(db) && !string.IsNullOrWhiteSpace(user))
-            {
-                config = new OdooConfigRecord(url, db, user, pwd, null, "Connected");
-                await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config);
-            }
-            else
-            {
-                config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            }
-
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                SyncDetailText.Text = "Cannot synchronize: Odoo Server URL is not configured.";
-                SyncDetailText.Foreground = GetSafeBrush("WarningAmberBrush", Color.FromRgb(0xF5, 0x9E, 0x0B));
-                ShowToast("Please enter and save Odoo connection settings first.", isWarning: true);
-                return;
-            }
-
-            // Fetch live users directly from Odoo (no simulation; connects with real credentials)
-            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config, allowOfflineSimulation: false);
-
-            // Reconcile users in local SQLite: upsert users present in Odoo, DELETE users NOT in Odoo
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var odooUsers = await OdooSyncService.Instance.FetchOdooUsersAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(odooUsers);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated.";
-
+            string statusMsg = $"Users synced: {imported} added, {updated} updated, {deleted} removed ({odooUsers.Count} total).";
             await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             SyncDetailText.Text = statusMsg;
             SyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            // Refresh the Users Kanban view and POS login cards
             await UsersViewControl.ReloadUsersFromDatabaseAsync();
             UsersViewControl.NotifyUsersUpdated();
+            await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);
         }
@@ -634,7 +747,7 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetSettingsSyncLoadingState(false);
+            SetButtonSpinAnimation(SyncUsersNowBtn, SettingsSyncIconRotation, SyncProgressBar, SettingsSyncButtonText, false, "Syncing...", "Sync Users");
         }
     }
 
@@ -642,49 +755,23 @@ public partial class MainShellView : UserControl
     {
         try
         {
-            SetCategoriesSyncLoadingState(true);
-            CategoriesSyncDetailText.Text = "Connecting to Odoo & synchronizing pos.category...";
+            SetButtonSpinAnimation(SyncCategoriesNowBtn, SettingsCatSyncIconRotation, CategoriesSyncProgressBar, SettingsCatSyncButtonText, true, "Syncing...", "Sync Categories");
+            CategoriesSyncDetailText.Text = "Connecting to Odoo & reconciling pos.category...";
             CategoriesSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            string url = CfgServerUrlTextBox.Text.Trim();
-            string db = CfgDatabaseTextBox.Text.Trim();
-            string user = CfgUsernameTextBox.Text.Trim();
-            string pwd = GetCurrentPassword();
-
-            OdooConfigRecord config;
-            if (!string.IsNullOrWhiteSpace(url) && !string.IsNullOrWhiteSpace(db) && !string.IsNullOrWhiteSpace(user))
-            {
-                config = new OdooConfigRecord(url, db, user, pwd, null, "Connected");
-                await SqliteDatabaseService.Instance.SaveOdooConfigAsync(config);
-            }
-            else
-            {
-                config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            }
-
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                CategoriesSyncDetailText.Text = "Cannot synchronize: Odoo Server URL is not configured.";
-                CategoriesSyncDetailText.Foreground = GetSafeBrush("WarningAmberBrush", Color.FromRgb(0xF5, 0x9E, 0x0B));
-                ShowToast("Please enter and save Odoo connection settings first.", isWarning: true);
-                return;
-            }
-
-            var odooCategories = await OdooSyncService.Instance.FetchOdooCategoriesAsync(config, allowOfflineSimulation: false);
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var odooCategories = await OdooSyncService.Instance.FetchOdooCategoriesAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooCategoriesAsync(odooCategories);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated.";
-
+            string statusMsg = $"Categories synced: {imported} added, {updated} updated, {deleted} removed ({odooCategories.Count} total).";
             await SqliteDatabaseService.Instance.UpdateCategorySyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastCategoriesSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastCategoriesSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             CategoriesSyncDetailText.Text = statusMsg;
             CategoriesSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             await CategoriesViewControl.ReloadCategoriesFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);
         }
@@ -696,69 +783,32 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetCategoriesSyncLoadingState(false);
+            SetButtonSpinAnimation(SyncCategoriesNowBtn, SettingsCatSyncIconRotation, CategoriesSyncProgressBar, SettingsCatSyncButtonText, false, "Syncing...", "Sync Categories");
         }
     }
 
-    private void SetCategoriesSyncLoadingState(bool isLoading)
-    {
-        if (isLoading)
-        {
-            SyncCategoriesNowBtn.IsEnabled = false;
-            SettingsCatSyncButtonText.Text = "Syncing Categories...";
-            CategoriesSyncProgressBar.Visibility = Visibility.Visible;
-            var spinAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = 360,
-                Duration = TimeSpan.FromSeconds(0.9),
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            SettingsCatSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
-        }
-        else
-        {
-            SettingsCatSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsCatSyncIconRotation.Angle = 0;
-            SettingsCatSyncButtonText.Text = "Sync Categories Now";
-            CategoriesSyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncCategoriesNowBtn.IsEnabled = true;
-        }
-    }
-
-    // =========================================================================
-    // 6. ATTRIBUTES & PRODUCT TAGS SYNCHRONIZATION FROM SETTINGS
-    // =========================================================================
     private async void SyncAttributesNowBtn_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            SetAttributesSyncLoadingState(true);
+            SetButtonSpinAnimation(SyncAttributesNowBtn, SettingsAttrSyncIconRotation, AttributesSyncProgressBar, SettingsAttrSyncButtonText, true, "Syncing...", "Sync Attributes");
+            AttributesSyncDetailText.Text = "Connecting to Odoo & reconciling product.attribute...";
+            AttributesSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
-                return;
-            }
-
-            var (odooAttrs, odooVals) = await OdooSyncService.Instance.FetchOdooAttributesAsync(config, allowOfflineSimulation: false);
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var (odooAttrs, odooVals) = await OdooSyncService.Instance.FetchOdooAttributesAsync(config);
             var (aImp, aUpd, aDel, vImp, vUpd, vDel) = await SqliteDatabaseService.Instance.UpsertOdooAttributesAsync(odooAttrs, odooVals);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = $"Sync Complete: {aImp + aUpd} attributes, {vImp + vUpd} values synced.";
-            if (aDel > 0 || vDel > 0)
-            {
-                statusMsg += $" ({aDel} attributes, {vDel} values removed)";
-            }
-
+            string statusMsg = $"Attributes synced: {aImp} added, {aUpd} updated, {aDel} removed ({odooVals.Count} values).";
             await SqliteDatabaseService.Instance.UpdateAttributeSyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastAttributesSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastAttributesSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             AttributesSyncDetailText.Text = statusMsg;
             AttributesSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             await AttributesViewControl.ReloadAttributesFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
+
             ShowToast(statusMsg);
         }
         catch (Exception ex)
@@ -769,33 +819,7 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetAttributesSyncLoadingState(false);
-        }
-    }
-
-    private void SetAttributesSyncLoadingState(bool isLoading)
-    {
-        if (isLoading)
-        {
-            SyncAttributesNowBtn.IsEnabled = false;
-            SettingsAttrSyncButtonText.Text = "Syncing Attributes...";
-            AttributesSyncProgressBar.Visibility = Visibility.Visible;
-            var spinAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = 360,
-                Duration = TimeSpan.FromSeconds(0.9),
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            SettingsAttrSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
-        }
-        else
-        {
-            SettingsAttrSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsAttrSyncIconRotation.Angle = 0;
-            SettingsAttrSyncButtonText.Text = "Sync Attributes Now";
-            AttributesSyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncAttributesNowBtn.IsEnabled = true;
+            SetButtonSpinAnimation(SyncAttributesNowBtn, SettingsAttrSyncIconRotation, AttributesSyncProgressBar, SettingsAttrSyncButtonText, false, "Syncing...", "Sync Attributes");
         }
     }
 
@@ -803,30 +827,24 @@ public partial class MainShellView : UserControl
     {
         try
         {
-            SetTagsSyncLoadingState(true);
+            SetButtonSpinAnimation(SyncTagsNowBtn, SettingsTagSyncIconRotation, TagsSyncProgressBar, SettingsTagSyncButtonText, true, "Syncing...", "Sync Tags");
+            TagsSyncDetailText.Text = "Connecting to Odoo & reconciling product.tag...";
+            TagsSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
-                return;
-            }
-
-            var odooTags = await OdooSyncService.Instance.FetchOdooTagsAsync(config, allowOfflineSimulation: false);
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var odooTags = await OdooSyncService.Instance.FetchOdooTagsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooTagsAsync(odooTags);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated ({odooTags.Count} tags).";
-
+            string statusMsg = $"Tags synced: {imported} added, {updated} updated, {deleted} removed ({odooTags.Count} total).";
             await SqliteDatabaseService.Instance.UpdateTagSyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastTagsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastTagsSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             TagsSyncDetailText.Text = statusMsg;
             TagsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             await TagsViewControl.ReloadTagsFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
+
             ShowToast(statusMsg);
         }
         catch (Exception ex)
@@ -837,67 +855,32 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetTagsSyncLoadingState(false);
+            SetButtonSpinAnimation(SyncTagsNowBtn, SettingsTagSyncIconRotation, TagsSyncProgressBar, SettingsTagSyncButtonText, false, "Syncing...", "Sync Tags");
         }
     }
 
-    private void SetTagsSyncLoadingState(bool isLoading)
-    {
-        if (isLoading)
-        {
-            SyncTagsNowBtn.IsEnabled = false;
-            SettingsTagSyncButtonText.Text = "Syncing Tags...";
-            TagsSyncProgressBar.Visibility = Visibility.Visible;
-            var spinAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = 360,
-                Duration = TimeSpan.FromSeconds(0.9),
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            SettingsTagSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
-        }
-        else
-        {
-            SettingsTagSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsTagSyncIconRotation.Angle = 0;
-            SettingsTagSyncButtonText.Text = "Sync Tags Now";
-            TagsSyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncTagsNowBtn.IsEnabled = true;
-        }
-    }
-
-    // =========================================================================
-    // 7. PRODUCTS & COMBO CHOICES SYNCHRONIZATION FROM SETTINGS
-    // =========================================================================
     private async void SyncProductsNowBtn_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            SetProductsSyncLoadingState(true);
+            SetButtonSpinAnimation(SyncProductsNowBtn, SettingsProdSyncIconRotation, ProductsSyncProgressBar, SettingsProdSyncButtonText, true, "Syncing...", "Sync Products");
+            ProductsSyncDetailText.Text = "Connecting to Odoo & reconciling product.template...";
+            ProductsSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
-                return;
-            }
-
-            var odooProducts = await OdooSyncService.Instance.FetchOdooProductsAsync(config, allowOfflineSimulation: false);
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var odooProducts = await OdooSyncService.Instance.FetchOdooProductsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooProductsAsync(odooProducts);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated ({odooProducts.Count} products).";
-
+            string statusMsg = $"Products synced: {imported} added, {updated} updated, {deleted} removed ({odooProducts.Count} total).";
             await SqliteDatabaseService.Instance.UpdateProductSyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastProductsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastProductsSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             ProductsSyncDetailText.Text = statusMsg;
             ProductsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             await ProductsViewControl.ReloadProductsFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
+
             ShowToast(statusMsg);
         }
         catch (Exception ex)
@@ -908,33 +891,7 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetProductsSyncLoadingState(false);
-        }
-    }
-
-    private void SetProductsSyncLoadingState(bool isLoading)
-    {
-        if (isLoading)
-        {
-            SyncProductsNowBtn.IsEnabled = false;
-            SettingsProdSyncButtonText.Text = "Syncing Products...";
-            ProductsSyncProgressBar.Visibility = Visibility.Visible;
-            var spinAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = 360,
-                Duration = TimeSpan.FromSeconds(0.9),
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            SettingsProdSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
-        }
-        else
-        {
-            SettingsProdSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsProdSyncIconRotation.Angle = 0;
-            SettingsProdSyncButtonText.Text = "Sync Products Now";
-            ProductsSyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncProductsNowBtn.IsEnabled = true;
+            SetButtonSpinAnimation(SyncProductsNowBtn, SettingsProdSyncIconRotation, ProductsSyncProgressBar, SettingsProdSyncButtonText, false, "Syncing...", "Sync Products");
         }
     }
 
@@ -942,30 +899,24 @@ public partial class MainShellView : UserControl
     {
         try
         {
-            SetCombosSyncLoadingState(true);
+            SetButtonSpinAnimation(SyncCombosNowBtn, SettingsComboSyncIconRotation, CombosSyncProgressBar, SettingsComboSyncButtonText, true, "Syncing...", "Sync Combos");
+            CombosSyncDetailText.Text = "Connecting to Odoo & reconciling Combo Choices...";
+            CombosSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
-                return;
-            }
-
-            var (combos, lines) = await OdooSyncService.Instance.FetchOdooComboChoicesAsync(config, allowOfflineSimulation: false);
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var (combos, lines) = await OdooSyncService.Instance.FetchOdooComboChoicesAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooCombosAsync(combos, lines);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated ({combos.Count} combos, {lines.Count} lines).";
-
+            string statusMsg = $"Combos synced: {imported} added, {updated} updated, {deleted} removed ({combos.Count} combos, {lines.Count} items).";
             await SqliteDatabaseService.Instance.UpdateComboSyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastCombosSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastCombosSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             CombosSyncDetailText.Text = statusMsg;
             CombosSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             await ComboChoicesViewControl.ReloadCombosFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
+
             ShowToast(statusMsg);
         }
         catch (Exception ex)
@@ -976,33 +927,7 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetCombosSyncLoadingState(false);
-        }
-    }
-
-    private void SetCombosSyncLoadingState(bool isLoading)
-    {
-        if (isLoading)
-        {
-            SyncCombosNowBtn.IsEnabled = false;
-            SettingsComboSyncButtonText.Text = "Syncing Combos...";
-            CombosSyncProgressBar.Visibility = Visibility.Visible;
-            var spinAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = 360,
-                Duration = TimeSpan.FromSeconds(0.9),
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            SettingsComboSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
-        }
-        else
-        {
-            SettingsComboSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsComboSyncIconRotation.Angle = 0;
-            SettingsComboSyncButtonText.Text = "Sync Combos Now";
-            CombosSyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncCombosNowBtn.IsEnabled = true;
+            SetButtonSpinAnimation(SyncCombosNowBtn, SettingsComboSyncIconRotation, CombosSyncProgressBar, SettingsComboSyncButtonText, false, "Syncing...", "Sync Combos");
         }
     }
 
@@ -1010,30 +935,24 @@ public partial class MainShellView : UserControl
     {
         try
         {
-            SetSessionsSyncLoadingState(true);
+            SetButtonSpinAnimation(SyncSessionsNowBtn, SettingsSessionSyncIconRotation, SessionsSyncProgressBar, SettingsSessionSyncButtonText, true, "Syncing...", "Sync Sessions");
+            SessionsSyncDetailText.Text = "Connecting to Odoo & reconciling pos.session...";
+            SessionsSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
-                return;
-            }
-
-            var sessionsDto = await OdooSyncService.Instance.FetchOdooSessionsAsync(allowOfflineSimulation: true);
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var sessionsDto = await OdooSyncService.Instance.FetchOdooSessionsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooSessionsAsync(sessionsDto);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated ({sessionsDto.Count} sessions).";
-
+            string statusMsg = $"Sessions synced: {imported} added, {updated} updated, {deleted} removed ({sessionsDto.Count} total).";
             await SqliteDatabaseService.Instance.UpdateSessionSyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastSessionsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastSessionsSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             SessionsSyncDetailText.Text = statusMsg;
             SessionsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             await SessionsViewControl.ReloadSessionsFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
+
             ShowToast(statusMsg);
         }
         catch (Exception ex)
@@ -1044,33 +963,7 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetSessionsSyncLoadingState(false);
-        }
-    }
-
-    private void SetSessionsSyncLoadingState(bool isLoading)
-    {
-        if (isLoading)
-        {
-            SyncSessionsNowBtn.IsEnabled = false;
-            SettingsSessionSyncButtonText.Text = "Syncing Sessions...";
-            SessionsSyncProgressBar.Visibility = Visibility.Visible;
-            var spinAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = 360,
-                Duration = TimeSpan.FromSeconds(0.9),
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            SettingsSessionSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
-        }
-        else
-        {
-            SettingsSessionSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsSessionSyncIconRotation.Angle = 0;
-            SettingsSessionSyncButtonText.Text = "Sync Sessions Now";
-            SessionsSyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncSessionsNowBtn.IsEnabled = true;
+            SetButtonSpinAnimation(SyncSessionsNowBtn, SettingsSessionSyncIconRotation, SessionsSyncProgressBar, SettingsSessionSyncButtonText, false, "Syncing...", "Sync Sessions");
         }
     }
 
@@ -1078,30 +971,25 @@ public partial class MainShellView : UserControl
     {
         try
         {
-            SetOrdersSyncLoadingState(true);
+            SetButtonSpinAnimation(SyncOrdersNowBtn, SettingsOrderSyncIconRotation, OrdersSyncProgressBar, SettingsOrderSyncButtonText, true, "Syncing...", "Sync Orders");
+            OrdersSyncDetailText.Text = "Connecting to Odoo & reconciling pos.order & pos.order.line...";
+            OrdersSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
-                return;
-            }
-
-            var (orders, lines, payments) = await OdooSyncService.Instance.FetchOdooOrdersAsync(allowOfflineSimulation: true);
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var (orders, lines, payments) = await OdooSyncService.Instance.FetchOdooOrdersAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooOrdersAsync(orders, lines, payments);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated ({orders.Count} orders, {lines.Count} lines).";
-
+            string statusMsg = $"Orders synced: {imported} added, {updated} updated, {deleted} removed ({orders.Count} orders, {lines.Count} lines).";
             await SqliteDatabaseService.Instance.UpdateOrderSyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastOrdersSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastOrdersSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             OrdersSyncDetailText.Text = statusMsg;
             OrdersSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             await OrdersViewControl.ReloadOrdersFromDatabaseAsync();
+            await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
+
             ShowToast(statusMsg);
         }
         catch (Exception ex)
@@ -1112,33 +1000,7 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetOrdersSyncLoadingState(false);
-        }
-    }
-
-    private void SetOrdersSyncLoadingState(bool isLoading)
-    {
-        if (isLoading)
-        {
-            SyncOrdersNowBtn.IsEnabled = false;
-            SettingsOrderSyncButtonText.Text = "Syncing Orders...";
-            OrdersSyncProgressBar.Visibility = Visibility.Visible;
-            var spinAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = 360,
-                Duration = TimeSpan.FromSeconds(0.9),
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            SettingsOrderSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
-        }
-        else
-        {
-            SettingsOrderSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsOrderSyncIconRotation.Angle = 0;
-            SettingsOrderSyncButtonText.Text = "Sync Orders Now";
-            OrdersSyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncOrdersNowBtn.IsEnabled = true;
+            SetButtonSpinAnimation(SyncOrdersNowBtn, SettingsOrderSyncIconRotation, OrdersSyncProgressBar, SettingsOrderSyncButtonText, false, "Syncing...", "Sync Orders");
         }
     }
 
@@ -1146,30 +1008,24 @@ public partial class MainShellView : UserControl
     {
         try
         {
-            SetPaymentsSyncLoadingState(true);
+            SetButtonSpinAnimation(SyncPaymentsNowBtn, SettingsPaymentSyncIconRotation, PaymentsSyncProgressBar, SettingsPaymentSyncButtonText, true, "Syncing...", "Sync Payments");
+            PaymentsSyncDetailText.Text = "Connecting to Odoo & reconciling pos.payment...";
+            PaymentsSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
-            {
-                ShowToast("Cannot synchronize: Odoo Server URL is not configured.", isWarning: true);
-                return;
-            }
-
-            var paymentsDto = await OdooSyncService.Instance.FetchOdooPaymentsAsync(allowOfflineSimulation: true);
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var paymentsDto = await OdooSyncService.Instance.FetchOdooPaymentsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooPaymentsAsync(paymentsDto);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated ({paymentsDto.Count} payments).";
-
+            string statusMsg = $"Payments synced: {imported} added, {updated} updated, {deleted} removed ({paymentsDto.Count} total).";
             await SqliteDatabaseService.Instance.UpdatePaymentSyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastPaymentsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastPaymentsSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             PaymentsSyncDetailText.Text = statusMsg;
             PaymentsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
+
             ShowToast(statusMsg);
         }
         catch (Exception ex)
@@ -1180,33 +1036,7 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetPaymentsSyncLoadingState(false);
-        }
-    }
-
-    private void SetPaymentsSyncLoadingState(bool isLoading)
-    {
-        if (isLoading)
-        {
-            SyncPaymentsNowBtn.IsEnabled = false;
-            SettingsPaymentSyncButtonText.Text = "Syncing Payments...";
-            PaymentsSyncProgressBar.Visibility = Visibility.Visible;
-            var spinAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = 360,
-                Duration = TimeSpan.FromSeconds(0.9),
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            SettingsPaymentSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
-        }
-        else
-        {
-            SettingsPaymentSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsPaymentSyncIconRotation.Angle = 0;
-            SettingsPaymentSyncButtonText.Text = "Sync Payments Now";
-            PaymentsSyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncPaymentsNowBtn.IsEnabled = true;
+            SetButtonSpinAnimation(SyncPaymentsNowBtn, SettingsPaymentSyncIconRotation, PaymentsSyncProgressBar, SettingsPaymentSyncButtonText, false, "Syncing...", "Sync Payments");
         }
     }
 
@@ -1214,25 +1044,24 @@ public partial class MainShellView : UserControl
     {
         try
         {
-            SetPosConfigsSyncLoadingState(true);
-            PosConfigsSyncDetailText.Text = "Connecting to Odoo & synchronizing pos.config...";
+            SetButtonSpinAnimation(SyncPosConfigsNowBtn, SettingsPosConfigSyncIconRotation, PosConfigsSyncProgressBar, SettingsPosConfigSyncButtonText, true, "Syncing...", "Sync Shops");
+            PosConfigsSyncDetailText.Text = "Connecting to Odoo & reconciling pos.config...";
             PosConfigsSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
 
-            var odooConfigs = await OdooSyncService.Instance.FetchOdooPosConfigsAsync(allowOfflineSimulation: true);
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var odooConfigs = await OdooSyncService.Instance.FetchOdooPosConfigsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooPosConfigsAsync(odooConfigs);
 
-            string syncTime = DateTime.Now.ToString("MMM dd, yyyy hh:mm tt");
-            string statusMsg = deleted > 0
-                ? $"Sync Complete: {imported} imported, {updated} updated, {deleted} removed."
-                : $"Sync Complete: {imported} imported, {updated} updated.";
-
+            string statusMsg = $"POS Shops synced: {imported} added, {updated} updated, {deleted} removed ({odooConfigs.Count} total).";
             await SqliteDatabaseService.Instance.UpdatePosConfigSyncStatusAsync(DateTime.Now, statusMsg);
 
-            LastPosConfigsSyncedStatusText.Text = $"Last Synced: {syncTime}";
+            LastPosConfigsSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             PosConfigsSyncDetailText.Text = statusMsg;
             PosConfigsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
             await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
+            await RefreshDatabaseCountsAsync();
+
             ShowToast(statusMsg);
         }
         catch (Exception ex)
@@ -1243,33 +1072,7 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetPosConfigsSyncLoadingState(false);
-        }
-    }
-
-    private void SetPosConfigsSyncLoadingState(bool isLoading)
-    {
-        if (isLoading)
-        {
-            SyncPosConfigsNowBtn.IsEnabled = false;
-            SettingsPosConfigSyncButtonText.Text = "Syncing Shops...";
-            PosConfigsSyncProgressBar.Visibility = Visibility.Visible;
-            var spinAnim = new DoubleAnimation
-            {
-                From = 0,
-                To = 360,
-                Duration = TimeSpan.FromSeconds(0.9),
-                RepeatBehavior = RepeatBehavior.Forever
-            };
-            SettingsPosConfigSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, spinAnim);
-        }
-        else
-        {
-            SettingsPosConfigSyncIconRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            SettingsPosConfigSyncIconRotation.Angle = 0;
-            SettingsPosConfigSyncButtonText.Text = "Sync POS Shops Now";
-            PosConfigsSyncProgressBar.Visibility = Visibility.Collapsed;
-            SyncPosConfigsNowBtn.IsEnabled = true;
+            SetButtonSpinAnimation(SyncPosConfigsNowBtn, SettingsPosConfigSyncIconRotation, PosConfigsSyncProgressBar, SettingsPosConfigSyncButtonText, false, "Syncing...", "Sync Shops");
         }
     }
 

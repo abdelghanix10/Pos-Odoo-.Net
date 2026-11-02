@@ -17,7 +17,6 @@
     </UserControl.DataContext>
 
     <UserControl.Resources>
-        <!-- Colors -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
@@ -47,7 +46,6 @@
                           Color="#111827"
                           Opacity="0.05"/>
 
-        <!-- Primary Purple Button Style -->
         <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -82,7 +80,6 @@
             </Setter>
         </Style>
 
-        <!-- Teal Action Button Style -->
         <Style x:Key="OdooTealButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooTealBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -113,7 +110,6 @@
             </Setter>
         </Style>
 
-        <!-- Pager Chevron Button Style -->
         <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="30"/>
             <Setter Property="Height" Value="30"/>
@@ -146,7 +142,6 @@
             </Setter>
         </Style>
 
-        <!-- Smart Stat Button Style -->
         <Style x:Key="SmartStatButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
@@ -176,7 +171,6 @@
             </Setter>
         </Style>
 
-        <!-- Table Row Button Style -->
         <Style x:Key="TableRowButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderLightBrush}"/>
@@ -207,15 +201,11 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <!-- Row 0: Top Standardized Control Bar -->
             <RowDefinition Height="Auto"/>
-            <!-- Row 1: Main Content (List View or Detail View) -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ======================================================================= -->
-        <!-- 1. TOP STANDARDIZED CONTROL BAR                                         -->
-        <!-- ======================================================================= -->
+        <!-- 1. TOP CONTROL BAR -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -223,15 +213,11 @@
                 Padding="24,12">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <!-- Left: Sync Button & Breadcrumb -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Center: Search Bar -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Right: Detail Pager (< >) -->
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT: Sync from Odoo Button & Title / Breadcrumb -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource OdooPrimaryButtonStyle}"
                             Command="{Binding SyncSessionsCommand}"
@@ -270,7 +256,6 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Breadcrumbs -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Background="Transparent"
                                 BorderThickness="0"
@@ -284,7 +269,6 @@
                                        VerticalAlignment="Center"/>
                         </Button>
 
-                        <!-- Sub-title if Detail View -->
                         <StackPanel Orientation="Horizontal"
                                     Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                             <TextBlock Text=" / "
@@ -301,7 +285,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER: Clean Search Bar -->
+                <!-- CENTER SEARCH BAR -->
                 <Border Grid.Column="1"
                         Background="#F3F4F6"
                         BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -317,7 +301,6 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Search Icon -->
                         <Viewbox Grid.Column="0" Width="15" Height="15" Margin="0,0,8,0">
                             <Canvas Width="24" Height="24">
                                 <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13"
@@ -340,7 +323,7 @@
                     </Grid>
                 </Border>
 
-                <!-- RIGHT: Detail View Pager (< >) -->
+                <!-- RIGHT PAGER -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
@@ -378,11 +361,9 @@
             </Grid>
         </Border>
 
-        <!-- ======================================================================= -->
-        <!-- 2. MAIN WORKSPACE AREA                                                  -->
-        <!-- ======================================================================= -->
+        <!-- 2. MAIN WORKSPACE AREA -->
         <Grid Grid.Row="1">
-            <!-- ==================== VIEW 1: SESSIONS LIST VIEW ==================== -->
+            <!-- VIEW 1: SESSIONS LIST VIEW -->
             <Grid Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}"
                   Margin="24,20">
                 <Border Background="{StaticResource SurfaceCardBrush}"
@@ -392,13 +373,10 @@
                         Effect="{StaticResource SubtleCardShadow}">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <!-- Table Header -->
                             <RowDefinition Height="Auto"/>
-                            <!-- Table Data Rows -->
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <!-- TABLE HEADER -->
                         <Border Grid.Row="0"
                                 Background="#F9FAFB"
                                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -424,99 +402,109 @@
                             </Grid>
                         </Border>
 
-                        <!-- TABLE BODY -->
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding FilteredSessions}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Button Style="{StaticResource TableRowButtonStyle}"
-                                                Command="{Binding DataContext.SelectSessionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="2*"/>
-                                                    <ColumnDefinition Width="2*"/>
-                                                    <ColumnDefinition Width="2.5*"/>
-                                                    <ColumnDefinition Width="2*"/>
-                                                    <ColumnDefinition Width="2*"/>
-                                                    <ColumnDefinition Width="1.5*"/>
-                                                </Grid.ColumnDefinitions>
+                        <Grid Grid.Row="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding FilteredSessions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource TableRowButtonStyle}"
+                                                    Command="{Binding DataContext.SelectSessionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="2.5*"/>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="1.5*"/>
+                                                    </Grid.ColumnDefinitions>
 
-                                                <!-- Session ID -->
-                                                <TextBlock Grid.Column="0"
-                                                           Text="{Binding Name}"
-                                                           FontWeight="Bold"
-                                                           FontSize="13.5"
-                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                           VerticalAlignment="Center"/>
-
-                                                <!-- Point of Sale -->
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding PosConfigName}"
-                                                           FontSize="13.5"
-                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                           VerticalAlignment="Center"/>
-
-                                                <!-- Opened By (Avatar / Initials + Name) -->
-                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <Border Width="26" Height="26" CornerRadius="13"
-                                                            Background="{StaticResource OdooPurpleSoftBrush}"
-                                                            Margin="0,0,8,0">
-                                                        <TextBlock Text="{Binding UserInitials}"
-                                                                   FontSize="11"
-                                                                   FontWeight="Bold"
-                                                                   Foreground="{StaticResource OdooPurpleBrush}"
-                                                                   HorizontalAlignment="Center"
-                                                                   VerticalAlignment="Center"/>
-                                                    </Border>
-                                                    <TextBlock Text="{Binding UserName}"
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{Binding Name}"
+                                                               FontWeight="Bold"
                                                                FontSize="13.5"
                                                                Foreground="{StaticResource PrimaryTextBrush}"
                                                                VerticalAlignment="Center"/>
-                                                </StackPanel>
 
-                                                <!-- Opening Date -->
-                                                <TextBlock Grid.Column="3"
-                                                           Text="{Binding StartAtDisplay}"
-                                                           FontSize="13"
-                                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                                           VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding PosConfigName}"
+                                                               FontSize="13.5"
+                                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                                               VerticalAlignment="Center"/>
 
-                                                <!-- Closing Date -->
-                                                <TextBlock Grid.Column="4"
-                                                           Text="{Binding StopAtDisplay}"
-                                                           FontSize="13"
-                                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                                           VerticalAlignment="Center"/>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Border Width="26" Height="26" CornerRadius="13"
+                                                                Background="{StaticResource OdooPurpleSoftBrush}"
+                                                                Margin="0,0,8,0">
+                                                            <TextBlock Text="{Binding UserInitials}"
+                                                                       FontSize="11"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="{StaticResource OdooPurpleBrush}"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding UserName}"
+                                                                   FontSize="13.5"
+                                                                   Foreground="{StaticResource PrimaryTextBrush}"
+                                                                   VerticalAlignment="Center"/>
+                                                    </StackPanel>
 
-                                                <!-- Status Badge -->
-                                                <Border Grid.Column="5"
-                                                        HorizontalAlignment="Right"
-                                                        Background="{Binding StatusSoftBrush}"
-                                                        CornerRadius="12"
-                                                        Padding="10,4">
-                                                    <TextBlock Text="{Binding StateDisplay}"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{Binding StatusBrush}"/>
-                                                </Border>
-                                            </Grid>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                                                    <TextBlock Grid.Column="3"
+                                                               Text="{Binding StartAtDisplay}"
+                                                               FontSize="13"
+                                                               Foreground="{StaticResource SecondaryTextBrush}"
+                                                               VerticalAlignment="Center"/>
+
+                                                    <TextBlock Grid.Column="4"
+                                                               Text="{Binding StopAtDisplay}"
+                                                               FontSize="13"
+                                                               Foreground="{StaticResource SecondaryTextBrush}"
+                                                               VerticalAlignment="Center"/>
+
+                                                    <Border Grid.Column="5"
+                                                            HorizontalAlignment="Right"
+                                                            Background="{Binding StatusSoftBrush}"
+                                                            CornerRadius="12"
+                                                            Padding="10,4">
+                                                        <TextBlock Text="{Binding StateDisplay}"
+                                                                   FontSize="12"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{Binding StatusBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <!-- EMPTY STATE PLACEHOLDER -->
+                            <StackPanel HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsEmptyStateVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                <TextBlock Text="No POS Sessions Synchronized Yet"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,0,6"/>
+                                <TextBlock Text="Click 'Sync from Odoo' above to pull register sessions and cash balances."
+                                           FontSize="13"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </Border>
             </Grid>
 
-            <!-- ==================== VIEW 2: SESSION DETAIL / FORM VIEW ==================== -->
+            <!-- VIEW 2: SESSION DETAIL VIEW -->
             <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
                           VerticalScrollBarVisibility="Auto"
                           Padding="24,20">
                 <StackPanel MaxWidth="1100" HorizontalAlignment="Stretch">
 
-                    <!-- TOP ACTION & PIPELINE SUB-HEADER BAR -->
                     <Border Background="{StaticResource SurfaceCardBrush}"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -526,15 +514,11 @@
                             Effect="{StaticResource SubtleCardShadow}">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <!-- Left Action: Continue Selling -->
                                 <ColumnDefinition Width="Auto"/>
-                                <!-- Spacer -->
                                 <ColumnDefinition Width="*"/>
-                                <!-- Right: Status Pipeline -->
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- Left: Continue Selling (visible when in progress or opening control) -->
                             <Button Grid.Column="0"
                                     Style="{StaticResource OdooTealButtonStyle}"
                                     Command="{Binding ContinueSellingCommand}"
@@ -549,9 +533,7 @@
                                 </StackPanel>
                             </Button>
 
-                            <!-- Right: Status Segmented Pipeline -->
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                <!-- Opening Control -->
                                 <Border Background="{Binding SelectedSession.IsStageOpeningControl, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
                                         Padding="10,4" CornerRadius="4,0,0,4">
                                     <TextBlock Text="Opening Control" FontSize="12.5" FontWeight="SemiBold"
@@ -559,7 +541,6 @@
                                 </Border>
                                 <TextBlock Text=" > " Foreground="{StaticResource PlaceholderTextBrush}" VerticalAlignment="Center" Margin="2,0"/>
 
-                                <!-- In Progress -->
                                 <Border Background="{Binding SelectedSession.IsStageInProgress, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
                                         Padding="10,4">
                                     <TextBlock Text="In Progress" FontSize="12.5" FontWeight="SemiBold"
@@ -567,7 +548,6 @@
                                 </Border>
                                 <TextBlock Text=" > " Foreground="{StaticResource PlaceholderTextBrush}" VerticalAlignment="Center" Margin="2,0"/>
 
-                                <!-- Closing Control -->
                                 <Border Background="{Binding SelectedSession.IsStageClosingControl, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
                                         Padding="10,4">
                                     <TextBlock Text="Closing Control" FontSize="12.5" FontWeight="SemiBold"
@@ -575,7 +555,6 @@
                                 </Border>
                                 <TextBlock Text=" > " Foreground="{StaticResource PlaceholderTextBrush}" VerticalAlignment="Center" Margin="2,0"/>
 
-                                <!-- Closed & Posted -->
                                 <Border Background="{Binding SelectedSession.IsStageClosed, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
                                         Padding="10,4" CornerRadius="0,4,4,0">
                                     <TextBlock Text="Closed &amp; Posted" FontSize="12.5" FontWeight="SemiBold"
@@ -585,7 +564,6 @@
                         </Grid>
                     </Border>
 
-                    <!-- MAIN SHEET CARD -->
                     <Border Background="{StaticResource SurfaceCardBrush}"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -593,14 +571,12 @@
                             Padding="32,28"
                             Effect="{StaticResource SubtleCardShadow}">
                         <StackPanel>
-                            <!-- SHEET HEADER: Large Title & Smart Buttons -->
                             <Grid Margin="0,0,0,24">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Title Area -->
                                 <StackPanel Grid.Column="0">
                                     <TextBlock Text="Session"
                                                FontSize="13"
@@ -613,15 +589,12 @@
                                                Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </StackPanel>
 
-                                <!-- Right: Smart Stat Buttons (Orders & Payments) -->
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <!-- Orders Smart Button -->
                                     <Button Style="{StaticResource SmartStatButtonStyle}"
                                             Command="{Binding ViewOrdersCommand}"
                                             ToolTip="View Orders for this Session"
                                             Margin="0,0,10,0">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <!-- Basket Icon -->
                                             <Viewbox Width="20" Height="20" Margin="0,0,10,0">
                                                 <Canvas Width="24" Height="24">
                                                     <Path Data="M 19,7 L 5,7 L 3,19 C 3,20.1 3.9,21 5,21 L 19,21 C 20.1,21 21,20.1 21,19 L 19,7 Z"
@@ -645,12 +618,10 @@
                                         </StackPanel>
                                     </Button>
 
-                                    <!-- Payments Smart Button -->
                                     <Button Style="{StaticResource SmartStatButtonStyle}"
                                             Command="{Binding ViewPaymentsCommand}"
                                             ToolTip="View Payments for this Session">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <!-- Dollar/Banknotes Icon -->
                                             <Viewbox Width="20" Height="20" Margin="0,0,10,0">
                                                 <Canvas Width="24" Height="24">
                                                     <Rectangle Canvas.Left="2" Canvas.Top="5" Width="20" Height="14" RadiusX="2" RadiusY="2"
@@ -677,20 +648,14 @@
 
                             <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,24"/>
 
-                            <!-- 2-COLUMN INFO GRID -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <!-- Column 0: Left Column -->
                                     <ColumnDefinition Width="*"/>
-                                    <!-- Column 1: Middle Divider Spacing -->
                                     <ColumnDefinition Width="48"/>
-                                    <!-- Column 2: Right Column -->
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- LEFT COLUMN -->
                                 <StackPanel Grid.Column="0">
-                                    <!-- Opened By -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140"/>
@@ -716,7 +681,6 @@
                                         </StackPanel>
                                     </Grid>
 
-                                    <!-- Point of Sale Config -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140"/>
@@ -726,7 +690,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedSession.PosConfigName}" FontSize="14" FontWeight="Medium" Foreground="{StaticResource PrimaryTextBrush}"/>
                                     </Grid>
 
-                                    <!-- Opening Date -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140"/>
@@ -736,7 +699,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedSession.StartAtDisplay}" FontSize="14" Foreground="{StaticResource PrimaryTextBrush}"/>
                                     </Grid>
 
-                                    <!-- Closing Date (Shown only when session is closed) -->
                                     <Grid Margin="0,0,0,16"
                                           Visibility="{Binding SelectedSession.ShowClosingDate, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                                         <Grid.ColumnDefinitions>
@@ -747,7 +709,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedSession.StopAtDisplay}" FontSize="14" Foreground="{StaticResource PrimaryTextBrush}"/>
                                     </Grid>
 
-                                    <!-- Employees -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140"/>
@@ -758,9 +719,7 @@
                                     </Grid>
                                 </StackPanel>
 
-                                <!-- RIGHT COLUMN: BALANCES & TOTALS -->
                                 <StackPanel Grid.Column="2">
-                                    <!-- Opening Balance -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140"/>
@@ -770,7 +729,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedSession.OpeningBalanceDisplay}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
                                     </Grid>
 
-                                    <!-- Closing Balance -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140"/>
@@ -780,7 +738,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedSession.ClosingBalanceDisplay}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
                                     </Grid>
 
-                                    <!-- Total Payments -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140"/>
@@ -790,7 +747,6 @@
                                         <TextBlock Grid.Column="1" Text="{Binding SelectedSession.TotalPaymentsAmountDisplay}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource OdooTealBrush}"/>
                                     </Grid>
 
-                                    <!-- State Indicator -->
                                     <Grid Margin="0,0,0,16">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140"/>

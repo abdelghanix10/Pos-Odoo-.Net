@@ -17,7 +17,6 @@
     </UserControl.DataContext>
 
     <UserControl.Resources>
-        <!-- Colors -->
         <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
         <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
@@ -46,7 +45,6 @@
                           Color="#111827"
                           Opacity="0.05"/>
 
-        <!-- Primary Purple Button Style -->
         <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -81,7 +79,6 @@
             </Setter>
         </Style>
 
-        <!-- Pager Chevron Button Style -->
         <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
             <Setter Property="Width" Value="30"/>
             <Setter Property="Height" Value="30"/>
@@ -114,7 +111,6 @@
             </Setter>
         </Style>
 
-        <!-- Group Header Button Style -->
         <Style x:Key="GroupHeaderButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#F9FAFB"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
@@ -142,7 +138,6 @@
             </Setter>
         </Style>
 
-        <!-- Table Row Button Style -->
         <Style x:Key="TableRowButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderLightBrush}"/>
@@ -173,15 +168,11 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <!-- Row 0: Top Standardized Control Bar -->
             <RowDefinition Height="Auto"/>
-            <!-- Row 1: Main Content (List View or Detail View) -->
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ======================================================================= -->
-        <!-- 1. TOP STANDARDIZED CONTROL BAR                                         -->
-        <!-- ======================================================================= -->
+        <!-- 1. TOP CONTROL BAR -->
         <Border Grid.Row="0"
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -189,15 +180,11 @@
                 Padding="24,12">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <!-- Left: Sync Button & Breadcrumb -->
                     <ColumnDefinition Width="Auto"/>
-                    <!-- Center: Search Bar -->
                     <ColumnDefinition Width="*"/>
-                    <!-- Right: Detail Pager (< >) -->
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT: Sync from Odoo Button & Breadcrumb -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource OdooPrimaryButtonStyle}"
                             Command="{Binding SyncPaymentsCommand}"
@@ -236,7 +223,6 @@
                         </StackPanel>
                     </Button>
 
-                    <!-- Breadcrumbs -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Background="Transparent"
                                 BorderThickness="0"
@@ -250,7 +236,6 @@
                                        VerticalAlignment="Center"/>
                         </Button>
 
-                        <!-- Filter Pill if filtered by Session -->
                         <Border Background="{StaticResource OdooPurpleSoftBrush}"
                                 CornerRadius="12"
                                 Margin="12,0,0,0"
@@ -264,7 +249,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Sub-title if Detail View -->
                         <StackPanel Orientation="Horizontal"
                                     Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                             <TextBlock Text=" / "
@@ -281,7 +265,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER: Clean Search Bar -->
+                <!-- CENTER SEARCH BAR -->
                 <Border Grid.Column="1"
                         Background="#F3F4F6"
                         BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -297,7 +281,6 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Search Icon -->
                         <Viewbox Grid.Column="0" Width="15" Height="15" Margin="0,0,8,0">
                             <Canvas Width="24" Height="24">
                                 <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13"
@@ -320,7 +303,7 @@
                     </Grid>
                 </Border>
 
-                <!-- RIGHT: Detail View Pager (< >) -->
+                <!-- RIGHT PAGER -->
                 <StackPanel Grid.Column="2"
                             Orientation="Horizontal"
                             VerticalAlignment="Center"
@@ -358,11 +341,9 @@
             </Grid>
         </Border>
 
-        <!-- ======================================================================= -->
-        <!-- 2. MAIN WORKSPACE AREA                                                  -->
-        <!-- ======================================================================= -->
+        <!-- 2. MAIN WORKSPACE AREA -->
         <Grid Grid.Row="1">
-            <!-- ==================== VIEW 1: GROUPED COLLAPSIBLE LIST VIEW ==================== -->
+            <!-- VIEW 1: GROUPED COLLAPSIBLE LIST VIEW -->
             <Grid Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}"
                   Margin="24,20">
                 <Border Background="{StaticResource SurfaceCardBrush}"
@@ -372,15 +353,11 @@
                         Effect="{StaticResource SubtleCardShadow}">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <!-- Table Header -->
                             <RowDefinition Height="Auto"/>
-                            <!-- Table Grouped Rows -->
                             <RowDefinition Height="*"/>
-                            <!-- Table Footer (Grand Total) -->
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <!-- TABLE HEADER -->
                         <Border Grid.Row="0"
                                 Background="#F9FAFB"
                                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -404,112 +381,118 @@
                             </Grid>
                         </Border>
 
-                        <!-- TABLE BODY: GROUPED PAYMENTS -->
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding GroupedPayments}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel>
-                                            <!-- Group Collapsible Header -->
-                                            <Button Style="{StaticResource GroupHeaderButtonStyle}"
-                                                    Command="{Binding DataContext.ToggleGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                    CommandParameter="{Binding}">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
+                        <Grid Grid.Row="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding GroupedPayments}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <Button Style="{StaticResource GroupHeaderButtonStyle}"
+                                                        Command="{Binding DataContext.ToggleGroupCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
 
-                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <!-- Chevron icon -->
-                                                        <TextBlock Text="{Binding HeaderChevron}"
-                                                                   FontWeight="Bold"
-                                                                   FontSize="13"
-                                                                   Foreground="{StaticResource OdooPurpleBrush}"
-                                                                   Margin="0,0,8,0"/>
-                                                        <!-- Group Name & Records Count -->
-                                                        <TextBlock Text="{Binding HeaderLabel}"
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding HeaderChevron}"
+                                                                       FontWeight="Bold"
+                                                                       FontSize="13"
+                                                                       Foreground="{StaticResource OdooPurpleBrush}"
+                                                                       Margin="0,0,8,0"/>
+                                                            <TextBlock Text="{Binding HeaderLabel}"
+                                                                       FontWeight="Bold"
+                                                                       FontSize="13.5"
+                                                                       Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                        </StackPanel>
+
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding SubtotalDisplay}"
                                                                    FontWeight="Bold"
                                                                    FontSize="13.5"
                                                                    Foreground="{StaticResource PrimaryTextBrush}"/>
-                                                    </StackPanel>
+                                                    </Grid>
+                                                </Button>
 
-                                                    <!-- Subtotal for Group -->
-                                                    <TextBlock Grid.Column="1"
-                                                               Text="{Binding SubtotalDisplay}"
-                                                               FontWeight="Bold"
-                                                               FontSize="13.5"
-                                                               Foreground="{StaticResource PrimaryTextBrush}"/>
-                                                </Grid>
-                                            </Button>
+                                                <ItemsControl ItemsSource="{Binding Payments}"
+                                                              Visibility="{Binding IsExpanded, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Style="{StaticResource TableRowButtonStyle}"
+                                                                    Command="{Binding DataContext.SelectPaymentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding}">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="2.2*"/>
+                                                                        <ColumnDefinition Width="2*"/>
+                                                                        <ColumnDefinition Width="2.5*"/>
+                                                                        <ColumnDefinition Width="2*"/>
+                                                                        <ColumnDefinition Width="1.8*"/>
+                                                                    </Grid.ColumnDefinitions>
 
-                                            <!-- Group Children Rows -->
-                                            <ItemsControl ItemsSource="{Binding Payments}"
-                                                          Visibility="{Binding IsExpanded, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Button Style="{StaticResource TableRowButtonStyle}"
-                                                                Command="{Binding DataContext.SelectPaymentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                CommandParameter="{Binding}">
-                                                            <Grid>
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="2.2*"/>
-                                                                    <ColumnDefinition Width="2*"/>
-                                                                    <ColumnDefinition Width="2.5*"/>
-                                                                    <ColumnDefinition Width="2*"/>
-                                                                    <ColumnDefinition Width="1.8*"/>
-                                                                </Grid.ColumnDefinitions>
+                                                                    <TextBlock Grid.Column="0"
+                                                                               Text="{Binding PaymentDateDisplay}"
+                                                                               FontSize="13"
+                                                                               Foreground="{StaticResource SecondaryTextBrush}"
+                                                                               VerticalAlignment="Center"/>
 
-                                                                <!-- Date -->
-                                                                <TextBlock Grid.Column="0"
-                                                                           Text="{Binding PaymentDateDisplay}"
-                                                                           FontSize="13"
-                                                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                                                           VerticalAlignment="Center"/>
+                                                                    <Border Grid.Column="1" HorizontalAlignment="Left" Background="{StaticResource OdooTealSoftBrush}" CornerRadius="10" Padding="8,3">
+                                                                        <TextBlock Text="{Binding PaymentMethodName}"
+                                                                                   FontSize="12"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Foreground="{StaticResource OdooTealBrush}"/>
+                                                                    </Border>
 
-                                                                <!-- Method -->
-                                                                <Border Grid.Column="1" HorizontalAlignment="Left" Background="{StaticResource OdooTealSoftBrush}" CornerRadius="10" Padding="8,3">
-                                                                    <TextBlock Text="{Binding PaymentMethodName}"
-                                                                               FontSize="12"
+                                                                    <TextBlock Grid.Column="2"
+                                                                               Text="{Binding OrderName}"
                                                                                FontWeight="SemiBold"
-                                                                               Foreground="{StaticResource OdooTealBrush}"/>
-                                                                </Border>
+                                                                               FontSize="13.5"
+                                                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                                                               VerticalAlignment="Center"/>
 
-                                                                <!-- Order -->
-                                                                <TextBlock Grid.Column="2"
-                                                                           Text="{Binding OrderName}"
-                                                                           FontWeight="SemiBold"
-                                                                           FontSize="13.5"
-                                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                                           VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="3"
+                                                                               Text="{Binding CashierName}"
+                                                                               FontSize="13"
+                                                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                                                               VerticalAlignment="Center"/>
 
-                                                                <!-- Cashier -->
-                                                                <TextBlock Grid.Column="3"
-                                                                           Text="{Binding CashierName}"
-                                                                           FontSize="13"
-                                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                                           VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="4"
+                                                                               Text="{Binding AmountDisplay}"
+                                                                               FontWeight="Bold"
+                                                                               FontSize="13.5"
+                                                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                                                               TextAlignment="Right"
+                                                                               VerticalAlignment="Center"/>
+                                                                </Grid>
+                                                            </Button>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
 
-                                                                <!-- Amount -->
-                                                                <TextBlock Grid.Column="4"
-                                                                           Text="{Binding AmountDisplay}"
-                                                                           FontWeight="Bold"
-                                                                           FontSize="13.5"
-                                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                                           TextAlignment="Right"
-                                                                           VerticalAlignment="Center"/>
-                                                            </Grid>
-                                                        </Button>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                            <!-- EMPTY STATE PLACEHOLDER -->
+                            <StackPanel HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Visibility="{Binding IsEmptyStateVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                <TextBlock Text="No Payments Synchronized Yet"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,0,6"/>
+                                <TextBlock Text="Click 'Sync from Odoo' above to pull POS payment transactions."
+                                           FontSize="13"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
 
-                        <!-- TABLE FOOTER: GRAND TOTAL -->
                         <Border Grid.Row="2"
                                 Background="#F9FAFB"
                                 BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -545,12 +528,11 @@
                 </Border>
             </Grid>
 
-            <!-- ==================== VIEW 2: PAYMENT DETAIL / CARD VIEW ==================== -->
+            <!-- VIEW 2: PAYMENT DETAIL VIEW -->
             <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
                           VerticalScrollBarVisibility="Auto"
                           Padding="24,20">
                 <StackPanel MaxWidth="800" HorizontalAlignment="Stretch">
-                    <!-- MAIN SHEET CARD -->
                     <Border Background="{StaticResource SurfaceCardBrush}"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -558,7 +540,6 @@
                             Padding="36,30"
                             Effect="{StaticResource SubtleCardShadow}">
                         <StackPanel>
-                            <!-- Header Title -->
                             <StackPanel Margin="0,0,0,24">
                                 <TextBlock Text="Payment"
                                            FontSize="13"
@@ -573,9 +554,7 @@
 
                             <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,24"/>
 
-                            <!-- Fields List -->
                             <StackPanel>
-                                <!-- Session -->
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>
@@ -585,7 +564,6 @@
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.SessionName}" FontSize="14.5" FontWeight="SemiBold" Foreground="{StaticResource OdooPurpleBrush}"/>
                                 </Grid>
 
-                                <!-- Order -->
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>
@@ -595,7 +573,6 @@
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.OrderName}" FontSize="14.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </Grid>
 
-                                <!-- Amount -->
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>
@@ -605,7 +582,6 @@
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.AmountDisplay}" FontSize="14.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </Grid>
 
-                                <!-- Currency -->
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>
@@ -615,7 +591,6 @@
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.CurrencyName}" FontSize="14" Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </Grid>
 
-                                <!-- Amount in currency -->
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>
@@ -625,7 +600,6 @@
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.AmountDisplay}" FontSize="14" Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </Grid>
 
-                                <!-- Foreign Currency -->
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>
@@ -635,7 +609,6 @@
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.ForeignCurrency}" FontSize="14" Foreground="{StaticResource SecondaryTextBrush}"/>
                                 </Grid>
 
-                                <!-- Payment Method -->
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>
@@ -647,7 +620,6 @@
                                     </Border>
                                 </Grid>
 
-                                <!-- Cashier -->
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>
@@ -657,7 +629,6 @@
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.CashierName}" FontSize="14" Foreground="{StaticResource PrimaryTextBrush}"/>
                                 </Grid>
 
-                                <!-- Payment Date -->
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="180"/>

@@ -25,7 +25,7 @@ public partial class ProductsViewModel : ViewModelBase
     private int _activeTabIndex = 1; // 1: General, 2: Attributes, 3: Combos
 
     [ObservableProperty]
-    private string _pagerText = "1 / 1";
+    private string _pagerText = "0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -46,7 +46,10 @@ public partial class ProductsViewModel : ViewModelBase
     private bool _isToastVisible;
 
     [ObservableProperty]
-    private string _toastSeverity = "Success"; // "Success", "Warning", "Error"
+    private string _toastSeverity = "Success";
+
+    [ObservableProperty]
+    private bool _isEmptyStateVisible;
 
     public event EventHandler? ProductsUpdated;
 
@@ -104,8 +107,18 @@ public partial class ProductsViewModel : ViewModelBase
             FilteredProducts.Add(p);
         }
 
+        IsEmptyStateVisible = FilteredProducts.Count == 0;
+
         if (IsDetailViewVisible)
         {
+            if (SelectedProduct != null && !FilteredProducts.Contains(SelectedProduct))
+            {
+                SelectedProduct = FilteredProducts.FirstOrDefault();
+                if (SelectedProduct == null)
+                {
+                    IsDetailViewVisible = false;
+                }
+            }
             UpdatePager();
         }
     }
@@ -188,19 +201,20 @@ public partial class ProductsViewModel : ViewModelBase
     [RelayCommand]
     public async Task SyncFromOdooAsync()
     {
+        if (IsSyncing) return;
         IsSyncing = true;
         SyncButtonText = "Syncing...";
 
         try
         {
             var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-            if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) || string.IsNullOrWhiteSpace(config.DatabaseName))
             {
-                ShowToast("Odoo connection not configured in Settings.", "Warning");
+                ShowToast("Odoo connection is not configured in Settings.", "Warning");
                 return;
             }
 
-            var products = await OdooSyncService.Instance.FetchOdooProductsAsync(config, allowOfflineSimulation: true);
+            var products = await OdooSyncService.Instance.FetchOdooProductsAsync(config);
             var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooProductsAsync(products);
             await SqliteDatabaseService.Instance.UpdateProductSyncStatusAsync(DateTime.Now, "Success");
 

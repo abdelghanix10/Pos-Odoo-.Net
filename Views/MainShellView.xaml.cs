@@ -9,8 +9,8 @@ namespace OdooPosLogin;
 public partial class MainShellView : UserControl
 {
     private bool _isSidebarCollapsed = false;
-    private readonly double _expandedSidebarWidth = 190.0;
-    private readonly double _collapsedSidebarWidth = 56.0;
+    private readonly double _expandedSidebarWidth = 212.0;
+    private readonly double _collapsedSidebarWidth = 64.0;
 
     private bool _isPasswordRevealed = false;
     private readonly DispatcherTimer _toastTimer;
@@ -20,6 +20,8 @@ public partial class MainShellView : UserControl
 
     public string CurrentUser { get; private set; } = "Administrator";
     public PosDashboardView DashboardControl => DashboardViewControl;
+    public CompanyManagementView CompaniesControl => CompaniesViewControl;
+    public PaymentMethodManagementView PaymentMethodsControl => PaymentMethodsViewControl;
     public UserManagementView UsersControl => UsersViewControl;
     public PosCategoryManagementView CategoriesControl => CategoriesViewControl;
     public ProductAttributeManagementView AttributesControl => AttributesViewControl;
@@ -41,7 +43,6 @@ public partial class MainShellView : UserControl
             ShellToastBanner.Visibility = Visibility.Collapsed;
         };
 
-        // Hook up UserManagementView "Back to POS" to return to Settings view
         UsersViewControl.RequestCloseToPos += (_, _) =>
         {
             SwitchToSettings();
@@ -85,6 +86,8 @@ public partial class MainShellView : UserControl
         };
 
         // Refresh counts & timestamps when child views trigger their own sync
+        CompaniesViewControl.CompaniesUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
+        PaymentMethodsViewControl.PaymentMethodsUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
         UsersViewControl.UsersUpdated += () => _ = RefreshConfigAndCountsAsync();
         CategoriesViewControl.CategoriesUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
         AttributesViewControl.AttributesUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
@@ -114,7 +117,6 @@ public partial class MainShellView : UserControl
             });
         };
 
-        // Load persisted Odoo configuration and database counts
         _ = LoadSavedConfigAsync();
     }
 
@@ -136,6 +138,16 @@ public partial class MainShellView : UserControl
             LastSyncedStatusText.Text = string.IsNullOrEmpty(config.LastSyncedAt)
                 ? "Last Synced: Never"
                 : $"Last Synced: {config.LastSyncedAt}";
+
+            var lastCompSync = await SqliteDatabaseService.Instance.GetLastCompanySyncStatusAsync();
+            LastCompaniesSyncedStatusText.Text = string.IsNullOrEmpty(lastCompSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastCompSync}";
+
+            var lastPayMethodSync = await SqliteDatabaseService.Instance.GetLastPaymentMethodSyncStatusAsync();
+            LastPaymentMethodsSyncedStatusText.Text = string.IsNullOrEmpty(lastPayMethodSync)
+                ? "Last Synced: Never"
+                : $"Last Synced: {lastPayMethodSync}";
 
             var lastCatSync = await SqliteDatabaseService.Instance.GetLastCategorySyncStatusAsync();
             LastCategoriesSyncedStatusText.Text = string.IsNullOrEmpty(lastCatSync)
@@ -208,6 +220,8 @@ public partial class MainShellView : UserControl
 
             static string FormatCount(int count) => count == 1 ? "1 record" : $"{count} records";
 
+            CompaniesCountBadgeText.Text = FormatCount(counts.CompaniesCount);
+            PaymentMethodsCountBadgeText.Text = FormatCount(counts.PaymentMethodsCount);
             PosConfigsCountBadgeText.Text = FormatCount(counts.PosConfigsCount);
             SessionsCountBadgeText.Text = FormatCount(counts.SessionsCount);
             OrdersCountBadgeText.Text = FormatCount(counts.OrdersCount);
@@ -224,16 +238,18 @@ public partial class MainShellView : UserControl
 
     public async Task ReloadAllChildViewsAsync()
     {
+        await CompaniesViewControl.ReloadCompaniesFromDatabaseAsync(resetDetailView: false);
+        await PaymentMethodsViewControl.ReloadPaymentMethodsFromDatabaseAsync(resetDetailView: false);
         await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
-        await SessionsViewControl.ReloadSessionsFromDatabaseAsync();
-        await OrdersViewControl.ReloadOrdersFromDatabaseAsync();
-        await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync();
-        await ProductsViewControl.ReloadProductsFromDatabaseAsync();
-        await ComboChoicesViewControl.ReloadCombosFromDatabaseAsync();
-        await CategoriesViewControl.ReloadCategoriesFromDatabaseAsync();
-        await AttributesViewControl.ReloadAttributesFromDatabaseAsync();
-        await TagsViewControl.ReloadTagsFromDatabaseAsync();
-        await UsersViewControl.ReloadUsersFromDatabaseAsync();
+        await SessionsViewControl.ReloadSessionsFromDatabaseAsync(resetDetailView: false);
+        await OrdersViewControl.ReloadOrdersFromDatabaseAsync(resetDetailView: false);
+        await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
+        await ProductsViewControl.ReloadProductsFromDatabaseAsync(resetDetailView: false);
+        await ComboChoicesViewControl.ReloadCombosFromDatabaseAsync(resetDetailView: false);
+        await CategoriesViewControl.ReloadCategoriesFromDatabaseAsync(resetDetailView: false);
+        await AttributesViewControl.ReloadAttributesFromDatabaseAsync(resetDetailView: false);
+        await TagsViewControl.ReloadTagsFromDatabaseAsync(resetDetailView: false);
+        await UsersViewControl.ReloadUsersFromDatabaseAsync(resetDetailView: false);
         UsersViewControl.NotifyUsersUpdated();
         await RefreshDatabaseCountsAsync();
     }
@@ -253,6 +269,7 @@ public partial class MainShellView : UserControl
 
         SidebarMenuColumn.Width = new GridLength(_isSidebarCollapsed ? _collapsedSidebarWidth : _expandedSidebarWidth);
 
+        SidebarBrandTitle.Visibility = labelVis;
         SectionRegisterHeader.Visibility = labelVis;
         SectionCatalogHeader.Visibility = labelVis;
         SectionAdminHeader.Visibility = labelVis;
@@ -261,40 +278,47 @@ public partial class MainShellView : UserControl
         SessionsLabel.Visibility = labelVis;
         OrdersLabel.Visibility = labelVis;
         PaymentsLabel.Visibility = labelVis;
+        PaymentMethodsLabel.Visibility = labelVis;
         ProductsLabel.Visibility = labelVis;
         CombosLabel.Visibility = labelVis;
         CategoriesLabel.Visibility = labelVis;
         AttributesLabel.Visibility = labelVis;
         ProductTagsLabel.Visibility = labelVis;
+        CompaniesLabel.Visibility = labelVis;
         UsersLabel.Visibility = labelVis;
         SettingsLabel.Visibility = labelVis;
         LogoutLabel.Visibility = labelVis;
 
         ToggleIconScale.ScaleX = _isSidebarCollapsed ? -1 : 1;
+        SidebarToggleButton.HorizontalAlignment = _isSidebarCollapsed ? HorizontalAlignment.Center : HorizontalAlignment.Right;
         SidebarToggleButton.ToolTip = _isSidebarCollapsed
             ? "Expand Navigation Sidebar (>|)"
             : "Collapse Navigation Sidebar (|<)";
     }
 
     // =========================================================================
-    // 2. PRIMARY NAVIGATION
+    // 2. PRIMARY NAVIGATION (ALWAYS RESETS OPEN DETAIL PAGES BACK TO MAIN VIEW)
     // =========================================================================
     private void NavDashboard_Click(object sender, RoutedEventArgs e) => SwitchToDashboard();
     private void NavSessions_Click(object sender, RoutedEventArgs e) => SwitchToSessions();
     private void NavOrders_Click(object sender, RoutedEventArgs e) => SwitchToOrders();
     private void NavPayments_Click(object sender, RoutedEventArgs e) => SwitchToPayments();
-    private void NavUsers_Click(object sender, RoutedEventArgs e) => SwitchToUsers();
+    private void NavPaymentMethods_Click(object sender, RoutedEventArgs e) => SwitchToPaymentMethods();
     private void NavProducts_Click(object sender, RoutedEventArgs e) => SwitchToProducts();
     private void NavCombos_Click(object sender, RoutedEventArgs e) => SwitchToCombos();
     private void NavCategories_Click(object sender, RoutedEventArgs e) => SwitchToCategories();
     private void NavAttributes_Click(object sender, RoutedEventArgs e) => SwitchToAttributes();
     private void NavProductTags_Click(object sender, RoutedEventArgs e) => SwitchToTags();
+    private void NavCompanies_Click(object sender, RoutedEventArgs e) => SwitchToCompanies();
+    private void NavUsers_Click(object sender, RoutedEventArgs e) => SwitchToUsers();
     private void NavSettings_Click(object sender, RoutedEventArgs e) => SwitchToSettings();
 
     private void HideAllMainViews()
     {
         DashboardViewControl.Visibility = Visibility.Collapsed;
         SettingsViewPanel.Visibility = Visibility.Collapsed;
+        CompaniesViewControl.Visibility = Visibility.Collapsed;
+        PaymentMethodsViewControl.Visibility = Visibility.Collapsed;
         SessionsViewControl.Visibility = Visibility.Collapsed;
         OrdersViewControl.Visibility = Visibility.Collapsed;
         PaymentsViewControl.Visibility = Visibility.Collapsed;
@@ -313,29 +337,25 @@ public partial class MainShellView : UserControl
         Brush purpleBrush = (Brush)FindResource("OdooPurpleBrush");
         Brush primaryTextBrush = (Brush)FindResource("PrimaryTextBrush");
 
-        NavDashboardBtn.Style = NavDashboardBtn == activeButton ? activeStyle : defaultStyle;
-        NavSessionsBtn.Style = NavSessionsBtn == activeButton ? activeStyle : defaultStyle;
-        NavOrdersBtn.Style = NavOrdersBtn == activeButton ? activeStyle : defaultStyle;
-        NavPaymentsBtn.Style = NavPaymentsBtn == activeButton ? activeStyle : defaultStyle;
-        NavUsersBtn.Style = NavUsersBtn == activeButton ? activeStyle : defaultStyle;
-        NavProductsBtn.Style = NavProductsBtn == activeButton ? activeStyle : defaultStyle;
-        NavCombosBtn.Style = NavCombosBtn == activeButton ? activeStyle : defaultStyle;
-        NavCategoriesBtn.Style = NavCategoriesBtn == activeButton ? activeStyle : defaultStyle;
-        NavAttributesBtn.Style = NavAttributesBtn == activeButton ? activeStyle : defaultStyle;
-        NavProductTagsBtn.Style = NavProductTagsBtn == activeButton ? activeStyle : defaultStyle;
-        NavSettingsBtn.Style = NavSettingsBtn == activeButton ? activeStyle : defaultStyle;
+        Button[] allButtons =
+        [
+            NavDashboardBtn, NavSessionsBtn, NavOrdersBtn, NavPaymentsBtn, NavPaymentMethodsBtn,
+            NavProductsBtn, NavCombosBtn, NavCategoriesBtn, NavAttributesBtn, NavProductTagsBtn,
+            NavCompaniesBtn, NavUsersBtn, NavSettingsBtn
+        ];
 
-        DashboardLabel.Foreground = DashboardLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        SessionsLabel.Foreground = SessionsLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        OrdersLabel.Foreground = OrdersLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        PaymentsLabel.Foreground = PaymentsLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        UsersLabel.Foreground = UsersLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        ProductsLabel.Foreground = ProductsLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        CombosLabel.Foreground = CombosLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        CategoriesLabel.Foreground = CategoriesLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        AttributesLabel.Foreground = AttributesLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        ProductTagsLabel.Foreground = ProductTagsLabel == activeLabel ? purpleBrush : primaryTextBrush;
-        SettingsLabel.Foreground = SettingsLabel == activeLabel ? purpleBrush : primaryTextBrush;
+        TextBlock[] allLabels =
+        [
+            DashboardLabel, SessionsLabel, OrdersLabel, PaymentsLabel, PaymentMethodsLabel,
+            ProductsLabel, CombosLabel, CategoriesLabel, AttributesLabel, ProductTagsLabel,
+            CompaniesLabel, UsersLabel, SettingsLabel
+        ];
+
+        foreach (var btn in allButtons)
+            btn.Style = (btn == activeButton) ? activeStyle : defaultStyle;
+
+        foreach (var lbl in allLabels)
+            lbl.Foreground = (lbl == activeLabel) ? purpleBrush : primaryTextBrush;
     }
 
     public void SwitchToDashboard()
@@ -349,73 +369,100 @@ public partial class MainShellView : UserControl
     public void SwitchToSessions()
     {
         HideAllMainViews();
+        SessionsViewControl.VM.ResetToMainList();
         SessionsViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavSessionsBtn, SessionsLabel);
-        _ = SessionsViewControl.ReloadSessionsFromDatabaseAsync();
+        _ = SessionsViewControl.ReloadSessionsFromDatabaseAsync(resetDetailView: true);
     }
 
     public void SwitchToOrders(string? sessionFilter = null)
     {
         HideAllMainViews();
+        OrdersViewControl.VM.ResetToMainList();
         OrdersViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavOrdersBtn, OrdersLabel);
-        _ = OrdersViewControl.ReloadOrdersFromDatabaseAsync(sessionFilter);
+        _ = OrdersViewControl.ReloadOrdersFromDatabaseAsync(sessionFilter, resetDetailView: true);
     }
 
     public void SwitchToPayments(string? sessionFilter = null)
     {
         HideAllMainViews();
+        PaymentsViewControl.VM.ResetToMainList();
         PaymentsViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavPaymentsBtn, PaymentsLabel);
-        _ = PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(sessionFilter);
+        _ = PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(sessionFilter, resetDetailView: true);
     }
 
-    public void SwitchToUsers()
+    public void SwitchToPaymentMethods()
     {
         HideAllMainViews();
-        UsersViewControl.Visibility = Visibility.Visible;
-        SetActiveSidebarButton(NavUsersBtn, UsersLabel);
-        _ = UsersViewControl.ReloadUsersFromDatabaseAsync();
+        PaymentMethodsViewControl.VM.ResetToMainList();
+        PaymentMethodsViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavPaymentMethodsBtn, PaymentMethodsLabel);
+        _ = PaymentMethodsViewControl.ReloadPaymentMethodsFromDatabaseAsync(resetDetailView: true);
     }
 
     public void SwitchToProducts()
     {
         HideAllMainViews();
+        ProductsViewControl.ViewModel.ResetToMainList();
         ProductsViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavProductsBtn, ProductsLabel);
-        _ = ProductsViewControl.ReloadProductsFromDatabaseAsync();
+        _ = ProductsViewControl.ReloadProductsFromDatabaseAsync(resetDetailView: true);
     }
 
     public void SwitchToCombos()
     {
         HideAllMainViews();
+        ComboChoicesViewControl.ViewModel.ResetToMainList();
         ComboChoicesViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavCombosBtn, CombosLabel);
-        _ = ComboChoicesViewControl.ReloadCombosFromDatabaseAsync();
+        _ = ComboChoicesViewControl.ReloadCombosFromDatabaseAsync(resetDetailView: true);
     }
 
     public void SwitchToCategories()
     {
         HideAllMainViews();
+        CategoriesViewControl.ViewModel.ResetToMainList();
         CategoriesViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavCategoriesBtn, CategoriesLabel);
-        _ = CategoriesViewControl.ReloadCategoriesFromDatabaseAsync();
+        _ = CategoriesViewControl.ReloadCategoriesFromDatabaseAsync(resetDetailView: true);
     }
 
     public void SwitchToAttributes()
     {
         HideAllMainViews();
+        AttributesViewControl.ViewModel.ResetToMainList();
         AttributesViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavAttributesBtn, AttributesLabel);
-        _ = AttributesViewControl.ReloadAttributesFromDatabaseAsync();
+        _ = AttributesViewControl.ReloadAttributesFromDatabaseAsync(resetDetailView: true);
     }
 
     public void SwitchToTags()
     {
         HideAllMainViews();
+        TagsViewControl.ViewModel.ResetToMainList();
         TagsViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavProductTagsBtn, ProductTagsLabel);
-        _ = TagsViewControl.ReloadTagsFromDatabaseAsync();
+        _ = TagsViewControl.ReloadTagsFromDatabaseAsync(resetDetailView: true);
+    }
+
+    public void SwitchToCompanies()
+    {
+        HideAllMainViews();
+        CompaniesViewControl.VM.ResetToMainList();
+        CompaniesViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavCompaniesBtn, CompaniesLabel);
+        _ = CompaniesViewControl.ReloadCompaniesFromDatabaseAsync(resetDetailView: true);
+    }
+
+    public void SwitchToUsers()
+    {
+        HideAllMainViews();
+        UsersViewControl.ViewModel.ResetToMainList();
+        UsersViewControl.Visibility = Visibility.Visible;
+        SetActiveSidebarButton(NavUsersBtn, UsersLabel);
+        _ = UsersViewControl.ReloadUsersFromDatabaseAsync(resetDetailView: true);
     }
 
     public void SwitchToSettings()
@@ -633,7 +680,7 @@ public partial class MainShellView : UserControl
     {
         try
         {
-            SetButtonSpinAnimation(SyncAllNowBtn, MasterSyncIconRotation, null, MasterSyncButtonText, true, "Synchronizing All Odoo Data...", "Sync All Data from Odoo");
+            SetButtonSpinAnimation(SyncAllNowBtn, MasterSyncIconRotation, null, MasterSyncButtonText, true, "Synchronizing All 12 Odoo Models...", "Sync All Data from Odoo");
             ClearLocalCacheBtn.IsEnabled = false;
 
             var config = await GetAndSaveCurrentFormConfigAsync();
@@ -655,7 +702,7 @@ public partial class MainShellView : UserControl
 
             var summary = await OdooSyncService.Instance.SyncAllFromOdooAsync(config, progress);
 
-            MasterSyncStepText.Text = "All 10 Odoo Modules Synchronized Successfully";
+            MasterSyncStepText.Text = "All 12 Odoo Modules Synchronized Successfully";
             MasterSyncPercentText.Text = "100%";
             MasterSyncProgressBar.Value = 100;
             MasterSyncSummaryText.Text = summary.Message;
@@ -677,7 +724,7 @@ public partial class MainShellView : UserControl
         }
         finally
         {
-            SetButtonSpinAnimation(SyncAllNowBtn, MasterSyncIconRotation, null, MasterSyncButtonText, false, "Synchronizing All Odoo Data...", "Sync All Data from Odoo");
+            SetButtonSpinAnimation(SyncAllNowBtn, MasterSyncIconRotation, null, MasterSyncButtonText, false, "Synchronizing All 12 Odoo Models...", "Sync All Data from Odoo");
             ClearLocalCacheBtn.IsEnabled = true;
         }
     }
@@ -685,7 +732,7 @@ public partial class MainShellView : UserControl
     private async void ClearLocalCacheBtn_Click(object sender, RoutedEventArgs e)
     {
         var confirm = MessageBox.Show(
-            "Are you sure you want to clear all locally cached POS, Catalog, Order, Session, and User records?\n\nYour Odoo Server connection credentials will be kept intact.",
+            "Are you sure you want to clear all locally cached Companies, POS Shops, Payment Methods, Catalog, Order, Session, and User records?\n\nYour Odoo Server connection credentials will be kept intact.",
             "Clear Local Database",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning);
@@ -712,8 +759,80 @@ public partial class MainShellView : UserControl
     }
 
     // =========================================================================
-    // 7. INDIVIDUAL MODULE SYNCHRONIZATION HANDLERS
+    // 7. INDIVIDUAL MODULE SYNCHRONIZATION HANDLERS (ALL 12 MODELS)
     // =========================================================================
+    private async void SyncCompaniesNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetButtonSpinAnimation(SyncCompaniesNowBtn, SettingsCompanySyncIconRotation, CompaniesSyncProgressBar, SettingsCompanySyncButtonText, true, "Syncing...", "Sync Companies");
+            CompaniesSyncDetailText.Text = "Connecting to Odoo & reconciling res.company...";
+            CompaniesSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
+
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var companies = await OdooSyncService.Instance.FetchOdooCompaniesAsync(config);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooCompaniesAsync(companies);
+
+            string statusMsg = $"Companies synced: {imported} added, {updated} updated, {deleted} removed ({companies.Count} total).";
+            await SqliteDatabaseService.Instance.UpdateCompanySyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastCompaniesSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
+            CompaniesSyncDetailText.Text = statusMsg;
+            CompaniesSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await CompaniesViewControl.ReloadCompaniesFromDatabaseAsync(resetDetailView: false);
+            await RefreshDatabaseCountsAsync();
+
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            CompaniesSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            CompaniesSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetButtonSpinAnimation(SyncCompaniesNowBtn, SettingsCompanySyncIconRotation, CompaniesSyncProgressBar, SettingsCompanySyncButtonText, false, "Syncing...", "Sync Companies");
+        }
+    }
+
+    private async void SyncPaymentMethodsNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            SetButtonSpinAnimation(SyncPaymentMethodsNowBtn, SettingsPayMethodSyncIconRotation, PaymentMethodsSyncProgressBar, SettingsPayMethodSyncButtonText, true, "Syncing...", "Sync Methods");
+            PaymentMethodsSyncDetailText.Text = "Connecting to Odoo & reconciling pos.payment.method...";
+            PaymentMethodsSyncDetailText.Foreground = GetSafeBrush("SecondaryTextBrush", Color.FromRgb(0x6B, 0x72, 0x80));
+
+            var config = await GetAndSaveCurrentFormConfigAsync();
+            var methods = await OdooSyncService.Instance.FetchOdooPaymentMethodsAsync(config);
+            var (imported, updated, deleted) = await SqliteDatabaseService.Instance.UpsertOdooPaymentMethodsAsync(methods);
+
+            string statusMsg = $"Payment methods synced: {imported} added, {updated} updated, {deleted} removed ({methods.Count} total).";
+            await SqliteDatabaseService.Instance.UpdatePaymentMethodSyncStatusAsync(DateTime.Now, statusMsg);
+
+            LastPaymentMethodsSyncedStatusText.Text = $"Last Synced: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
+            PaymentMethodsSyncDetailText.Text = statusMsg;
+            PaymentMethodsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
+
+            await PaymentMethodsViewControl.ReloadPaymentMethodsFromDatabaseAsync(resetDetailView: false);
+            await RefreshDatabaseCountsAsync();
+
+            ShowToast(statusMsg);
+        }
+        catch (Exception ex)
+        {
+            PaymentMethodsSyncDetailText.Text = $"Sync Failed: {ex.Message}";
+            PaymentMethodsSyncDetailText.Foreground = GetSafeBrush("DangerRedBrush", Color.FromRgb(0xDC, 0x26, 0x26));
+            ShowToast($"Sync Failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            SetButtonSpinAnimation(SyncPaymentMethodsNowBtn, SettingsPayMethodSyncIconRotation, PaymentMethodsSyncProgressBar, SettingsPayMethodSyncButtonText, false, "Syncing...", "Sync Methods");
+        }
+    }
+
     private async void SyncUsersNowBtn_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -733,7 +852,7 @@ public partial class MainShellView : UserControl
             SyncDetailText.Text = statusMsg;
             SyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            await UsersViewControl.ReloadUsersFromDatabaseAsync();
+            await UsersViewControl.ReloadUsersFromDatabaseAsync(resetDetailView: false);
             UsersViewControl.NotifyUsersUpdated();
             await RefreshDatabaseCountsAsync();
 
@@ -770,7 +889,7 @@ public partial class MainShellView : UserControl
             CategoriesSyncDetailText.Text = statusMsg;
             CategoriesSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            await CategoriesViewControl.ReloadCategoriesFromDatabaseAsync();
+            await CategoriesViewControl.ReloadCategoriesFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);
@@ -806,7 +925,7 @@ public partial class MainShellView : UserControl
             AttributesSyncDetailText.Text = statusMsg;
             AttributesSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            await AttributesViewControl.ReloadAttributesFromDatabaseAsync();
+            await AttributesViewControl.ReloadAttributesFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);
@@ -842,7 +961,7 @@ public partial class MainShellView : UserControl
             TagsSyncDetailText.Text = statusMsg;
             TagsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            await TagsViewControl.ReloadTagsFromDatabaseAsync();
+            await TagsViewControl.ReloadTagsFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);
@@ -878,7 +997,7 @@ public partial class MainShellView : UserControl
             ProductsSyncDetailText.Text = statusMsg;
             ProductsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            await ProductsViewControl.ReloadProductsFromDatabaseAsync();
+            await ProductsViewControl.ReloadProductsFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);
@@ -914,7 +1033,7 @@ public partial class MainShellView : UserControl
             CombosSyncDetailText.Text = statusMsg;
             CombosSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            await ComboChoicesViewControl.ReloadCombosFromDatabaseAsync();
+            await ComboChoicesViewControl.ReloadCombosFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);
@@ -950,7 +1069,7 @@ public partial class MainShellView : UserControl
             SessionsSyncDetailText.Text = statusMsg;
             SessionsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            await SessionsViewControl.ReloadSessionsFromDatabaseAsync();
+            await SessionsViewControl.ReloadSessionsFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);
@@ -986,8 +1105,8 @@ public partial class MainShellView : UserControl
             OrdersSyncDetailText.Text = statusMsg;
             OrdersSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            await OrdersViewControl.ReloadOrdersFromDatabaseAsync();
-            await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync();
+            await OrdersViewControl.ReloadOrdersFromDatabaseAsync(resetDetailView: false);
+            await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);
@@ -1023,7 +1142,7 @@ public partial class MainShellView : UserControl
             PaymentsSyncDetailText.Text = statusMsg;
             PaymentsSyncDetailText.Foreground = GetSafeBrush("ActiveGreenBrush", Color.FromRgb(0x10, 0xB9, 0x81));
 
-            await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync();
+            await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
 
             ShowToast(statusMsg);

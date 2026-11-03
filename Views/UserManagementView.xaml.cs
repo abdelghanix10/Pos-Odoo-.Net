@@ -31,9 +31,9 @@ public partial class UserManagementView : UserControl
         RefreshPosLoginUsers();
     }
 
-    public async Task ReloadUsersFromDatabaseAsync()
+    public async Task ReloadUsersFromDatabaseAsync(bool resetDetailView = true)
     {
-        await ViewModel.ReloadUsersAsync();
+        await ViewModel.ReloadUsersAsync(resetDetailView);
         RefreshPosLoginUsers();
     }
 

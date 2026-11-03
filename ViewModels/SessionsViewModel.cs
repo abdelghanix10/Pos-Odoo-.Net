@@ -16,6 +16,12 @@ public partial class SessionsViewModel : ViewModelBase
     private string _searchText = string.Empty;
 
     [ObservableProperty]
+    private bool _isListView = true;
+
+    [ObservableProperty]
+    private bool _isKanbanView;
+
+    [ObservableProperty]
     private bool _isDetailViewVisible;
 
     [ObservableProperty]
@@ -23,6 +29,9 @@ public partial class SessionsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _pagerText = "0 / 0";
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -68,10 +77,21 @@ public partial class SessionsViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();
 
-    public async Task ReloadSessionsAsync()
+    public void ResetToMainList()
+    {
+        IsDetailViewVisible = false;
+        UpdatePager();
+    }
+
+    public async Task ReloadSessionsAsync(bool resetDetailView = false)
     {
         try
         {
+            if (resetDetailView)
+            {
+                IsDetailViewVisible = false;
+            }
+
             var sessions = await SqliteDatabaseService.Instance.LoadAllSessionsAsync();
             _allSessions.Clear();
             _allSessions.AddRange(sessions);
@@ -104,19 +124,40 @@ public partial class SessionsViewModel : ViewModelBase
         }
 
         IsEmptyStateVisible = FilteredSessions.Count == 0;
+        ListCounterText = FilteredSessions.Count > 0
+            ? $"1-{FilteredSessions.Count} / {FilteredSessions.Count}"
+            : "0-0 / 0";
 
         if (IsDetailViewVisible)
         {
-            if (SelectedSession != null && !FilteredSessions.Contains(SelectedSession))
+            if (SelectedSession != null)
             {
-                SelectedSession = FilteredSessions.FirstOrDefault();
+                var match = FilteredSessions.FirstOrDefault(s => s.OdooId == SelectedSession.OdooId && s.Name == SelectedSession.Name);
+                SelectedSession = match ?? FilteredSessions.FirstOrDefault();
                 if (SelectedSession == null)
                 {
                     IsDetailViewVisible = false;
                 }
             }
-            UpdatePager();
         }
+
+        UpdatePager();
+    }
+
+    [RelayCommand]
+    private void SwitchToList()
+    {
+        IsListView = true;
+        IsKanbanView = false;
+        IsDetailViewVisible = false;
+    }
+
+    [RelayCommand]
+    private void SwitchToKanban()
+    {
+        IsKanbanView = true;
+        IsListView = false;
+        IsDetailViewVisible = false;
     }
 
     [RelayCommand]
@@ -148,10 +189,8 @@ public partial class SessionsViewModel : ViewModelBase
         int index = FilteredSessions.IndexOf(SelectedSession);
         if (index < 0)
         {
-            PagerText = $"1 / {FilteredSessions.Count}";
-            HasPreviousRecord = false;
-            HasNextRecord = FilteredSessions.Count > 1;
-            return;
+            index = 0;
+            SelectedSession = FilteredSessions[0];
         }
 
         PagerText = $"{index + 1} / {FilteredSessions.Count}";
@@ -181,6 +220,12 @@ public partial class SessionsViewModel : ViewModelBase
             SelectedSession = FilteredSessions[index + 1];
             UpdatePager();
         }
+    }
+
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        SearchText = string.Empty;
     }
 
     [RelayCommand]

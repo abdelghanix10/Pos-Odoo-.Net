@@ -8,12 +8,28 @@ namespace OdooPosLogin.ViewModels;
 public partial class PosCategoriesViewModel : ViewModelBase
 {
     private readonly List<PosCategoryRecord> _allCategories = [];
+    private readonly List<ProductRecord> _allProducts = [];
 
     [ObservableProperty]
     private ObservableCollection<PosCategoryRecord> _filteredCategories = [];
 
     [ObservableProperty]
+    private ObservableCollection<ProductRecord> _associatedProducts = [];
+
+    [ObservableProperty]
+    private string _associatedProductsCountDisplay = "0 Products";
+
+    [ObservableProperty]
+    private bool _hasNoAssociatedProducts = true;
+
+    [ObservableProperty]
     private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isListView = true;
+
+    [ObservableProperty]
+    private bool _isKanbanView;
 
     [ObservableProperty]
     private bool _isDetailViewVisible;
@@ -23,6 +39,9 @@ public partial class PosCategoriesViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _pagerText = "0 / 0";
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -66,14 +85,31 @@ public partial class PosCategoriesViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();
 
-    public async Task ReloadCategoriesAsync()
+    public void ResetToMainList()
+    {
+        IsDetailViewVisible = false;
+        UpdatePager();
+    }
+
+    public async Task ReloadCategoriesAsync(bool resetDetailView = false)
     {
         try
         {
+            if (resetDetailView)
+            {
+                IsDetailViewVisible = false;
+            }
+
             var categories = await SqliteDatabaseService.Instance.LoadAllCategoriesAsync();
             _allCategories.Clear();
             _allCategories.AddRange(categories);
+
+            var products = await SqliteDatabaseService.Instance.LoadAllProductsAsync();
+            _allProducts.Clear();
+            _allProducts.AddRange(products);
+
             RefreshFilter();
+            UpdateAssociatedProducts();
         }
         catch (Exception ex)
         {
@@ -101,19 +137,48 @@ public partial class PosCategoriesViewModel : ViewModelBase
         }
 
         IsEmptyStateVisible = FilteredCategories.Count == 0;
+        ListCounterText = FilteredCategories.Count > 0
+            ? $"1-{FilteredCategories.Count} / {FilteredCategories.Count}"
+            : "0-0 / 0";
 
         if (IsDetailViewVisible)
         {
-            if (SelectedCategory != null && !FilteredCategories.Contains(SelectedCategory))
+            if (SelectedCategory != null)
             {
-                SelectedCategory = FilteredCategories.FirstOrDefault();
+                var match = FilteredCategories.FirstOrDefault(c => c.OdooId == SelectedCategory.OdooId && c.Name == SelectedCategory.Name);
+                SelectedCategory = match ?? FilteredCategories.FirstOrDefault();
                 if (SelectedCategory == null)
                 {
                     IsDetailViewVisible = false;
                 }
             }
-            UpdatePager();
         }
+
+        UpdatePager();
+        UpdateAssociatedProducts();
+    }
+
+    private void UpdateAssociatedProducts()
+    {
+        AssociatedProducts.Clear();
+        if (SelectedCategory == null)
+        {
+            AssociatedProductsCountDisplay = "0 Products";
+            HasNoAssociatedProducts = true;
+            return;
+        }
+
+        var matched = _allProducts
+            .Where(p => p.HasPosCategory(SelectedCategory.OdooId, SelectedCategory.Name))
+            .ToList();
+
+        foreach (var prod in matched)
+        {
+            AssociatedProducts.Add(prod);
+        }
+
+        AssociatedProductsCountDisplay = $"{AssociatedProducts.Count} {(AssociatedProducts.Count == 1 ? "Product" : "Products")}";
+        HasNoAssociatedProducts = AssociatedProducts.Count == 0;
     }
 
     private void UpdatePager()
@@ -139,12 +204,37 @@ public partial class PosCategoriesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SelectCategory(PosCategoryRecord? category)
+    private void SwitchToList()
+    {
+        IsListView = true;
+        IsKanbanView = false;
+        IsDetailViewVisible = false;
+    }
+
+    [RelayCommand]
+    private void SwitchToKanban()
+    {
+        IsKanbanView = true;
+        IsListView = false;
+        IsDetailViewVisible = false;
+    }
+
+    [RelayCommand]
+    private async Task SelectCategory(PosCategoryRecord? category)
     {
         if (category == null) return;
         SelectedCategory = category;
+
+        if (_allProducts.Count == 0)
+        {
+            var prods = await SqliteDatabaseService.Instance.LoadAllProductsAsync();
+            _allProducts.Clear();
+            _allProducts.AddRange(prods);
+        }
+
         IsDetailViewVisible = true;
         UpdatePager();
+        UpdateAssociatedProducts();
     }
 
     [RelayCommand]
@@ -160,7 +250,9 @@ public partial class PosCategoriesViewModel : ViewModelBase
         int index = FilteredCategories.IndexOf(SelectedCategory);
         if (index > 0)
         {
-            SelectCategory(FilteredCategories[index - 1]);
+            SelectedCategory = FilteredCategories[index - 1];
+            UpdatePager();
+            UpdateAssociatedProducts();
         }
     }
 
@@ -171,7 +263,9 @@ public partial class PosCategoriesViewModel : ViewModelBase
         int index = FilteredCategories.IndexOf(SelectedCategory);
         if (index >= 0 && index < FilteredCategories.Count - 1)
         {
-            SelectCategory(FilteredCategories[index + 1]);
+            SelectedCategory = FilteredCategories[index + 1];
+            UpdatePager();
+            UpdateAssociatedProducts();
         }
     }
 

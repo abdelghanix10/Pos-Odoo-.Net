@@ -19,9 +19,9 @@ public partial class PosCategoryManagementView : UserControl
         }
     }
 
-    public async Task ReloadCategoriesFromDatabaseAsync()
+    public async Task ReloadCategoriesFromDatabaseAsync(bool resetDetailView = true)
     {
-        await ViewModel.ReloadCategoriesAsync();
+        await ViewModel.ReloadCategoriesAsync(resetDetailView);
     }
 
     public void ShowToast(string message, bool isError = false, bool isWarning = false)

@@ -17,6 +17,12 @@ public partial class OrdersViewModel : ViewModelBase
     private string _searchText = string.Empty;
 
     [ObservableProperty]
+    private bool _isListView = true;
+
+    [ObservableProperty]
+    private bool _isKanbanView;
+
+    [ObservableProperty]
     private bool _isDetailViewVisible;
 
     [ObservableProperty]
@@ -24,6 +30,9 @@ public partial class OrdersViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _pagerText = "0 / 0";
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -86,10 +95,21 @@ public partial class OrdersViewModel : ViewModelBase
     partial void OnSearchTextChanged(string value) => RefreshFilter();
     partial void OnSessionFilterChanged(string? value) => RefreshFilter();
 
-    public async Task ReloadOrdersAsync()
+    public void ResetToMainList()
+    {
+        IsDetailViewVisible = false;
+        UpdatePager();
+    }
+
+    public async Task ReloadOrdersAsync(bool resetDetailView = false)
     {
         try
         {
+            if (resetDetailView)
+            {
+                IsDetailViewVisible = false;
+            }
+
             var orders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync();
             _allOrders.Clear();
             _allOrders.AddRange(orders);
@@ -144,24 +164,48 @@ public partial class OrdersViewModel : ViewModelBase
         foreach (var o in source)
         {
             FilteredOrders.Add(o);
-            grandTotal += o.AmountTotal;
+            if (!o.IsCancelled)
+            {
+                grandTotal += o.AmountTotal;
+            }
         }
 
         GrandTotalText = $"$ {grandTotal.ToString("N2", CultureInfo.InvariantCulture)}";
         IsEmptyStateVisible = FilteredOrders.Count == 0;
+        ListCounterText = FilteredOrders.Count > 0
+            ? $"1-{FilteredOrders.Count} / {FilteredOrders.Count}"
+            : "0-0 / 0";
 
         if (IsDetailViewVisible)
         {
-            if (SelectedOrder != null && !FilteredOrders.Contains(SelectedOrder))
+            if (SelectedOrder != null)
             {
-                SelectedOrder = FilteredOrders.FirstOrDefault();
+                var match = FilteredOrders.FirstOrDefault(o => o.OdooId == SelectedOrder.OdooId && o.Name == SelectedOrder.Name);
+                SelectedOrder = match ?? FilteredOrders.FirstOrDefault();
                 if (SelectedOrder == null)
                 {
                     IsDetailViewVisible = false;
                 }
             }
-            UpdatePager();
         }
+
+        UpdatePager();
+    }
+
+    [RelayCommand]
+    private void SwitchToList()
+    {
+        IsListView = true;
+        IsKanbanView = false;
+        IsDetailViewVisible = false;
+    }
+
+    [RelayCommand]
+    private void SwitchToKanban()
+    {
+        IsKanbanView = true;
+        IsListView = false;
+        IsDetailViewVisible = false;
     }
 
     [RelayCommand]
@@ -175,10 +219,24 @@ public partial class OrdersViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    public void OpenLinkedOrder(PosOrderRecord? linkedOrder)
+    {
+        var target = linkedOrder ?? SelectedOrder?.LinkedRefundOrders.FirstOrDefault();
+        if (target == null) return;
+        SelectOrder(target);
+    }
+
+    [RelayCommand]
     public void CloseDetail()
     {
         IsDetailViewVisible = false;
         SelectedOrder = null;
+    }
+
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        SearchText = string.Empty;
     }
 
     [RelayCommand]
@@ -203,10 +261,8 @@ public partial class OrdersViewModel : ViewModelBase
         int index = FilteredOrders.IndexOf(SelectedOrder);
         if (index < 0)
         {
-            PagerText = $"1 / {FilteredOrders.Count}";
-            HasPreviousRecord = false;
-            HasNextRecord = FilteredOrders.Count > 1;
-            return;
+            index = 0;
+            SelectedOrder = FilteredOrders[0];
         }
 
         PagerText = $"{index + 1} / {FilteredOrders.Count}";

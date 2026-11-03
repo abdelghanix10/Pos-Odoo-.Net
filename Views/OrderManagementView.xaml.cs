@@ -12,12 +12,12 @@ public partial class OrderManagementView : UserControl
         InitializeComponent();
     }
 
-    public async Task ReloadOrdersFromDatabaseAsync(string? sessionFilter = null)
+    public async Task ReloadOrdersFromDatabaseAsync(string? sessionFilter = null, bool resetDetailView = true)
     {
         if (sessionFilter != null)
         {
             VM.SetSessionFilter(sessionFilter);
         }
-        await VM.ReloadOrdersAsync();
+        await VM.ReloadOrdersAsync(resetDetailView);
     }
 }

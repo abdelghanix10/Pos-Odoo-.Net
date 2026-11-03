@@ -8,13 +8,34 @@ namespace OdooPosLogin.ViewModels;
 
 public partial class PaymentsViewModel : ViewModelBase
 {
+    public const string AllShopsOption = "All Point of Sale";
+    public const string AllSessionsOption = "All Sessions";
+
     private readonly List<PosPaymentRecord> _allPayments = [];
+    private readonly List<PosConfigRecord> _allConfigs = [];
+    private readonly List<PosSessionRecord> _allSessions = [];
+    private bool _suppressFilterRefresh;
 
     [ObservableProperty]
     private ObservableCollection<PaymentGroupRecord> _groupedPayments = [];
 
     [ObservableProperty]
     private ObservableCollection<PosPaymentRecord> _flatPayments = [];
+
+    [ObservableProperty]
+    private ObservableCollection<string> _availableShops = [AllShopsOption];
+
+    [ObservableProperty]
+    private ObservableCollection<string> _availableSessions = [AllSessionsOption];
+
+    [ObservableProperty]
+    private string _selectedShopFilter = AllShopsOption;
+
+    [ObservableProperty]
+    private string _selectedSessionFilter = AllSessionsOption;
+
+    [ObservableProperty]
+    private bool _hasActiveFilter;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -27,6 +48,9 @@ public partial class PaymentsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _pagerText = "0 / 0";
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -74,16 +98,52 @@ public partial class PaymentsViewModel : ViewModelBase
         _ = ReloadPaymentsAsync();
     }
 
-    partial void OnSearchTextChanged(string value) => RefreshFilter();
-    partial void OnSessionFilterChanged(string? value) => RefreshFilter();
+    partial void OnSearchTextChanged(string value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
 
-    public async Task ReloadPaymentsAsync()
+    partial void OnSelectedShopFilterChanged(string value)
+    {
+        if (_suppressFilterRefresh) return;
+        RebuildAvailableSessions();
+        RefreshFilter();
+    }
+
+    partial void OnSelectedSessionFilterChanged(string value)
+    {
+        if (_suppressFilterRefresh) return;
+        RefreshFilter();
+    }
+
+    public void ResetToMainList()
+    {
+        IsDetailViewVisible = false;
+        UpdatePager();
+    }
+
+    public async Task ReloadPaymentsAsync(bool resetDetailView = false)
     {
         try
         {
+            if (resetDetailView)
+            {
+                IsDetailViewVisible = false;
+            }
+
+            var configs = await SqliteDatabaseService.Instance.LoadAllPosConfigsAsync();
+            _allConfigs.Clear();
+            _allConfigs.AddRange(configs);
+
+            var sessions = await SqliteDatabaseService.Instance.LoadAllSessionsAsync();
+            _allSessions.Clear();
+            _allSessions.AddRange(sessions);
+
             var payments = await SqliteDatabaseService.Instance.LoadAllPaymentsAsync();
             _allPayments.Clear();
             _allPayments.AddRange(payments);
+
+            RebuildFilterOptions();
             RefreshFilter();
         }
         catch (Exception ex)
@@ -92,17 +152,181 @@ public partial class PaymentsViewModel : ViewModelBase
         }
     }
 
-    public void SetSessionFilter(string? sessionName)
+    private void RebuildFilterOptions()
     {
-        SessionFilter = sessionName;
+        _suppressFilterRefresh = true;
+        try
+        {
+            string prevShop = SelectedShopFilter;
+            string prevSession = SelectedSessionFilter;
+
+            var shopNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in _allConfigs)
+            {
+                if (!string.IsNullOrWhiteSpace(c.Name)) shopNames.Add(c.Name.Trim());
+            }
+            foreach (var s in _allSessions)
+            {
+                if (!string.IsNullOrWhiteSpace(s.PosConfigName)) shopNames.Add(s.PosConfigName.Trim());
+            }
+            foreach (var p in _allPayments)
+            {
+                string shop = ExtractShopFromPayment(p);
+                if (!string.IsNullOrWhiteSpace(shop)) shopNames.Add(shop);
+            }
+
+            AvailableShops.Clear();
+            AvailableShops.Add(AllShopsOption);
+            foreach (var shop in shopNames)
+            {
+                AvailableShops.Add(shop);
+            }
+
+            SelectedShopFilter = AvailableShops.Contains(prevShop) ? prevShop : AllShopsOption;
+            RebuildAvailableSessions(prevSession);
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+    }
+
+    private void RebuildAvailableSessions(string? preferredSession = null)
+    {
+        string targetSession = preferredSession ?? SelectedSessionFilter;
+        string activeShop = SelectedShopFilter;
+        bool filterByShop = !string.IsNullOrWhiteSpace(activeShop) && activeShop != AllShopsOption;
+
+        var sessionNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var s in _allSessions)
+        {
+            if (string.IsNullOrWhiteSpace(s.Name) || s.Name == "/") continue;
+            if (!filterByShop || string.Equals(s.PosConfigName, activeShop, StringComparison.OrdinalIgnoreCase) ||
+                s.Name.StartsWith(activeShop + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                sessionNames.Add(s.Name.Trim());
+            }
+        }
+
+        foreach (var p in _allPayments)
+        {
+            if (string.IsNullOrWhiteSpace(p.SessionName) || p.SessionName == "/") continue;
+            if (!filterByShop || PaymentMatchesShop(p, activeShop))
+            {
+                sessionNames.Add(p.SessionName.Trim());
+            }
+        }
+
+        _suppressFilterRefresh = true;
+        try
+        {
+            AvailableSessions.Clear();
+            AvailableSessions.Add(AllSessionsOption);
+            foreach (var sess in sessionNames)
+            {
+                AvailableSessions.Add(sess);
+            }
+
+            SelectedSessionFilter = AvailableSessions.Contains(targetSession) ? targetSession : AllSessionsOption;
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+    }
+
+    private static string ExtractShopFromPayment(PosPaymentRecord p)
+    {
+        if (!string.IsNullOrWhiteSpace(p.SessionName) && p.SessionName.Contains('/'))
+        {
+            return p.SessionName.Split('/')[0].Trim();
+        }
+        if (!string.IsNullOrWhiteSpace(p.OrderName) && p.OrderName.Contains(" - "))
+        {
+            return p.OrderName.Split(" - ")[0].Trim();
+        }
+        return string.Empty;
+    }
+
+    private bool PaymentMatchesShop(PosPaymentRecord p, string shopName)
+    {
+        if (string.IsNullOrWhiteSpace(shopName) || shopName == AllShopsOption) return true;
+
+        string extracted = ExtractShopFromPayment(p);
+        if (string.Equals(extracted, shopName, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(p.SessionName) &&
+            p.SessionName.StartsWith(shopName, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(p.OrderName) &&
+            p.OrderName.StartsWith(shopName, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var matchedSession = _allSessions.FirstOrDefault(s =>
+            (p.SessionOdooId.HasValue && s.OdooId == p.SessionOdooId) ||
+            (!string.IsNullOrWhiteSpace(p.SessionName) && string.Equals(s.Name, p.SessionName, StringComparison.OrdinalIgnoreCase)));
+
+        return matchedSession != null && string.Equals(matchedSession.PosConfigName, shopName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public void SetSessionFilter(string? filterValue)
+    {
+        _suppressFilterRefresh = true;
+        try
+        {
+            SessionFilter = filterValue;
+            if (string.IsNullOrWhiteSpace(filterValue))
+            {
+                SelectedShopFilter = AllShopsOption;
+                RebuildAvailableSessions(AllSessionsOption);
+            }
+            else if (AvailableShops.Any(s => string.Equals(s, filterValue, StringComparison.OrdinalIgnoreCase)))
+            {
+                SelectedShopFilter = AvailableShops.First(s => string.Equals(s, filterValue, StringComparison.OrdinalIgnoreCase));
+                RebuildAvailableSessions(AllSessionsOption);
+            }
+            else
+            {
+                SelectedShopFilter = AllShopsOption;
+                RebuildAvailableSessions(filterValue);
+                if (!AvailableSessions.Contains(filterValue))
+                {
+                    AvailableSessions.Add(filterValue);
+                }
+                SelectedSessionFilter = filterValue;
+            }
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
         RefreshFilter();
     }
 
     [RelayCommand]
     public void ClearSessionFilter()
     {
-        SessionFilter = null;
+        _suppressFilterRefresh = true;
+        try
+        {
+            SessionFilter = null;
+            SelectedShopFilter = AllShopsOption;
+            RebuildAvailableSessions(AllSessionsOption);
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
         RefreshFilter();
+    }
+
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        SearchText = string.Empty;
     }
 
     private void RefreshFilter()
@@ -113,10 +337,19 @@ public partial class PaymentsViewModel : ViewModelBase
 
         IEnumerable<PosPaymentRecord> source = _allPayments;
 
-        if (!string.IsNullOrWhiteSpace(SessionFilter))
+        bool hasShop = !string.IsNullOrWhiteSpace(SelectedShopFilter) && SelectedShopFilter != AllShopsOption;
+        bool hasSess = !string.IsNullOrWhiteSpace(SelectedSessionFilter) && SelectedSessionFilter != AllSessionsOption;
+        HasActiveFilter = hasShop || hasSess;
+
+        if (hasShop)
+        {
+            source = source.Where(p => PaymentMatchesShop(p, SelectedShopFilter));
+        }
+
+        if (hasSess)
         {
             source = source.Where(p =>
-                string.Equals(p.SessionName, SessionFilter, StringComparison.OrdinalIgnoreCase));
+                string.Equals(p.SessionName, SelectedSessionFilter, StringComparison.OrdinalIgnoreCase));
         }
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -139,16 +372,23 @@ public partial class PaymentsViewModel : ViewModelBase
 
         GrandTotalText = $"$ {grandTotal.ToString("N2", CultureInfo.InvariantCulture)}";
         IsEmptyStateVisible = FlatPayments.Count == 0;
+        ListCounterText = FlatPayments.Count > 0
+            ? $"1-{FlatPayments.Count} / {FlatPayments.Count}"
+            : "0-0 / 0";
 
+        // Group by Payment Method + Shop/PaymentMethodId (matching Screenshot 8 where each Shop's Cash journal has its own Cash group)
         var groups = list
-            .GroupBy(p => p.PaymentMethodName)
-            .OrderBy(g => g.Key);
+            .GroupBy(p => new
+            {
+                Method = string.IsNullOrWhiteSpace(p.PaymentMethodName) ? "Cash" : p.PaymentMethodName,
+                Key = p.PaymentMethodId.HasValue ? p.PaymentMethodId.Value.ToString() : ExtractShopFromPayment(p)
+            });
 
         foreach (var g in groups)
         {
             var groupRecord = new PaymentGroupRecord
             {
-                GroupName = g.Key,
+                GroupName = g.Key.Method,
                 Subtotal = g.Sum(p => p.Amount),
                 IsExpanded = true
             };
@@ -169,8 +409,9 @@ public partial class PaymentsViewModel : ViewModelBase
                     IsDetailViewVisible = false;
                 }
             }
-            UpdatePager();
         }
+
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -209,10 +450,8 @@ public partial class PaymentsViewModel : ViewModelBase
         int index = FlatPayments.IndexOf(SelectedPayment);
         if (index < 0)
         {
-            PagerText = $"1 / {FlatPayments.Count}";
-            HasPreviousRecord = false;
-            HasNextRecord = FlatPayments.Count > 1;
-            return;
+            index = 0;
+            SelectedPayment = FlatPayments[0];
         }
 
         PagerText = $"{index + 1} / {FlatPayments.Count}";

@@ -19,9 +19,9 @@ public partial class ComboChoiceManagementView : UserControl
         }
     }
 
-    public async Task ReloadCombosFromDatabaseAsync()
+    public async Task ReloadCombosFromDatabaseAsync(bool resetDetailView = true)
     {
-        await ViewModel.ReloadCombosAsync();
+        await ViewModel.ReloadCombosAsync(resetDetailView);
     }
 
     public void ShowToast(string message, bool isError = false, bool isWarning = false)

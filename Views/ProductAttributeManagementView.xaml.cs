@@ -19,9 +19,9 @@ public partial class ProductAttributeManagementView : UserControl
         }
     }
 
-    public async Task ReloadAttributesFromDatabaseAsync()
+    public async Task ReloadAttributesFromDatabaseAsync(bool resetDetailView = true)
     {
-        await ViewModel.ReloadAttributesAsync();
+        await ViewModel.ReloadAttributesAsync(resetDetailView);
     }
 
     public void ShowToast(string message, bool isError = false, bool isWarning = false)

@@ -16,16 +16,25 @@ public partial class ProductsViewModel : ViewModelBase
     private string _searchText = string.Empty;
 
     [ObservableProperty]
+    private bool _isKanbanView = true;
+
+    [ObservableProperty]
+    private bool _isListView;
+
+    [ObservableProperty]
     private bool _isDetailViewVisible;
 
     [ObservableProperty]
     private ProductRecord? _selectedProduct;
 
     [ObservableProperty]
-    private int _activeTabIndex = 1; // 1: General, 2: Attributes, 3: Combos
+    private int _activeTabIndex = 1; // 1: General Info, 2: Attributes & Variants, 3: Sales/Combos, 4: Point of Sale
 
     [ObservableProperty]
     private string _pagerText = "0 / 0";
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -72,10 +81,21 @@ public partial class ProductsViewModel : ViewModelBase
         RefreshFilter();
     }
 
-    public async Task ReloadProductsAsync()
+    public void ResetToMainList()
+    {
+        IsDetailViewVisible = false;
+        UpdatePager();
+    }
+
+    public async Task ReloadProductsAsync(bool resetDetailView = false)
     {
         try
         {
+            if (resetDetailView)
+            {
+                IsDetailViewVisible = false;
+            }
+
             var products = await SqliteDatabaseService.Instance.LoadAllProductsAsync();
             _allProducts.Clear();
             _allProducts.AddRange(products);
@@ -99,7 +119,8 @@ public partial class ProductsViewModel : ViewModelBase
                 p.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                 (!string.IsNullOrEmpty(p.DefaultCode) && p.DefaultCode.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
                 (!string.IsNullOrEmpty(p.Barcode) && p.Barcode.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrEmpty(p.PosCategoryName) && p.PosCategoryName.Contains(query, StringComparison.OrdinalIgnoreCase)));
+                (!string.IsNullOrEmpty(p.PosCategoryName) && p.PosCategoryName.Contains(query, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(p.InternalCategoryName) && p.InternalCategoryName.Contains(query, StringComparison.OrdinalIgnoreCase)));
         }
 
         foreach (var p in source)
@@ -108,19 +129,24 @@ public partial class ProductsViewModel : ViewModelBase
         }
 
         IsEmptyStateVisible = FilteredProducts.Count == 0;
+        ListCounterText = FilteredProducts.Count > 0
+            ? $"1-{FilteredProducts.Count} / {FilteredProducts.Count}"
+            : "0-0 / 0";
 
         if (IsDetailViewVisible)
         {
-            if (SelectedProduct != null && !FilteredProducts.Contains(SelectedProduct))
+            if (SelectedProduct != null)
             {
-                SelectedProduct = FilteredProducts.FirstOrDefault();
+                var match = FilteredProducts.FirstOrDefault(p => p.OdooId == SelectedProduct.OdooId && p.Name == SelectedProduct.Name);
+                SelectedProduct = match ?? FilteredProducts.FirstOrDefault();
                 if (SelectedProduct == null)
                 {
                     IsDetailViewVisible = false;
                 }
             }
-            UpdatePager();
         }
+
+        UpdatePager();
     }
 
     private void UpdatePager()
@@ -146,7 +172,23 @@ public partial class ProductsViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SelectProduct(ProductRecord? product)
+    private void SwitchToKanban()
+    {
+        IsKanbanView = true;
+        IsListView = false;
+        IsDetailViewVisible = false;
+    }
+
+    [RelayCommand]
+    private void SwitchToList()
+    {
+        IsListView = true;
+        IsKanbanView = false;
+        IsDetailViewVisible = false;
+    }
+
+    [RelayCommand]
+    public void SelectProduct(ProductRecord? product)
     {
         if (product == null) return;
         SelectedProduct = product;
@@ -168,7 +210,8 @@ public partial class ProductsViewModel : ViewModelBase
         int index = FilteredProducts.IndexOf(SelectedProduct);
         if (index > 0)
         {
-            SelectProduct(FilteredProducts[index - 1]);
+            SelectedProduct = FilteredProducts[index - 1];
+            UpdatePager();
         }
     }
 
@@ -179,7 +222,8 @@ public partial class ProductsViewModel : ViewModelBase
         int index = FilteredProducts.IndexOf(SelectedProduct);
         if (index >= 0 && index < FilteredProducts.Count - 1)
         {
-            SelectProduct(FilteredProducts[index + 1]);
+            SelectedProduct = FilteredProducts[index + 1];
+            UpdatePager();
         }
     }
 

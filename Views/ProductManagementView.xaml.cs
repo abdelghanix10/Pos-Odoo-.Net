@@ -19,9 +19,9 @@ public partial class ProductManagementView : UserControl
         }
     }
 
-    public async Task ReloadProductsFromDatabaseAsync()
+    public async Task ReloadProductsFromDatabaseAsync(bool resetDetailView = true)
     {
-        await ViewModel.ReloadProductsAsync();
+        await ViewModel.ReloadProductsAsync(resetDetailView);
     }
 
     public void ShowToast(string message, bool isError = false, bool isWarning = false)

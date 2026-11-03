@@ -8,9 +8,19 @@ namespace OdooPosLogin.ViewModels;
 public partial class ProductTagsViewModel : ViewModelBase
 {
     private readonly List<ProductTagRecord> _allTags = [];
+    private readonly List<ProductRecord> _allProducts = [];
 
     [ObservableProperty]
     private ObservableCollection<ProductTagRecord> _filteredTags = [];
+
+    [ObservableProperty]
+    private ObservableCollection<ProductRecord> _associatedProducts = [];
+
+    [ObservableProperty]
+    private string _associatedProductsCountDisplay = "0 Products";
+
+    [ObservableProperty]
+    private bool _hasNoAssociatedProducts = true;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -23,6 +33,9 @@ public partial class ProductTagsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _pagerText = "0 / 0";
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -66,14 +79,31 @@ public partial class ProductTagsViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();
 
-    public async Task ReloadTagsAsync()
+    public void ResetToMainList()
+    {
+        IsDetailViewVisible = false;
+        UpdatePager();
+    }
+
+    public async Task ReloadTagsAsync(bool resetDetailView = false)
     {
         try
         {
+            if (resetDetailView)
+            {
+                IsDetailViewVisible = false;
+            }
+
             var tags = await SqliteDatabaseService.Instance.LoadAllTagsAsync();
             _allTags.Clear();
             _allTags.AddRange(tags);
+
+            var products = await SqliteDatabaseService.Instance.LoadAllProductsAsync();
+            _allProducts.Clear();
+            _allProducts.AddRange(products);
+
             RefreshFilter();
+            UpdateAssociatedProducts();
         }
         catch (Exception ex)
         {
@@ -100,19 +130,54 @@ public partial class ProductTagsViewModel : ViewModelBase
         }
 
         IsEmptyStateVisible = FilteredTags.Count == 0;
+        ListCounterText = FilteredTags.Count > 0
+            ? $"1-{FilteredTags.Count} / {FilteredTags.Count}"
+            : "0-0 / 0";
 
         if (IsDetailViewVisible)
         {
-            if (SelectedTag != null && !FilteredTags.Contains(SelectedTag))
+            if (SelectedTag != null)
             {
-                SelectedTag = FilteredTags.FirstOrDefault();
+                var match = FilteredTags.FirstOrDefault(t => t.OdooId == SelectedTag.OdooId);
+                SelectedTag = match ?? FilteredTags.FirstOrDefault();
                 if (SelectedTag == null)
                 {
                     IsDetailViewVisible = false;
                 }
             }
-            UpdatePager();
         }
+
+        UpdatePager();
+        UpdateAssociatedProducts();
+    }
+
+    private void UpdateAssociatedProducts()
+    {
+        AssociatedProducts.Clear();
+        if (SelectedTag == null)
+        {
+            AssociatedProductsCountDisplay = "0 Products";
+            HasNoAssociatedProducts = true;
+            return;
+        }
+
+        var matched = _allProducts
+            .Where(p => p.HasTag(SelectedTag.Name))
+            .ToList();
+
+        foreach (var prod in matched)
+        {
+            AssociatedProducts.Add(prod);
+        }
+
+        if (AssociatedProducts.Count > 0 && SelectedTag.ProductsCount == 0)
+        {
+            SelectedTag.ProductsCount = AssociatedProducts.Count;
+        }
+
+        int count = Math.Max(AssociatedProducts.Count, SelectedTag.ProductsCount);
+        AssociatedProductsCountDisplay = $"{count} {(count == 1 ? "Product" : "Products")}";
+        HasNoAssociatedProducts = AssociatedProducts.Count == 0;
     }
 
     private void UpdatePager()
@@ -138,12 +203,21 @@ public partial class ProductTagsViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SelectTag(ProductTagRecord? tag)
+    private async Task SelectTag(ProductTagRecord? tag)
     {
         if (tag == null) return;
         SelectedTag = tag;
+
+        if (_allProducts.Count == 0)
+        {
+            var prods = await SqliteDatabaseService.Instance.LoadAllProductsAsync();
+            _allProducts.Clear();
+            _allProducts.AddRange(prods);
+        }
+
         IsDetailViewVisible = true;
         UpdatePager();
+        UpdateAssociatedProducts();
     }
 
     [RelayCommand]
@@ -159,7 +233,9 @@ public partial class ProductTagsViewModel : ViewModelBase
         int index = FilteredTags.IndexOf(SelectedTag);
         if (index > 0)
         {
-            SelectTag(FilteredTags[index - 1]);
+            SelectedTag = FilteredTags[index - 1];
+            UpdatePager();
+            UpdateAssociatedProducts();
         }
     }
 
@@ -170,7 +246,9 @@ public partial class ProductTagsViewModel : ViewModelBase
         int index = FilteredTags.IndexOf(SelectedTag);
         if (index >= 0 && index < FilteredTags.Count - 1)
         {
-            SelectTag(FilteredTags[index + 1]);
+            SelectedTag = FilteredTags[index + 1];
+            UpdatePager();
+            UpdateAssociatedProducts();
         }
     }
 

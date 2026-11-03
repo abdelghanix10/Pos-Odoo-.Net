@@ -8,9 +8,19 @@ namespace OdooPosLogin.ViewModels;
 public partial class ProductAttributesViewModel : ViewModelBase
 {
     private readonly List<ProductAttributeRecord> _allAttributes = [];
+    private readonly List<ProductRecord> _allProducts = [];
 
     [ObservableProperty]
     private ObservableCollection<ProductAttributeRecord> _filteredAttributes = [];
+
+    [ObservableProperty]
+    private ObservableCollection<ProductRecord> _associatedProducts = [];
+
+    [ObservableProperty]
+    private string _associatedProductsCountDisplay = "0 Products";
+
+    [ObservableProperty]
+    private bool _hasNoAssociatedProducts = true;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -23,6 +33,9 @@ public partial class ProductAttributesViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _pagerText = "0 / 0";
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -66,14 +79,31 @@ public partial class ProductAttributesViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();
 
-    public async Task ReloadAttributesAsync()
+    public void ResetToMainList()
+    {
+        IsDetailViewVisible = false;
+        UpdatePager();
+    }
+
+    public async Task ReloadAttributesAsync(bool resetDetailView = false)
     {
         try
         {
+            if (resetDetailView)
+            {
+                IsDetailViewVisible = false;
+            }
+
             var attributes = await SqliteDatabaseService.Instance.LoadAllAttributesAsync();
             _allAttributes.Clear();
             _allAttributes.AddRange(attributes);
+
+            var products = await SqliteDatabaseService.Instance.LoadAllProductsAsync();
+            _allProducts.Clear();
+            _allProducts.AddRange(products);
+
             RefreshFilter();
+            UpdateAssociatedProducts();
         }
         catch (Exception ex)
         {
@@ -101,19 +131,54 @@ public partial class ProductAttributesViewModel : ViewModelBase
         }
 
         IsEmptyStateVisible = FilteredAttributes.Count == 0;
+        ListCounterText = FilteredAttributes.Count > 0
+            ? $"1-{FilteredAttributes.Count} / {FilteredAttributes.Count}"
+            : "0-0 / 0";
 
         if (IsDetailViewVisible)
         {
-            if (SelectedAttribute != null && !FilteredAttributes.Contains(SelectedAttribute))
+            if (SelectedAttribute != null)
             {
-                SelectedAttribute = FilteredAttributes.FirstOrDefault();
+                var match = FilteredAttributes.FirstOrDefault(a => a.OdooId == SelectedAttribute.OdooId);
+                SelectedAttribute = match ?? FilteredAttributes.FirstOrDefault();
                 if (SelectedAttribute == null)
                 {
                     IsDetailViewVisible = false;
                 }
             }
-            UpdatePager();
         }
+
+        UpdatePager();
+        UpdateAssociatedProducts();
+    }
+
+    private void UpdateAssociatedProducts()
+    {
+        AssociatedProducts.Clear();
+        if (SelectedAttribute == null)
+        {
+            AssociatedProductsCountDisplay = "0 Products";
+            HasNoAssociatedProducts = true;
+            return;
+        }
+
+        var matched = _allProducts
+            .Where(p => p.HasAttribute(SelectedAttribute.Name))
+            .ToList();
+
+        foreach (var prod in matched)
+        {
+            AssociatedProducts.Add(prod);
+        }
+
+        if (AssociatedProducts.Count > 0 && SelectedAttribute.NumberRelatedProducts == 0)
+        {
+            SelectedAttribute.NumberRelatedProducts = AssociatedProducts.Count;
+        }
+
+        int count = Math.Max(AssociatedProducts.Count, SelectedAttribute.NumberRelatedProducts);
+        AssociatedProductsCountDisplay = $"{count} {(count == 1 ? "Product" : "Products")}";
+        HasNoAssociatedProducts = AssociatedProducts.Count == 0;
     }
 
     private void UpdatePager()
@@ -139,12 +204,21 @@ public partial class ProductAttributesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SelectAttribute(ProductAttributeRecord? attribute)
+    private async Task SelectAttribute(ProductAttributeRecord? attribute)
     {
         if (attribute == null) return;
         SelectedAttribute = attribute;
+
+        if (_allProducts.Count == 0)
+        {
+            var prods = await SqliteDatabaseService.Instance.LoadAllProductsAsync();
+            _allProducts.Clear();
+            _allProducts.AddRange(prods);
+        }
+
         IsDetailViewVisible = true;
         UpdatePager();
+        UpdateAssociatedProducts();
     }
 
     [RelayCommand]
@@ -160,7 +234,9 @@ public partial class ProductAttributesViewModel : ViewModelBase
         int index = FilteredAttributes.IndexOf(SelectedAttribute);
         if (index > 0)
         {
-            SelectAttribute(FilteredAttributes[index - 1]);
+            SelectedAttribute = FilteredAttributes[index - 1];
+            UpdatePager();
+            UpdateAssociatedProducts();
         }
     }
 
@@ -171,7 +247,9 @@ public partial class ProductAttributesViewModel : ViewModelBase
         int index = FilteredAttributes.IndexOf(SelectedAttribute);
         if (index >= 0 && index < FilteredAttributes.Count - 1)
         {
-            SelectAttribute(FilteredAttributes[index + 1]);
+            SelectedAttribute = FilteredAttributes[index + 1];
+            UpdatePager();
+            UpdateAssociatedProducts();
         }
     }
 

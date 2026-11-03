@@ -16,6 +16,12 @@ public partial class ComboChoicesViewModel : ViewModelBase
     private string _searchText = string.Empty;
 
     [ObservableProperty]
+    private bool _isListView = true;
+
+    [ObservableProperty]
+    private bool _isKanbanView;
+
+    [ObservableProperty]
     private bool _isDetailViewVisible;
 
     [ObservableProperty]
@@ -23,6 +29,9 @@ public partial class ComboChoicesViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _pagerText = "0 / 0";
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
 
     [ObservableProperty]
     private bool _hasPreviousRecord;
@@ -66,10 +75,21 @@ public partial class ComboChoicesViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();
 
-    public async Task ReloadCombosAsync()
+    public void ResetToMainList()
+    {
+        IsDetailViewVisible = false;
+        UpdatePager();
+    }
+
+    public async Task ReloadCombosAsync(bool resetDetailView = false)
     {
         try
         {
+            if (resetDetailView)
+            {
+                IsDetailViewVisible = false;
+            }
+
             var combos = await SqliteDatabaseService.Instance.LoadAllComboChoicesAsync();
             _allCombos.Clear();
             _allCombos.AddRange(combos);
@@ -100,19 +120,24 @@ public partial class ComboChoicesViewModel : ViewModelBase
         }
 
         IsEmptyStateVisible = FilteredCombos.Count == 0;
+        ListCounterText = FilteredCombos.Count > 0
+            ? $"1-{FilteredCombos.Count} / {FilteredCombos.Count}"
+            : "0-0 / 0";
 
         if (IsDetailViewVisible)
         {
-            if (SelectedCombo != null && !FilteredCombos.Contains(SelectedCombo))
+            if (SelectedCombo != null)
             {
-                SelectedCombo = FilteredCombos.FirstOrDefault();
+                var match = FilteredCombos.FirstOrDefault(c => c.OdooId == SelectedCombo.OdooId && c.Name == SelectedCombo.Name);
+                SelectedCombo = match ?? FilteredCombos.FirstOrDefault();
                 if (SelectedCombo == null)
                 {
                     IsDetailViewVisible = false;
                 }
             }
-            UpdatePager();
         }
+
+        UpdatePager();
     }
 
     private void UpdatePager()
@@ -135,6 +160,22 @@ public partial class ComboChoicesViewModel : ViewModelBase
         PagerText = $"{index + 1} / {FilteredCombos.Count}";
         HasPreviousRecord = index > 0;
         HasNextRecord = index < FilteredCombos.Count - 1;
+    }
+
+    [RelayCommand]
+    private void SwitchToList()
+    {
+        IsListView = true;
+        IsKanbanView = false;
+        IsDetailViewVisible = false;
+    }
+
+    [RelayCommand]
+    private void SwitchToKanban()
+    {
+        IsKanbanView = true;
+        IsListView = false;
+        IsDetailViewVisible = false;
     }
 
     [RelayCommand]

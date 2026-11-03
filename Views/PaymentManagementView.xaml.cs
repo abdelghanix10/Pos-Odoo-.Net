@@ -12,12 +12,12 @@ public partial class PaymentManagementView : UserControl
         InitializeComponent();
     }
 
-    public async Task ReloadPaymentsFromDatabaseAsync(string? sessionFilter = null)
+    public async Task ReloadPaymentsFromDatabaseAsync(string? sessionFilter = null, bool resetDetailView = true)
     {
         if (sessionFilter != null)
         {
             VM.SetSessionFilter(sessionFilter);
         }
-        await VM.ReloadPaymentsAsync();
+        await VM.ReloadPaymentsAsync(resetDetailView);
     }
 }

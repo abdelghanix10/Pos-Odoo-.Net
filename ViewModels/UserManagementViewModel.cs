@@ -17,6 +17,12 @@ public partial class UserManagementViewModel : ViewModelBase
     private string _searchText = string.Empty;
 
     [ObservableProperty]
+    private bool _isKanbanView = true;
+
+    [ObservableProperty]
+    private bool _isListView;
+
+    [ObservableProperty]
     private bool _isDetailViewVisible;
 
     [ObservableProperty]
@@ -30,6 +36,18 @@ public partial class UserManagementViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isVisibleInPos = true;
+
+    [ObservableProperty]
+    private string _pagerText = "0 / 0";
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
+
+    [ObservableProperty]
+    private bool _hasPreviousRecord;
+
+    [ObservableProperty]
+    private bool _hasNextRecord;
 
     [ObservableProperty]
     private bool _isSyncing;
@@ -68,10 +86,21 @@ public partial class UserManagementViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();
 
-    public async Task ReloadUsersAsync()
+    public void ResetToMainList()
+    {
+        IsDetailViewVisible = false;
+        UpdatePager();
+    }
+
+    public async Task ReloadUsersAsync(bool resetDetailView = false)
     {
         try
         {
+            if (resetDetailView)
+            {
+                IsDetailViewVisible = false;
+            }
+
             var users = await SqliteDatabaseService.Instance.LoadAllUsersAsync();
             _allUsers.Clear();
             _allUsers.AddRange(users);
@@ -94,7 +123,8 @@ public partial class UserManagementViewModel : ViewModelBase
             source = source.Where(u =>
                 u.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                 u.Login.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                u.Email.Contains(query, StringComparison.OrdinalIgnoreCase));
+                u.Email.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                u.Role.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
         foreach (var u in source)
@@ -103,6 +133,62 @@ public partial class UserManagementViewModel : ViewModelBase
         }
 
         IsEmptyStateVisible = FilteredUsers.Count == 0;
+        ListCounterText = FilteredUsers.Count > 0
+            ? $"1-{FilteredUsers.Count} / {FilteredUsers.Count}"
+            : "0-0 / 0";
+
+        if (IsDetailViewVisible)
+        {
+            if (SelectedUser != null)
+            {
+                var match = FilteredUsers.FirstOrDefault(u => u.Login == SelectedUser.Login);
+                SelectedUser = match ?? FilteredUsers.FirstOrDefault();
+                if (SelectedUser == null)
+                {
+                    IsDetailViewVisible = false;
+                }
+            }
+        }
+
+        UpdatePager();
+    }
+
+    private void UpdatePager()
+    {
+        if (FilteredUsers.Count == 0 || SelectedUser == null)
+        {
+            PagerText = "0 / 0";
+            HasPreviousRecord = false;
+            HasNextRecord = false;
+            return;
+        }
+
+        int index = FilteredUsers.IndexOf(SelectedUser);
+        if (index < 0)
+        {
+            index = 0;
+            SelectedUser = FilteredUsers[0];
+        }
+
+        PagerText = $"{index + 1} / {FilteredUsers.Count}";
+        HasPreviousRecord = index > 0;
+        HasNextRecord = index < FilteredUsers.Count - 1;
+    }
+
+    [RelayCommand]
+    private void SwitchToKanban()
+    {
+        IsKanbanView = true;
+        IsListView = false;
+        IsDetailViewVisible = false;
+    }
+
+    [RelayCommand]
+    private void SwitchToList()
+    {
+        IsListView = true;
+        IsKanbanView = false;
+        IsDetailViewVisible = false;
     }
 
     [RelayCommand]
@@ -114,6 +200,29 @@ public partial class UserManagementViewModel : ViewModelBase
         Pin = user.Pin ?? string.Empty;
         IsVisibleInPos = user.IsVisibleInPos;
         IsDetailViewVisible = true;
+        UpdatePager();
+    }
+
+    [RelayCommand]
+    private void PreviousRecord()
+    {
+        if (SelectedUser == null || FilteredUsers.Count == 0) return;
+        int index = FilteredUsers.IndexOf(SelectedUser);
+        if (index > 0)
+        {
+            SelectUser(FilteredUsers[index - 1]);
+        }
+    }
+
+    [RelayCommand]
+    private void NextRecord()
+    {
+        if (SelectedUser == null || FilteredUsers.Count == 0) return;
+        int index = FilteredUsers.IndexOf(SelectedUser);
+        if (index >= 0 && index < FilteredUsers.Count - 1)
+        {
+            SelectUser(FilteredUsers[index + 1]);
+        }
     }
 
     [RelayCommand]
@@ -146,7 +255,6 @@ public partial class UserManagementViewModel : ViewModelBase
 
         await SqliteDatabaseService.Instance.SaveUserRecordAsync(SelectedUser);
 
-        IsDetailViewVisible = false;
         await ReloadUsersAsync();
         UsersUpdated?.Invoke();
         ShowToast($"Credentials for \"{SelectedUser.Name.Trim()}\" updated successfully.", "Success");

@@ -19,9 +19,9 @@ public partial class ProductTagManagementView : UserControl
         }
     }
 
-    public async Task ReloadTagsFromDatabaseAsync()
+    public async Task ReloadTagsFromDatabaseAsync(bool resetDetailView = true)
     {
-        await ViewModel.ReloadTagsAsync();
+        await ViewModel.ReloadTagsAsync(resetDetailView);
     }
 
     public void ShowToast(string message, bool isError = false, bool isWarning = false)

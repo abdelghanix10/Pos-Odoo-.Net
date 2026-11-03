@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -158,8 +160,8 @@ public class PosOrderRecord : INotifyPropertyChanged
     private long _id;
     private int? _odooId;
     private string _name = string.Empty; // Order Ref: "Bakery Shop - 000001"
-    private string _posReference = string.Empty; // Receipt Number: "Order 00001-002-0003"
-    private string _trackingNumber = string.Empty; // Order Number: "00001"
+    private string _posReference = string.Empty; // Receipt Number: "262-3-000001"
+    private string _trackingNumber = string.Empty; // Order Number: "2001"
     private int? _sessionId;
     private int? _sessionOdooId;
     private string _sessionName = string.Empty; // "Bakery Shop/00004"
@@ -169,16 +171,18 @@ public class PosOrderRecord : INotifyPropertyChanged
     private string _cashierName = string.Empty;
     private string? _cashierAvatarBase64;
     private BitmapImage? _cashierAvatarBitmap;
+    private string _customerName = string.Empty;
     private string _fiscalPosition = "—";
     private decimal _amountTotal = 0.00m;
     private decimal _amountTax = 0.00m;
     private decimal _amountPaid = 0.00m;
     private decimal _margin = 0.00m;
     private decimal _marginRatio = 0.00m;
-    private string _state = "paid"; // draft, paid, done, cancel
+    private string _state = "paid"; // draft, paid, done, invoiced, cancel
     private bool _isEdited = false;
     private string _company = "My Company";
     private string _note = string.Empty;
+    private string? _refundedOrderIdsJson;
 
     public long Id
     {
@@ -195,7 +199,15 @@ public class PosOrderRecord : INotifyPropertyChanged
     public string Name
     {
         get => _name;
-        set { if (_name != value) { _name = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_name != value)
+            {
+                _name = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsRefundOrder));
+            }
+        }
     }
 
     public string PosReference
@@ -244,6 +256,7 @@ public class PosOrderRecord : INotifyPropertyChanged
                 _dateOrder = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DateDisplay));
+                OnPropertyChanged(nameof(DateShortDisplay));
             }
         }
     }
@@ -297,6 +310,12 @@ public class PosOrderRecord : INotifyPropertyChanged
         }
     }
 
+    public string CustomerName
+    {
+        get => _customerName;
+        set { if (_customerName != value) { _customerName = value; OnPropertyChanged(); } }
+    }
+
     public string FiscalPosition
     {
         get => _fiscalPosition;
@@ -313,6 +332,8 @@ public class PosOrderRecord : INotifyPropertyChanged
                 _amountTotal = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(TotalDisplay));
+                OnPropertyChanged(nameof(AmountTotalDisplay));
+                OnPropertyChanged(nameof(IsRefundOrder));
             }
         }
     }
@@ -327,6 +348,7 @@ public class PosOrderRecord : INotifyPropertyChanged
                 _amountTax = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(TaxDisplay));
+                OnPropertyChanged(nameof(AmountTaxDisplay));
             }
         }
     }
@@ -341,6 +363,7 @@ public class PosOrderRecord : INotifyPropertyChanged
                 _amountPaid = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(PaidDisplay));
+                OnPropertyChanged(nameof(AmountPaidDisplay));
             }
         }
     }
@@ -385,10 +408,17 @@ public class PosOrderRecord : INotifyPropertyChanged
                 OnPropertyChanged(nameof(StateDisplay));
                 OnPropertyChanged(nameof(StatusBrush));
                 OnPropertyChanged(nameof(StatusSoftBrush));
+                OnPropertyChanged(nameof(ListStatusBackground));
+                OnPropertyChanged(nameof(ListStatusForeground));
+                OnPropertyChanged(nameof(KanbanStatusBackground));
+                OnPropertyChanged(nameof(KanbanStatusForeground));
                 OnPropertyChanged(nameof(IsCancelled));
                 OnPropertyChanged(nameof(IsStageNew));
                 OnPropertyChanged(nameof(IsStagePaid));
                 OnPropertyChanged(nameof(IsStagePosted));
+                OnPropertyChanged(nameof(IsStageCancelled));
+                OnPropertyChanged(nameof(NormalPipelineVisibility));
+                OnPropertyChanged(nameof(CancelledPipelineVisibility));
             }
         }
     }
@@ -411,51 +441,122 @@ public class PosOrderRecord : INotifyPropertyChanged
         set { if (_note != value) { _note = value; OnPropertyChanged(); } }
     }
 
+    public string? RefundedOrderIdsJson
+    {
+        get => _refundedOrderIdsJson;
+        set { if (_refundedOrderIdsJson != value) { _refundedOrderIdsJson = value; OnPropertyChanged(); } }
+    }
+
     public ObservableCollection<PosOrderLineRecord> Lines { get; } = [];
     public ObservableCollection<PosPaymentRecord> Payments { get; } = [];
+    public ObservableCollection<PosOrderRecord> LinkedRefundOrders { get; } = [];
+
+    public void NotifyLinkedRefundsChanged()
+    {
+        OnPropertyChanged(nameof(HasLinkedRefunds));
+        OnPropertyChanged(nameof(LinkedRefundsVisibility));
+        OnPropertyChanged(nameof(LinkedRefundLabel));
+        OnPropertyChanged(nameof(LinkedRefundSummary));
+        OnPropertyChanged(nameof(LinkedRefundCountDisplay));
+    }
+
+    // ==================== REFUND / ORIGINAL ORDER LINKING ====================
+    public bool IsRefundOrder =>
+        AmountTotal < 0 ||
+        (!string.IsNullOrWhiteSpace(Name) && Name.Contains("REFUND", StringComparison.OrdinalIgnoreCase));
+
+    public bool HasLinkedRefunds => LinkedRefundOrders.Count > 0;
+    public Visibility LinkedRefundsVisibility => HasLinkedRefunds ? Visibility.Visible : Visibility.Collapsed;
+
+    public string LinkedRefundLabel => IsRefundOrder ? "Refunded Order" : "Refund Orders";
+
+    public string LinkedRefundCountDisplay =>
+        IsRefundOrder
+            ? "Original Order"
+            : $"{LinkedRefundOrders.Count} {(LinkedRefundOrders.Count == 1 ? "Refund" : "Refunds")}";
+
+    public string LinkedRefundSummary =>
+        LinkedRefundOrders.Count > 0
+            ? string.Join(", ", LinkedRefundOrders.Select(o => o.Name))
+            : "—";
 
     public bool IsDraft => string.Equals(State, "draft", StringComparison.OrdinalIgnoreCase) ||
                            string.Equals(State, "ongoing", StringComparison.OrdinalIgnoreCase);
 
     // ==================== COMPUTED & DISPLAY PROPERTIES ====================
     public string DateDisplay => DateOrder.HasValue ? DateOrder.Value.ToString("yyyy-MM-dd HH:mm:ss") : "—";
+    public string DateShortDisplay => DateOrder.HasValue ? DateOrder.Value.ToString("MMM d, h:mm tt", CultureInfo.InvariantCulture) : "—";
+
     public string TotalDisplay => $"$ {AmountTotal:N2}";
     public string TaxDisplay => $"$ {AmountTax:N2}";
     public string PaidDisplay => $"$ {AmountPaid:N2}";
+
+    // Aliases for XAML compatibility
+    public string AmountTotalDisplay => TotalDisplay;
+    public string AmountTaxDisplay => TaxDisplay;
+    public string AmountPaidDisplay => PaidDisplay;
+
     public string MarginDisplay => $"$ {Margin:N2} ({MarginRatio:N1}%)";
 
     public string StateDisplay => State?.ToLowerInvariant() switch
     {
         "draft" => "New",
         "paid" => "Paid",
-        "done" => "Posted",
+        "done" or "invoiced" => "Posted",
         "cancel" => "Cancelled",
         _ => "Posted"
     };
 
+    // Odoo 20 List View Pill (Green filled for Posted/Paid, Soft Gray for Cancelled)
+    public Brush ListStatusBackground => State?.ToLowerInvariant() switch
+    {
+        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E5E7EB")),
+        "draft" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84")),
+        _ => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#28A745"))
+    };
+
+    public Brush ListStatusForeground => State?.ToLowerInvariant() switch
+    {
+        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#374151")),
+        _ => Brushes.White
+    };
+
+    // Odoo 20 Kanban View Pill (Solid Green for Posted/Paid, Solid Red for Cancelled)
+    public Brush KanbanStatusBackground => State?.ToLowerInvariant() switch
+    {
+        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC3545")),
+        "draft" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84")),
+        _ => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#28A745"))
+    };
+
+    public Brush KanbanStatusForeground => Brushes.White;
+
     public Brush StatusBrush => State?.ToLowerInvariant() switch
     {
-        "draft" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84")), // Teal for New
-        "paid" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")),  // Green
-        "done" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")),  // Green
-        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9CA3AF")),// Gray
+        "draft" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84")),
+        "paid" or "done" or "invoiced" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")),
+        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")),
         _ => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981"))
     };
 
     public Brush StatusSoftBrush => State?.ToLowerInvariant() switch
     {
         "draft" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E6F4F5")),
-        "paid" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ECFDF5")),
-        "done" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ECFDF5")),
+        "paid" or "done" or "invoiced" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ECFDF5")),
         "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F3F4F6")),
         _ => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ECFDF5"))
     };
 
-    public bool IsCancelled => State == "cancel";
+    public bool IsCancelled => string.Equals(State, "cancel", StringComparison.OrdinalIgnoreCase);
 
-    public bool IsStageNew => State == "draft";
-    public bool IsStagePaid => State == "paid";
-    public bool IsStagePosted => State == "done";
+    public bool IsStageNew => string.Equals(State, "draft", StringComparison.OrdinalIgnoreCase);
+    public bool IsStagePaid => string.Equals(State, "paid", StringComparison.OrdinalIgnoreCase);
+    public bool IsStagePosted => string.Equals(State, "done", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(State, "invoiced", StringComparison.OrdinalIgnoreCase);
+    public bool IsStageCancelled => IsCancelled;
+
+    public Visibility NormalPipelineVisibility => IsCancelled ? Visibility.Collapsed : Visibility.Visible;
+    public Visibility CancelledPipelineVisibility => IsCancelled ? Visibility.Visible : Visibility.Collapsed;
 
     public bool HasCashierAvatar => CashierAvatarBitmap != null;
     public bool HasNoCashierAvatar => CashierAvatarBitmap == null;

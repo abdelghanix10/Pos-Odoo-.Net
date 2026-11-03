@@ -18,7 +18,9 @@ public record SyncProgressReport(
 public record SyncAllSummary(
     bool Success,
     string Message,
+    int CompaniesCount,
     int UsersCount,
+    int PaymentMethodsCount,
     int CategoriesCount,
     int AttributesCount,
     int TagsCount,
@@ -28,6 +30,42 @@ public record SyncAllSummary(
     int SessionsCount,
     int OrdersCount,
     int PaymentsCount
+);
+
+public record OdooCompanyDto(
+    int OdooId,
+    string Name,
+    string Street,
+    string Street2,
+    string City,
+    string StateName,
+    string Zip,
+    string CountryName,
+    string Vat,
+    string Ice,
+    string CurrencyName,
+    string Phone,
+    string Email,
+    string Website,
+    string EmailDomain,
+    int ColorIndex,
+    string ColorHex,
+    int? ParentId,
+    string ParentName,
+    string? LogoBase64
+);
+
+public record PosPaymentMethodDto(
+    int OdooId,
+    string Name,
+    string MethodType,
+    int? JournalId,
+    string JournalName,
+    int? CompanyId,
+    string CompanyName,
+    string LinkedPosConfigs,
+    string Integration,
+    string? ImageBase64
 );
 
 public class OdooSyncService
@@ -47,7 +85,7 @@ public class OdooSyncService
     {
         _httpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(30)
+            Timeout = TimeSpan.FromSeconds(45)
         };
     }
 
@@ -63,9 +101,6 @@ public class OdooSyncService
         return url.TrimEnd('/');
     }
 
-    /// <summary>
-    /// Checks live background reachability of the configured Odoo server and raises OnlineStatusChanged if the state changed.
-    /// </summary>
     public async Task<bool> CheckConnectivityAsync()
     {
         try
@@ -106,9 +141,6 @@ public class OdooSyncService
         }
     }
 
-    /// <summary>
-    /// Probes if the host server responds to HTTP requests within a reasonable timeout.
-    /// </summary>
     public async Task<bool> CheckServerReachableAsync(string serverUrl)
     {
         if (string.IsNullOrWhiteSpace(serverUrl)) return false;
@@ -135,9 +167,6 @@ public class OdooSyncService
         }
     }
 
-    /// <summary>
-    /// Tests connection and authentication with the Odoo instance.
-    /// </summary>
     public async Task<ConnectionTestResult> TestConnectionAsync(OdooConfigRecord config)
     {
         if (string.IsNullOrWhiteSpace(config.ServerUrl))
@@ -285,6 +314,28 @@ public class OdooSyncService
 
         UpdateStatus(true, "Odoo Online");
         return doc;
+    }
+
+    private Task<JsonDocument> SearchReadAsync(
+        OdooConfigRecord config,
+        int uid,
+        string model,
+        object[] domain,
+        string[] fields)
+    {
+        // bin_size = false guarantees Odoo returns full base64 images instead of byte-size strings
+        return ExecuteKwAsync(
+            config,
+            uid,
+            model,
+            "search_read",
+            [domain],
+            new
+            {
+                fields,
+                context = new { bin_size = false }
+            }
+        );
     }
 
     private async Task<HashSet<string>> GetAvailableFieldsAsync(OdooConfigRecord config, int uid, string model)
@@ -450,7 +501,69 @@ public class OdooSyncService
     }
 
     // =========================================================================
-    // 1. USERS (res.users)
+    // 1. COMPANIES (res.company)
+    // =========================================================================
+    public async Task<List<OdooCompanyDto>> FetchOdooCompaniesAsync(OdooConfigRecord? overrideConfig = null)
+    {
+        var config = overrideConfig ?? await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooCompaniesInternalAsync(config, uid);
+    }
+
+    private async Task<List<OdooCompanyDto>> FetchOdooCompaniesInternalAsync(OdooConfigRecord config, int uid)
+    {
+        var fields = await FilterValidFieldsAsync(config, uid, "res.company",
+            "id", "name", "street", "street2", "city", "state_id", "zip", "country_id",
+            "vat", "company_registry", "l10n_ma_ice", "ice", "currency_id",
+            "phone", "email", "website", "catchall_domain", "color", "primary_color",
+            "parent_id", "logo", "avatar_1920");
+
+        using var doc = await SearchReadAsync(config, uid, "res.company", [], fields);
+
+        var list = new List<OdooCompanyDto>();
+        if (doc.RootElement.TryGetProperty("result", out var resultList) && resultList.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in resultList.EnumerateArray())
+            {
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                string street = GetStringOrDefault(item, "street");
+                string street2 = GetStringOrDefault(item, "street2");
+                string city = GetStringOrDefault(item, "city");
+                var (_, stateName) = GetMany2One(item, "state_id");
+                string zip = GetStringOrDefault(item, "zip");
+                var (_, countryName) = GetMany2One(item, "country_id");
+                string vat = GetStringOrDefault(item, "vat");
+                string ice = GetStringOrDefault(item, "l10n_ma_ice",
+                    GetStringOrDefault(item, "ice",
+                        GetStringOrDefault(item, "company_registry")));
+                var (_, currencyName) = GetMany2One(item, "currency_id");
+                string phone = GetStringOrDefault(item, "phone");
+                string email = GetStringOrDefault(item, "email");
+                string website = GetStringOrDefault(item, "website");
+                string emailDomain = GetStringOrDefault(item, "catchall_domain");
+                int colorIdx = GetIntOrDefault(item, "color", 2);
+                string colorHex = GetStringOrDefault(item, "primary_color",
+                    colorIdx > 0 ? PosCategoryRecord.GetOdooColorHex(colorIdx) : "#D97736");
+                var (parentId, parentName) = GetMany2One(item, "parent_id");
+                string? logo = GetNullableString(item, "logo", "avatar_1920");
+
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
+                {
+                    list.Add(new OdooCompanyDto(
+                        odooId, name, street, street2, city, stateName, zip, countryName,
+                        vat, ice, string.IsNullOrWhiteSpace(currencyName) ? "MAD" : currencyName,
+                        phone, email, website, emailDomain, colorIdx, colorHex,
+                        parentId, parentName, logo
+                    ));
+                }
+            }
+        }
+        return list;
+    }
+
+    // =========================================================================
+    // 2. USERS (res.users)
     // =========================================================================
     public async Task<List<OdooUserDto>> FetchOdooUsersAsync(OdooConfigRecord config, bool allowOfflineSimulation = false)
     {
@@ -461,15 +574,15 @@ public class OdooSyncService
     private async Task<List<OdooUserDto>> FetchOdooUsersInternalAsync(OdooConfigRecord config, int uid)
     {
         var fields = await FilterValidFieldsAsync(config, uid, "res.users",
-            "id", "name", "login", "email", "phone", "mobile", "image_1920", "avatar_128", "image_128");
+            "id", "name", "login", "email", "phone", "mobile", "state", "lang", "share",
+            "image_1920", "avatar_1920", "image_128", "avatar_128");
 
-        using var doc = await ExecuteKwAsync(
+        using var doc = await SearchReadAsync(
             config,
             uid,
             "res.users",
-            "search_read",
-            [new object[] { new object[] { "active", "=", true } }],
-            new { fields }
+            [new object[] { "active", "=", true }],
+            fields
         );
 
         var list = new List<OdooUserDto>();
@@ -481,15 +594,33 @@ public class OdooSyncService
                 string name = GetStringOrDefault(item, "name");
                 string login = GetStringOrDefault(item, "login");
                 string email = GetStringOrDefault(item, "email");
-                string phone = GetStringOrDefault(item, "phone");
-                if (string.IsNullOrWhiteSpace(phone))
-                    phone = GetStringOrDefault(item, "mobile");
+                string phone = GetStringOrDefault(item, "phone", GetStringOrDefault(item, "mobile"));
+                string stateRaw = GetStringOrDefault(item, "state", "active");
+                string status = string.Equals(stateRaw, "active", StringComparison.OrdinalIgnoreCase)
+                    ? "Confirmed"
+                    : "Invited";
 
-                string? avatar = GetNullableString(item, "image_1920", "avatar_128", "image_128");
+                string langRaw = GetStringOrDefault(item, "lang", "en_US");
+                string language = langRaw switch
+                {
+                    "fr_FR" => "French (FR)",
+                    "ar_001" or "ar_SY" => "Arabic",
+                    "es_ES" => "Spanish",
+                    _ => "English (US)"
+                };
+
+                string role = "User";
+                if (odooId == 2 || name.Contains("Admin", StringComparison.OrdinalIgnoreCase) || login.Contains("admin", StringComparison.OrdinalIgnoreCase))
+                    role = "Administrator";
+                else if (name.Contains("Light", StringComparison.OrdinalIgnoreCase) || login.Equals("light", StringComparison.OrdinalIgnoreCase))
+                    role = "Light";
+
+                // Prefer raster image_1920 / image_128 first, then avatar_1920 / avatar_128 (which PosImageUtils can also rasterize if SVG)
+                string? avatar = GetNullableString(item, "image_1920", "image_128", "avatar_1920", "avatar_128");
 
                 if (odooId > 0 && !string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(login))
                 {
-                    list.Add(new OdooUserDto(odooId, name, login, email, phone, avatar));
+                    list.Add(new OdooUserDto(odooId, name, login, email, phone, avatar, role, status, language));
                 }
             }
         }
@@ -497,7 +628,76 @@ public class OdooSyncService
     }
 
     // =========================================================================
-    // 2. POS CATEGORIES (pos.category)
+    // 3. POS PAYMENT METHODS (pos.payment.method)
+    // =========================================================================
+    public async Task<List<PosPaymentMethodDto>> FetchOdooPaymentMethodsAsync(OdooConfigRecord? overrideConfig = null)
+    {
+        var config = overrideConfig ?? await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+        int uid = await EnsureAuthenticatedUidAsync(config);
+        return await FetchOdooPaymentMethodsInternalAsync(config, uid);
+    }
+
+    private async Task<List<PosPaymentMethodDto>> FetchOdooPaymentMethodsInternalAsync(OdooConfigRecord config, int uid)
+    {
+        var shopMap = new Dictionary<int, string>();
+        try
+        {
+            var shopFields = await FilterValidFieldsAsync(config, uid, "pos.config", "id", "name");
+            using var shopDoc = await SearchReadAsync(config, uid, "pos.config", [], shopFields);
+            if (shopDoc.RootElement.TryGetProperty("result", out var sList) && sList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var sItem in sList.EnumerateArray())
+                {
+                    int sId = GetIntOrDefault(sItem, "id");
+                    string sName = GetStringOrDefault(sItem, "name");
+                    if (sId > 0 && !string.IsNullOrWhiteSpace(sName))
+                        shopMap[sId] = sName;
+                }
+            }
+        }
+        catch { }
+
+        var fields = await FilterValidFieldsAsync(config, uid, "pos.payment.method",
+            "id", "name", "type", "journal_id", "company_id", "config_ids", "use_payment_terminal", "image");
+
+        using var doc = await SearchReadAsync(config, uid, "pos.payment.method", [], fields);
+
+        var list = new List<PosPaymentMethodDto>();
+        if (doc.RootElement.TryGetProperty("result", out var resultList) && resultList.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in resultList.EnumerateArray())
+            {
+                int odooId = GetIntOrDefault(item, "id");
+                string name = GetStringOrDefault(item, "name");
+                string type = GetStringOrDefault(item, "type", "cash");
+                var (journalId, journalName) = GetMany2One(item, "journal_id");
+                var (companyId, companyName) = GetMany2One(item, "company_id");
+
+                var shopNames = new List<string>();
+                foreach (int cfgId in GetIdArray(item, "config_ids"))
+                {
+                    shopNames.Add(shopMap.TryGetValue(cfgId, out var sName) ? sName : $"POS {cfgId}");
+                }
+                string linkedShops = string.Join(", ", shopNames);
+
+                string integration = GetStringOrDefault(item, "use_payment_terminal", "None required");
+                string? imageBase64 = GetNullableString(item, "image");
+
+                if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
+                {
+                    list.Add(new PosPaymentMethodDto(
+                        odooId, name, type, journalId, journalName,
+                        companyId, companyName, linkedShops, integration, imageBase64
+                    ));
+                }
+            }
+        }
+
+        return list;
+    }
+
+    // =========================================================================
+    // 4. POS CATEGORIES (pos.category)
     // =========================================================================
     public async Task<List<PosCategoryDto>> FetchOdooCategoriesAsync(OdooConfigRecord config, bool allowOfflineSimulation = false)
     {
@@ -507,7 +707,6 @@ public class OdooSyncService
 
     private async Task<List<PosCategoryDto>> FetchOdooCategoriesInternalAsync(OdooConfigRecord config, int uid)
     {
-        // Map pos.config ID -> Name and category links
         var shopMap = new Dictionary<int, string>();
         var categoryToShopsMap = new Dictionary<int, HashSet<string>>();
 
@@ -516,12 +715,7 @@ public class OdooSyncService
             var shopFields = await FilterValidFieldsAsync(config, uid, "pos.config",
                 "id", "name", "limit_categories", "iface_available_categ_ids");
 
-            using var shopDoc = await ExecuteKwAsync(
-                config, uid, "pos.config", "search_read",
-                [Array.Empty<object>()],
-                new { fields = shopFields }
-            );
-
+            using var shopDoc = await SearchReadAsync(config, uid, "pos.config", [], shopFields);
             if (shopDoc.RootElement.TryGetProperty("result", out var sList) && sList.ValueKind == JsonValueKind.Array)
             {
                 foreach (var sItem in sList.EnumerateArray())
@@ -531,8 +725,7 @@ public class OdooSyncService
                     if (sId > 0 && !string.IsNullOrWhiteSpace(sName))
                     {
                         shopMap[sId] = sName;
-                        var catIds = GetIdArray(sItem, "iface_available_categ_ids");
-                        foreach (int cId in catIds)
+                        foreach (int cId in GetIdArray(sItem, "iface_available_categ_ids"))
                         {
                             if (!categoryToShopsMap.TryGetValue(cId, out var set))
                             {
@@ -545,16 +738,12 @@ public class OdooSyncService
                 }
             }
         }
-        catch { /* Non-fatal if pos.config is not accessible */ }
+        catch { }
 
         var catFields = await FilterValidFieldsAsync(config, uid, "pos.category",
             "id", "name", "parent_id", "sequence", "color", "image_128", "pos_config_ids");
 
-        using var doc = await ExecuteKwAsync(
-            config, uid, "pos.category", "search_read",
-            [Array.Empty<object>()],
-            new { fields = catFields }
-        );
+        using var doc = await SearchReadAsync(config, uid, "pos.category", [], catFields);
 
         var list = new List<PosCategoryDto>();
         if (doc.RootElement.TryGetProperty("result", out var resultList) && resultList.ValueKind == JsonValueKind.Array)
@@ -591,7 +780,7 @@ public class OdooSyncService
     }
 
     // =========================================================================
-    // 3. PRODUCT ATTRIBUTES & VALUES (product.attribute & product.attribute.value)
+    // 5. PRODUCT ATTRIBUTES & VALUES (product.attribute & product.attribute.value)
     // =========================================================================
     public async Task<(List<ProductAttributeDto> attributes, List<ProductAttributeValueDto> values)> FetchOdooAttributesAsync(
         OdooConfigRecord config,
@@ -608,11 +797,7 @@ public class OdooSyncService
         var attrFields = await FilterValidFieldsAsync(config, uid, "product.attribute",
             "id", "name", "display_type", "create_variant", "number_related_products", "product_tmpl_ids", "value_ids");
 
-        using var attrDoc = await ExecuteKwAsync(
-            config, uid, "product.attribute", "search_read",
-            [Array.Empty<object>()],
-            new { fields = attrFields }
-        );
+        using var attrDoc = await SearchReadAsync(config, uid, "product.attribute", [], attrFields);
 
         var attributes = new List<ProductAttributeDto>();
         if (attrDoc.RootElement.TryGetProperty("result", out var attrList) && attrList.ValueKind == JsonValueKind.Array)
@@ -625,9 +810,7 @@ public class OdooSyncService
                 string createVariant = GetStringOrDefault(item, "create_variant", "always");
                 int relatedCount = GetIntOrDefault(item, "number_related_products", -1);
                 if (relatedCount < 0)
-                {
                     relatedCount = GetIdArray(item, "product_tmpl_ids").Count;
-                }
                 var valIds = GetIdArray(item, "value_ids");
 
                 if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
@@ -640,11 +823,7 @@ public class OdooSyncService
         var valFields = await FilterValidFieldsAsync(config, uid, "product.attribute.value",
             "id", "attribute_id", "name", "is_custom", "html_color", "image", "default_extra_price");
 
-        using var valDoc = await ExecuteKwAsync(
-            config, uid, "product.attribute.value", "search_read",
-            [Array.Empty<object>()],
-            new { fields = valFields }
-        );
+        using var valDoc = await SearchReadAsync(config, uid, "product.attribute.value", [], valFields);
 
         var values = new List<ProductAttributeValueDto>();
         if (valDoc.RootElement.TryGetProperty("result", out var valList) && valList.ValueKind == JsonValueKind.Array)
@@ -670,7 +849,7 @@ public class OdooSyncService
     }
 
     // =========================================================================
-    // 4. PRODUCT TAGS (product.tag)
+    // 6. PRODUCT TAGS (product.tag)
     // =========================================================================
     public async Task<List<ProductTagDto>> FetchOdooTagsAsync(
         OdooConfigRecord config,
@@ -685,11 +864,7 @@ public class OdooSyncService
         var tagFields = await FilterValidFieldsAsync(config, uid, "product.tag",
             "id", "name", "color", "product_template_ids", "product_ids");
 
-        using var tagDoc = await ExecuteKwAsync(
-            config, uid, "product.tag", "search_read",
-            [Array.Empty<object>()],
-            new { fields = tagFields }
-        );
+        using var tagDoc = await SearchReadAsync(config, uid, "product.tag", [], tagFields);
 
         var tags = new List<ProductTagDto>();
         if (tagDoc.RootElement.TryGetProperty("result", out var tagList) && tagList.ValueKind == JsonValueKind.Array)
@@ -701,9 +876,7 @@ public class OdooSyncService
                 int color = GetIntOrDefault(item, "color");
                 int productsCount = GetIdArray(item, "product_template_ids").Count;
                 if (productsCount == 0)
-                {
                     productsCount = GetIdArray(item, "product_ids").Count;
-                }
 
                 if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
                 {
@@ -716,7 +889,7 @@ public class OdooSyncService
     }
 
     // =========================================================================
-    // 5. COMBO CHOICES (product.combo / product.combo.item OR pos.combo / pos.combo.line)
+    // 7. COMBO CHOICES (product.combo / product.combo.item OR pos.combo / pos.combo.line)
     // =========================================================================
     public async Task<(List<ComboChoiceDto> combos, List<ComboChoiceLineDto> lines)> FetchOdooComboChoicesAsync(
         OdooConfigRecord config,
@@ -730,7 +903,6 @@ public class OdooSyncService
         OdooConfigRecord config,
         int uid)
     {
-        // Determine whether this Odoo version uses product.combo (Odoo 18+) or pos.combo (Odoo 17)
         var productComboFields = await GetAvailableFieldsAsync(config, uid, "product.combo");
         string comboModel = productComboFields.Count > 0 ? "product.combo" : "pos.combo";
         string lineModel = productComboFields.Count > 0 ? "product.combo.item" : "pos.combo.line";
@@ -743,11 +915,7 @@ public class OdooSyncService
             var cFields = await FilterValidFieldsAsync(config, uid, comboModel,
                 "id", "name", "combo_item_ids", "combo_line_ids");
 
-            using var comboDoc = await ExecuteKwAsync(
-                config, uid, comboModel, "search_read",
-                [Array.Empty<object>()],
-                new { fields = cFields }
-            );
+            using var comboDoc = await SearchReadAsync(config, uid, comboModel, [], cFields);
 
             if (comboDoc.RootElement.TryGetProperty("result", out var cList) && cList.ValueKind == JsonValueKind.Array)
             {
@@ -769,11 +937,7 @@ public class OdooSyncService
             var lFields = await FilterValidFieldsAsync(config, uid, lineModel,
                 "id", "combo_id", "product_id", "extra_price", "combo_price", "lst_price");
 
-            using var lineDoc = await ExecuteKwAsync(
-                config, uid, lineModel, "search_read",
-                [Array.Empty<object>()],
-                new { fields = lFields }
-            );
+            using var lineDoc = await SearchReadAsync(config, uid, lineModel, [], lFields);
 
             var productIdsToLookupPrice = new HashSet<int>();
             var rawLines = new List<(int odooId, int comboId, int? prodId, string prodName, decimal origPrice, decimal extraPrice)>();
@@ -798,16 +962,15 @@ public class OdooSyncService
                 }
             }
 
-            // Lookup product.product lst_price for combo items
             var prodPriceMap = new Dictionary<int, decimal>();
             if (productIdsToLookupPrice.Count > 0)
             {
                 try
                 {
-                    using var pDoc = await ExecuteKwAsync(
-                        config, uid, "product.product", "search_read",
-                        [new object[] { new object[] { "id", "in", productIdsToLookupPrice.ToArray() } }],
-                        new { fields = new[] { "id", "lst_price" } }
+                    using var pDoc = await SearchReadAsync(
+                        config, uid, "product.product",
+                        [new object[] { "id", "in", productIdsToLookupPrice.ToArray() }],
+                        ["id", "lst_price"]
                     );
                     if (pDoc.RootElement.TryGetProperty("result", out var pArr) && pArr.ValueKind == JsonValueKind.Array)
                     {
@@ -832,16 +995,13 @@ public class OdooSyncService
                 lines.Add(new ComboChoiceLineDto(rl.odooId, rl.comboId, rl.prodId, rl.prodName, origPrice, rl.extraPrice));
             }
         }
-        catch
-        {
-            // Model may not exist if POS module is not installed yet
-        }
+        catch { }
 
         return (combos, lines);
     }
 
     // =========================================================================
-    // 6. PRODUCTS (product.template)
+    // 8. PRODUCTS (product.template)
     // =========================================================================
     public async Task<List<ProductDto>> FetchOdooProductsAsync(
         OdooConfigRecord config,
@@ -853,7 +1013,6 @@ public class OdooSyncService
 
     private async Task<List<ProductDto>> FetchOdooProductsInternalAsync(OdooConfigRecord config, int uid)
     {
-        // Build lookup maps for categories, tags, attribute lines, and combos
         var posCategoryMap = new Dictionary<int, string>();
         try
         {
@@ -878,6 +1037,25 @@ public class OdooSyncService
         }
         catch { }
 
+        // Map account.tax ID -> (label, amount)
+        var taxMap = new Dictionary<int, (string Label, decimal Rate)>();
+        try
+        {
+            var taxFields = await FilterValidFieldsAsync(config, uid, "account.tax", "id", "name", "amount");
+            using var taxDoc = await SearchReadAsync(config, uid, "account.tax", [], taxFields);
+            if (taxDoc.RootElement.TryGetProperty("result", out var tList) && tList.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var tItem in tList.EnumerateArray())
+                {
+                    int tid = GetIntOrDefault(tItem, "id");
+                    decimal amt = GetDecimalOrDefault(tItem, "amount", 15m);
+                    string tName = GetStringOrDefault(tItem, "name", $"{amt:0.#}%");
+                    if (tid > 0) taxMap[tid] = (tName, amt);
+                }
+            }
+        }
+        catch { }
+
         // Map product.template.attribute.line -> AttributeName + Value names
         var templateAttrLinesMap = new Dictionary<int, List<object>>();
         try
@@ -885,13 +1063,8 @@ public class OdooSyncService
             var ptalFields = await FilterValidFieldsAsync(config, uid, "product.template.attribute.line",
                 "id", "product_tmpl_id", "attribute_id", "value_ids");
 
-            using var ptalDoc = await ExecuteKwAsync(
-                config, uid, "product.template.attribute.line", "search_read",
-                [Array.Empty<object>()],
-                new { fields = ptalFields }
-            );
+            using var ptalDoc = await SearchReadAsync(config, uid, "product.template.attribute.line", [], ptalFields);
 
-            // Also map value_ids -> value names
             var (_, attrVals) = await FetchOdooAttributesInternalAsync(config, uid);
             var valNameMap = attrVals.ToDictionary(v => v.OdooId, v => v.Name);
 
@@ -928,13 +1101,17 @@ public class OdooSyncService
         var prodFields = await FilterValidFieldsAsync(config, uid, "product.template",
             "id", "name", "type", "detailed_type", "list_price", "standard_price",
             "default_code", "barcode", "pos_categ_ids", "pos_categ_id", "categ_id",
-            "product_variant_count", "image_1920", "image_128", "product_tag_ids",
-            "attribute_line_ids", "combo_ids", "available_in_pos");
+            "product_variant_count", "qty_available", "sale_ok", "purchase_ok",
+            "available_in_pos", "tracking", "is_storable", "to_weight",
+            "taxes_id", "supplier_taxes_id", "uom_id", "company_id",
+            "public_description", "description_sale",
+            "image_1920", "image_128", "product_tag_ids",
+            "attribute_line_ids", "combo_ids");
 
-        using var prodDoc = await ExecuteKwAsync(
-            config, uid, "product.template", "search_read",
-            [new object[] { new object[] { "active", "=", true } }],
-            new { fields = prodFields }
+        using var prodDoc = await SearchReadAsync(
+            config, uid, "product.template",
+            [new object[] { "active", "=", true }],
+            prodFields
         );
 
         var products = new List<ProductDto>();
@@ -950,10 +1127,8 @@ public class OdooSyncService
                 string sku = GetStringOrDefault(item, "default_code");
                 string barcode = GetStringOrDefault(item, "barcode");
 
-                // Resolve POS Category (Odoo 17+ pos_categ_ids Many2many, or Odoo 16 pos_categ_id Many2one)
                 int? catId = null;
                 string? catName = null;
-
                 var posCategIds = GetIdArray(item, "pos_categ_ids");
                 if (posCategIds.Count > 0)
                 {
@@ -971,10 +1146,42 @@ public class OdooSyncService
                     }
                 }
 
+                var (_, rawInternalCateg) = GetMany2One(item, "categ_id");
+                string internalCat = string.IsNullOrWhiteSpace(rawInternalCateg)
+                    ? "All"
+                    : rawInternalCateg.Split('/').Last().Trim();
+
                 int variantCount = Math.Max(1, GetIntOrDefault(item, "product_variant_count", 1));
+                decimal qtyAvailable = GetDecimalOrDefault(item, "qty_available");
+                bool saleOk = GetBoolOrDefault(item, "sale_ok", true);
+                bool purchaseOk = GetBoolOrDefault(item, "purchase_ok", true);
+                bool availableInPos = GetBoolOrDefault(item, "available_in_pos", true);
+                string tracking = GetStringOrDefault(item, "tracking", "none");
+                bool trackInventory = GetBoolOrDefault(item, "is_storable", !string.Equals(tracking, "none", StringComparison.OrdinalIgnoreCase));
+                bool toWeight = GetBoolOrDefault(item, "to_weight");
+
+                string salesTaxLabel = "15%";
+                decimal salesTaxRate = 15.0m;
+                var salesTaxIds = GetIdArray(item, "taxes_id");
+                if (salesTaxIds.Count > 0 && taxMap.TryGetValue(salesTaxIds[0], out var sTax))
+                {
+                    salesTaxLabel = sTax.Label;
+                    salesTaxRate = sTax.Rate;
+                }
+
+                string purchaseTaxLabel = "15%";
+                var purchaseTaxIds = GetIdArray(item, "supplier_taxes_id");
+                if (purchaseTaxIds.Count > 0 && taxMap.TryGetValue(purchaseTaxIds[0], out var pTax))
+                {
+                    purchaseTaxLabel = pTax.Label;
+                }
+
+                var (_, uomName) = GetMany2One(item, "uom_id");
+                var (_, companyName) = GetMany2One(item, "company_id");
+                string posDesc = GetStringOrDefault(item, "public_description", GetStringOrDefault(item, "description_sale"));
+
                 string? imageBase64 = GetNullableString(item, "image_1920", "image_128");
 
-                // Resolve TagsJson
                 string? tagsJson = null;
                 var tagIds = GetIdArray(item, "product_tag_ids");
                 if (tagIds.Count > 0)
@@ -987,14 +1194,12 @@ public class OdooSyncService
                         tagsJson = JsonSerializer.Serialize(tagNames);
                 }
 
-                // Resolve AttributesJson
                 string? attributesJson = null;
                 if (templateAttrLinesMap.TryGetValue(odooId, out var attrObjs) && attrObjs.Count > 0)
                 {
                     attributesJson = JsonSerializer.Serialize(attrObjs);
                 }
 
-                // Resolve ComboChoicesJson
                 string? combosJson = null;
                 var comboIds = GetIdArray(item, "combo_ids");
                 if (comboIds.Count > 0)
@@ -1020,7 +1225,12 @@ public class OdooSyncService
                     products.Add(new ProductDto(
                         odooId, name, type, listPrice, stdPrice,
                         sku, barcode, catId, catName, variantCount,
-                        imageBase64, tagsJson, attributesJson, combosJson
+                        imageBase64, tagsJson, attributesJson, combosJson,
+                        internalCat, qtyAvailable, saleOk, purchaseOk,
+                        availableInPos, trackInventory, toWeight,
+                        salesTaxLabel, salesTaxRate, purchaseTaxLabel,
+                        string.IsNullOrWhiteSpace(uomName) ? "Units" : uomName,
+                        companyName, posDesc
                     ));
                 }
             }
@@ -1030,7 +1240,7 @@ public class OdooSyncService
     }
 
     // =========================================================================
-    // 7. POS SESSIONS (pos.session)
+    // 9. POS SESSIONS (pos.session)
     // =========================================================================
     public async Task<List<PosSessionDto>> FetchOdooSessionsAsync(bool allowOfflineSimulation = false)
     {
@@ -1044,18 +1254,25 @@ public class OdooSyncService
         return await FetchOdooSessionsInternalAsync(config, uid);
     }
 
-    private async Task<List<PosSessionDto>> FetchOdooSessionsInternalAsync(OdooConfigRecord config, int uid)
+    private async Task<List<PosSessionDto>> FetchOdooSessionsInternalAsync(OdooConfigRecord config, int uid, Dictionary<int, string?>? userAvatarMap = null)
     {
+        if (userAvatarMap == null)
+        {
+            userAvatarMap = [];
+            try
+            {
+                var users = await FetchOdooUsersInternalAsync(config, uid);
+                foreach (var u in users) userAvatarMap[u.OdooId] = u.AvatarBase64;
+            }
+            catch { }
+        }
+
         var fields = await FilterValidFieldsAsync(config, uid, "pos.session",
             "id", "name", "config_id", "user_id", "start_at", "stop_at", "state",
             "cash_register_balance_start", "cash_register_balance_end_real",
             "order_count", "total_payments_amount");
 
-        using var doc = await ExecuteKwAsync(
-            config, uid, "pos.session", "search_read",
-            [Array.Empty<object>()],
-            new { fields }
-        );
+        using var doc = await SearchReadAsync(config, uid, "pos.session", [], fields);
 
         var list = new List<PosSessionDto>();
         if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -1074,11 +1291,13 @@ public class OdooSyncService
                 int ordersCount = GetIntOrDefault(item, "order_count");
                 decimal totalPayments = GetDecimalOrDefault(item, "total_payments_amount");
 
+                string? userAvatar = userId.HasValue && userAvatarMap.TryGetValue(userId.Value, out var av) ? av : null;
+
                 if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
                 {
                     list.Add(new PosSessionDto(
                         odooId, name, cfgId, cfgName, userId, userName,
-                        null, startAt, stopAt, state, openBal, closeBal,
+                        userAvatar, startAt, stopAt, state, openBal, closeBal,
                         ordersCount, totalPayments, userName
                     ));
                 }
@@ -1089,7 +1308,7 @@ public class OdooSyncService
     }
 
     // =========================================================================
-    // 8. POS ORDERS & ORDER LINES (pos.order & pos.order.line)
+    // 10. POS ORDERS & ORDER LINES (pos.order & pos.order.line)
     // =========================================================================
     public async Task<(List<PosOrderDto> orders, List<PosOrderLineDto> lines, List<PosPaymentDto> payments)> FetchOdooOrdersAsync(bool allowOfflineSimulation = false)
     {
@@ -1111,15 +1330,11 @@ public class OdooSyncService
     {
         var orderFields = await FilterValidFieldsAsync(config, uid, "pos.order",
             "id", "name", "pos_reference", "tracking_number", "session_id", "config_id",
-            "date_order", "user_id", "cashier", "fiscal_position_id",
+            "date_order", "user_id", "cashier", "partner_id", "fiscal_position_id",
             "amount_total", "amount_tax", "amount_paid", "margin", "margin_percent", "margin_ratio",
-            "state", "is_edited", "company_id", "general_note", "note");
+            "state", "is_edited", "company_id", "general_note", "note", "refunded_order_ids");
 
-        using var doc = await ExecuteKwAsync(
-            config, uid, "pos.order", "search_read",
-            [Array.Empty<object>()],
-            new { fields = orderFields }
-        );
+        using var doc = await SearchReadAsync(config, uid, "pos.order", [], orderFields);
 
         var orders = new List<PosOrderDto>();
         if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -1153,19 +1368,21 @@ public class OdooSyncService
                 bool isEdited = GetBoolOrDefault(item, "is_edited");
                 string note = GetStringOrDefault(item, "general_note", GetStringOrDefault(item, "note"));
 
+                var refundedIds = GetIdArray(item, "refunded_order_ids");
+                string? refundedIdsJson = refundedIds.Count > 0 ? JsonSerializer.Serialize(refundedIds) : null;
+
                 if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
                 {
                     orders.Add(new PosOrderDto(
                         odooId, name, posRef, trackNum, null, sessOdooId,
                         sessName, cfgName, dateOrder, cashierId, cashierName,
                         null, fiscal, amountTotal, amountTax, amountPaid,
-                        margin, marginRatio, state, isEdited, company, note, null, null
+                        margin, marginRatio, state, isEdited, company, note, refundedIdsJson, null
                     ));
                 }
             }
         }
 
-        // Fetch pos.order.line records
         var lines = new List<PosOrderLineDto>();
         try
         {
@@ -1173,11 +1390,7 @@ public class OdooSyncService
                 "id", "order_id", "product_id", "full_product_name", "name",
                 "qty", "price_unit", "discount", "price_subtotal", "price_subtotal_incl");
 
-            using var lineDoc = await ExecuteKwAsync(
-                config, uid, "pos.order.line", "search_read",
-                [Array.Empty<object>()],
-                new { fields = lineFields }
-            );
+            using var lineDoc = await SearchReadAsync(config, uid, "pos.order.line", [], lineFields);
 
             if (lineDoc.RootElement.TryGetProperty("result", out var lItems) && lItems.ValueKind == JsonValueKind.Array)
             {
@@ -1195,8 +1408,8 @@ public class OdooSyncService
                     decimal subTotal = GetDecimalOrDefault(lItem, "price_subtotal");
                     decimal subTotalIncl = GetDecimalOrDefault(lItem, "price_subtotal_incl");
 
-                    string taxLabel = subTotal > 0 && subTotalIncl > subTotal
-                        ? $"{Math.Round(((subTotalIncl - subTotal) / subTotal) * 100m, 0)}%"
+                    string taxLabel = subTotal != 0 && subTotalIncl != subTotal
+                        ? $"{Math.Round(Math.Abs((subTotalIncl - subTotal) / subTotal) * 100m, 0)}%"
                         : "0%";
 
                     if (lineOdooId > 0 && orderOdooId.HasValue)
@@ -1211,14 +1424,12 @@ public class OdooSyncService
         }
         catch { }
 
-        // Fetch pos.payment records
         var payments = await FetchOdooPaymentsInternalAsync(config, uid);
-
         return (orders, lines, payments);
     }
 
     // =========================================================================
-    // 9. POS PAYMENTS (pos.payment)
+    // 11. POS PAYMENTS (pos.payment)
     // =========================================================================
     public async Task<List<PosPaymentDto>> FetchOdooPaymentsAsync(bool allowOfflineSimulation = false)
     {
@@ -1237,11 +1448,7 @@ public class OdooSyncService
         var fields = await FilterValidFieldsAsync(config, uid, "pos.payment",
             "id", "pos_order_id", "session_id", "payment_method_id", "amount", "payment_date", "currency_id", "cashier");
 
-        using var doc = await ExecuteKwAsync(
-            config, uid, "pos.payment", "search_read",
-            [Array.Empty<object>()],
-            new { fields }
-        );
+        using var doc = await SearchReadAsync(config, uid, "pos.payment", [], fields);
 
         var list = new List<PosPaymentDto>();
         if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -1255,7 +1462,7 @@ public class OdooSyncService
                 var (_, currencyName) = GetMany2One(item, "currency_id");
                 decimal amount = GetDecimalOrDefault(item, "amount");
                 DateTime? payDate = GetDateTimeOrNull(item, "payment_date");
-                string cashier = GetStringOrDefault(item, "cashier", "Cashier");
+                string cashier = GetStringOrDefault(item, "cashier", "");
 
                 if (odooId > 0)
                 {
@@ -1281,7 +1488,7 @@ public class OdooSyncService
     }
 
     // =========================================================================
-    // 10. POS CONFIGURATIONS (pos.config)
+    // 12. POS CONFIGURATIONS (pos.config)
     // =========================================================================
     public async Task<List<PosConfigDto>> FetchOdooPosConfigsAsync(bool allowOfflineSimulation = false)
     {
@@ -1311,11 +1518,7 @@ public class OdooSyncService
             "id", "name", "current_session_id", "current_session_state",
             "last_session_closing_date", "last_session_closing_cash", "pos_session_username");
 
-        using var doc = await ExecuteKwAsync(
-            config, uid, "pos.config", "search_read",
-            [Array.Empty<object>()],
-            new { fields }
-        );
+        using var doc = await SearchReadAsync(config, uid, "pos.config", [], fields);
 
         var list = new List<PosConfigDto>();
         if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -1332,18 +1535,19 @@ public class OdooSyncService
                 decimal openingBal = 0.00m;
                 int? activeUserId = null;
                 string? activeUserName = GetNullableString(item, "pos_session_username");
+                string? activeUserAvatar = null;
 
                 if (sessId.HasValue && sessionsById.TryGetValue(sessId.Value, out var activeSess))
                 {
                     openingBal = activeSess.OpeningBalance;
                     activeUserId = activeSess.UserId;
+                    activeUserAvatar = activeSess.UserAvatarBase64;
                     if (string.IsNullOrWhiteSpace(activeUserName))
                         activeUserName = activeSess.UserName;
                     if (activeSess.StartAt.HasValue && !lastCloseDate.HasValue)
                         lastCloseDate = activeSess.StartAt;
                 }
 
-                // Build sparkline from recent sessions of this POS config
                 List<double> salesPoints = [0, 0, 0, 0, 0];
                 if (sessionsByConfigId.TryGetValue(odooId, out var recentSessions) && recentSessions.Count > 0)
                 {
@@ -1367,7 +1571,7 @@ public class OdooSyncService
                         openingBal,
                         activeUserId,
                         activeUserName,
-                        null,
+                        activeUserAvatar,
                         salesJson
                     ));
                 }
@@ -1378,14 +1582,14 @@ public class OdooSyncService
     }
 
     // =========================================================================
-    // MASTER SYNCHRONIZATION PIPELINE (ALL 10 ENTITIES IN DEPENDENCY ORDER)
+    // MASTER SYNCHRONIZATION PIPELINE (ALL 12 ENTITIES IN DEPENDENCY ORDER)
     // =========================================================================
     public async Task<SyncAllSummary> SyncAllFromOdooAsync(
         OdooConfigRecord? overrideConfig = null,
         IProgress<SyncProgressReport>? progress = null)
     {
         var config = overrideConfig ?? await SqliteDatabaseService.Instance.GetOdooConfigAsync();
-        const int totalSteps = 10;
+        const int totalSteps = 12;
 
         void Report(int step, string module, string message)
         {
@@ -1399,70 +1603,85 @@ public class OdooSyncService
 
         DateTime now = DateTime.Now;
 
-        // 1. Users
-        Report(1, "Users", "Fetching & reconciling Users (res.users)...");
+        // 1. Companies
+        Report(1, "Companies", "Fetching & reconciling Companies (res.company)...");
+        var companies = await FetchOdooCompaniesInternalAsync(config, uid);
+        await SqliteDatabaseService.Instance.UpsertOdooCompaniesAsync(companies);
+        await SqliteDatabaseService.Instance.UpdateCompanySyncStatusAsync(now, $"Companies: {companies.Count}");
+
+        // 2. Users
+        Report(2, "Users", "Fetching & reconciling Users (res.users)...");
         var users = await FetchOdooUsersInternalAsync(config, uid);
         var (uImp, uUpd, uDel) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(users);
         await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(now, $"Users: {uImp} imported, {uUpd} updated, {uDel} removed");
 
-        // 2. POS Categories
-        Report(2, "PoS Categories", "Fetching & reconciling PoS Categories (pos.category)...");
-        var categories = await FetchOdooCategoriesInternalAsync(config, uid);
-        var (cImp, cUpd, cDel) = await SqliteDatabaseService.Instance.UpsertOdooCategoriesAsync(categories);
-        await SqliteDatabaseService.Instance.UpdateCategorySyncStatusAsync(now, $"Categories: {cImp} imported, {cUpd} updated, {cDel} removed");
+        // 3. Payment Methods
+        Report(3, "Payment Methods", "Fetching & reconciling Payment Methods (pos.payment.method)...");
+        var paymentMethods = await FetchOdooPaymentMethodsInternalAsync(config, uid);
+        await SqliteDatabaseService.Instance.UpsertOdooPaymentMethodsAsync(paymentMethods);
+        await SqliteDatabaseService.Instance.UpdatePaymentMethodSyncStatusAsync(now, $"Payment Methods: {paymentMethods.Count}");
 
-        // 3. Product Attributes & Values
-        Report(3, "Attributes", "Fetching & reconciling Product Attributes & Values...");
+        // 4. POS Categories
+        Report(4, "PoS Categories", "Fetching & reconciling PoS Categories (pos.category)...");
+        var categories = await FetchOdooCategoriesInternalAsync(config, uid);
+        await SqliteDatabaseService.Instance.UpsertOdooCategoriesAsync(categories);
+        await SqliteDatabaseService.Instance.UpdateCategorySyncStatusAsync(now, $"Categories: {categories.Count}");
+
+        // 5. Product Attributes & Values
+        Report(5, "Attributes", "Fetching & reconciling Product Attributes & Values...");
         var (attrs, attrVals) = await FetchOdooAttributesInternalAsync(config, uid);
         await SqliteDatabaseService.Instance.UpsertOdooAttributesAsync(attrs, attrVals);
-        await SqliteDatabaseService.Instance.UpdateAttributeSyncStatusAsync(now, $"Attributes: {attrs.Count} attributes, {attrVals.Count} values");
+        await SqliteDatabaseService.Instance.UpdateAttributeSyncStatusAsync(now, $"Attributes: {attrs.Count}");
 
-        // 4. Product Tags
-        Report(4, "Product Tags", "Fetching & reconciling Product Tags (product.tag)...");
+        // 6. Product Tags
+        Report(6, "Product Tags", "Fetching & reconciling Product Tags (product.tag)...");
         var tags = await FetchOdooTagsInternalAsync(config, uid);
-        var (tImp, tUpd, tDel) = await SqliteDatabaseService.Instance.UpsertOdooTagsAsync(tags);
-        await SqliteDatabaseService.Instance.UpdateTagSyncStatusAsync(now, $"Tags: {tImp} imported, {tUpd} updated, {tDel} removed");
+        await SqliteDatabaseService.Instance.UpsertOdooTagsAsync(tags);
+        await SqliteDatabaseService.Instance.UpdateTagSyncStatusAsync(now, $"Tags: {tags.Count}");
 
-        // 5. Combo Choices
-        Report(5, "Combo Choices", "Fetching & reconciling Combo Choices...");
+        // 7. Combo Choices
+        Report(7, "Combo Choices", "Fetching & reconciling Combo Choices...");
         var (combos, comboLines) = await FetchOdooComboChoicesInternalAsync(config, uid);
-        var (cbImp, cbUpd, cbDel) = await SqliteDatabaseService.Instance.UpsertOdooCombosAsync(combos, comboLines);
-        await SqliteDatabaseService.Instance.UpdateComboSyncStatusAsync(now, $"Combos: {cbImp} imported, {cbUpd} updated, {cbDel} removed");
+        await SqliteDatabaseService.Instance.UpsertOdooCombosAsync(combos, comboLines);
+        await SqliteDatabaseService.Instance.UpdateComboSyncStatusAsync(now, $"Combos: {combos.Count}");
 
-        // 6. Products
-        Report(6, "Products", "Fetching & reconciling Products (product.template)...");
+        // 8. Products
+        Report(8, "Products", "Fetching & reconciling Products (product.template)...");
         var products = await FetchOdooProductsInternalAsync(config, uid);
-        var (pImp, pUpd, pDel) = await SqliteDatabaseService.Instance.UpsertOdooProductsAsync(products);
-        await SqliteDatabaseService.Instance.UpdateProductSyncStatusAsync(now, $"Products: {pImp} imported, {pUpd} updated, {pDel} removed");
+        await SqliteDatabaseService.Instance.UpsertOdooProductsAsync(products);
+        await SqliteDatabaseService.Instance.UpdateProductSyncStatusAsync(now, $"Products: {products.Count}");
 
-        // 7. POS Sessions
-        Report(7, "Sessions", "Fetching & reconciling POS Sessions (pos.session)...");
-        var sessions = await FetchOdooSessionsInternalAsync(config, uid);
-        var (sImp, sUpd, sDel) = await SqliteDatabaseService.Instance.UpsertOdooSessionsAsync(sessions);
-        await SqliteDatabaseService.Instance.UpdateSessionSyncStatusAsync(now, $"Sessions: {sImp} imported, {sUpd} updated, {sDel} removed");
+        // 9. POS Sessions
+        Report(9, "Sessions", "Fetching & reconciling POS Sessions (pos.session)...");
+        var userAvatarMap = users.ToDictionary(u => u.OdooId, u => u.AvatarBase64);
+        var sessions = await FetchOdooSessionsInternalAsync(config, uid, userAvatarMap);
+        await SqliteDatabaseService.Instance.UpsertOdooSessionsAsync(sessions);
+        await SqliteDatabaseService.Instance.UpdateSessionSyncStatusAsync(now, $"Sessions: {sessions.Count}");
 
-        // 8. POS Configurations (uses sessions for sparkline & active balance)
-        Report(8, "POS Shops", "Fetching & reconciling POS Configurations (pos.config)...");
+        // 10. POS Configurations
+        Report(10, "POS Shops", "Fetching & reconciling POS Configurations (pos.config)...");
         var posConfigs = await FetchOdooPosConfigsInternalAsync(config, uid, sessions);
-        var (cfgImp, cfgUpd, cfgDel) = await SqliteDatabaseService.Instance.UpsertOdooPosConfigsAsync(posConfigs);
-        await SqliteDatabaseService.Instance.UpdatePosConfigSyncStatusAsync(now, $"POS Shops: {cfgImp} imported, {cfgUpd} updated, {cfgDel} removed");
+        await SqliteDatabaseService.Instance.UpsertOdooPosConfigsAsync(posConfigs);
+        await SqliteDatabaseService.Instance.UpdatePosConfigSyncStatusAsync(now, $"POS Shops: {posConfigs.Count}");
 
-        // 9. POS Orders & Order Lines
-        Report(9, "Orders", "Fetching & reconciling POS Orders & Order Lines...");
+        // 11. POS Orders & Order Lines
+        Report(11, "Orders", "Fetching & reconciling POS Orders & Order Lines...");
         var (orders, orderLines, payments) = await FetchOdooOrdersInternalAsync(config, uid);
-        var (oImp, oUpd, oDel) = await SqliteDatabaseService.Instance.UpsertOdooOrdersAsync(orders, orderLines, payments);
-        await SqliteDatabaseService.Instance.UpdateOrderSyncStatusAsync(now, $"Orders: {oImp} imported, {oUpd} updated, {oDel} removed");
+        await SqliteDatabaseService.Instance.UpsertOdooOrdersAsync(orders, orderLines, payments);
+        await SqliteDatabaseService.Instance.UpdateOrderSyncStatusAsync(now, $"Orders: {orders.Count}");
 
-        // 10. POS Payments
-        Report(10, "Payments", "Reconciling POS Payments (pos.payment)...");
-        var (payImp, payUpd, payDel) = await SqliteDatabaseService.Instance.UpsertOdooPaymentsAsync(payments);
-        await SqliteDatabaseService.Instance.UpdatePaymentSyncStatusAsync(now, $"Payments: {payImp} imported, {payUpd} updated, {payDel} removed");
+        // 12. POS Payments
+        Report(12, "Payments", "Reconciling POS Payments (pos.payment)...");
+        await SqliteDatabaseService.Instance.UpsertOdooPaymentsAsync(payments);
+        await SqliteDatabaseService.Instance.UpdatePaymentSyncStatusAsync(now, $"Payments: {payments.Count}");
 
-        string summaryMsg = $"Synchronized {posConfigs.Count} shops, {products.Count} products, {categories.Count} categories, {orders.Count} orders, {users.Count} users.";
+        string summaryMsg = $"Synchronized {companies.Count} companies, {posConfigs.Count} shops, {products.Count} products, {paymentMethods.Count} payment methods, {orders.Count} orders, {users.Count} users.";
         return new SyncAllSummary(
             true,
             summaryMsg,
+            companies.Count,
             users.Count,
+            paymentMethods.Count,
             categories.Count,
             attrs.Count,
             tags.Count,

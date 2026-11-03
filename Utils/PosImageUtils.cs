@@ -5,6 +5,8 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Xml.Linq;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace OdooPosLogin;
 
@@ -26,11 +28,10 @@ public static class PosImageUtils
             return null;
         }
 
-        // Reject tiny payloads (e.g. accidental bin_size strings like "14.2 Kb")
         if (bytes.Length < 24)
             return null;
 
-        // 1. Check if the payload is an SVG XML image (Odoo user avatars, letter avatars, etc.)
+        // 1. If the payload is an SVG XML image (e.g. Odoo letter avatars like "T")
         if (IsSvgPayload(bytes))
         {
             var svgBitmap = RenderSvgToBitmapImage(bytes);
@@ -38,13 +39,20 @@ public static class PosImageUtils
                 return svgBitmap;
         }
 
-        // 2. Standard raster image (PNG, JPEG, BMP, GIF, WebP/WIC)
+        // 2. If the payload is WebP (Odoo 17-20 default image format: RIFF....WEBP), decode via ImageSharp
+        if (IsWebpPayload(bytes))
+        {
+            var webpBitmap = DecodeWithImageSharp(bytes);
+            if (webpBitmap != null)
+                return webpBitmap;
+        }
+
+        // 3. Try native WPF BitmapImage (for standard PNG / JPEG)
         try
         {
             using var stream = new MemoryStream(bytes);
             var bitmap = new BitmapImage();
             bitmap.BeginInit();
-            bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
             bitmap.StreamSource = stream;
             bitmap.EndInit();
@@ -53,22 +61,46 @@ public static class PosImageUtils
         }
         catch
         {
-            try
-            {
-                using var stream = new MemoryStream(bytes);
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.StreamSource = stream;
-                bitmap.EndInit();
-                bitmap.Freeze();
-                return bitmap;
-            }
-            catch
-            {
-                return null;
-            }
+            // 4. Fallback to ImageSharp for any other format or color profile that WPF rejected
+            return DecodeWithImageSharp(bytes);
         }
+    }
+
+    private static BitmapImage? DecodeWithImageSharp(byte[] bytes)
+    {
+        try
+        {
+            using var image = Image.Load<Bgra32>(bytes);
+            using var pngStream = new MemoryStream();
+            image.SaveAsPng(pngStream);
+            pngStream.Position = 0;
+
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = pngStream;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool IsWebpPayload(byte[] bytes)
+    {
+        // WebP header: "RIFF" (0..3) + 4-byte size + "WEBP" (8..11)
+        return bytes.Length >= 12 &&
+               bytes[0] == (byte)'R' &&
+               bytes[1] == (byte)'I' &&
+               bytes[2] == (byte)'F' &&
+               bytes[3] == (byte)'F' &&
+               bytes[8] == (byte)'W' &&
+               bytes[9] == (byte)'E' &&
+               bytes[10] == (byte)'B' &&
+               bytes[11] == (byte)'P';
     }
 
     public static string? BitmapImageToBase64(BitmapImage? bitmap)
@@ -105,19 +137,17 @@ public static class PosImageUtils
         if (s.Length < 40 && (s.EndsWith("Kb", StringComparison.OrdinalIgnoreCase) ||
                               s.EndsWith("Mb", StringComparison.OrdinalIgnoreCase) ||
                               s.EndsWith("bytes", StringComparison.OrdinalIgnoreCase) ||
-                              s.EndsWith("B", StringComparison.OrdinalIgnoreCase) && s.Contains(' ')))
+                              (s.EndsWith("B", StringComparison.OrdinalIgnoreCase) && s.Contains(' '))))
         {
             return null;
         }
 
-        // Strip data URI prefix if present (e.g. "data:image/png;base64,...")
         int commaIdx = s.IndexOf(',');
         if (commaIdx >= 0 && s.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
         {
             s = s[(commaIdx + 1)..].Trim();
         }
 
-        // Remove whitespace/newlines
         if (s.Contains('\n') || s.Contains('\r') || s.Contains(' '))
         {
             var sb = new StringBuilder(s.Length);
@@ -129,7 +159,6 @@ public static class PosImageUtils
             s = sb.ToString();
         }
 
-        // Normalize URL-safe base64 if needed
         s = s.Replace('-', '+').Replace('_', '/');
         int mod4 = s.Length % 4;
         if (mod4 > 0)
@@ -156,9 +185,6 @@ public static class PosImageUtils
         }
     }
 
-    /// <summary>
-    /// Renders an Odoo SVG (such as res.users illustrated avatars or letter avatars) into a frozen WPF BitmapImage.
-    /// </summary>
     private static BitmapImage? RenderSvgToBitmapImage(byte[] svgBytes)
     {
         try
@@ -263,7 +289,7 @@ public static class PosImageUtils
         }
 
         Brush currentFill = ParseSvgFillBrush(element, inheritedFill);
-        Pen? currentPen = ParseSvgStrokePen(element);
+        System.Windows.Media.Pen? currentPen = ParseSvgStrokePen(element);
 
         try
         {
@@ -299,7 +325,7 @@ public static class PosImageUtils
                     double r = ParseDoubleAttr(element, "r", 0);
                     if (r > 0)
                     {
-                        dc.DrawEllipse(currentFill, currentPen, new Point(cx, cy), r, r);
+                        dc.DrawEllipse(currentFill, currentPen, new System.Windows.Point(cx, cy), r, r);
                     }
                     break;
                 }
@@ -312,7 +338,7 @@ public static class PosImageUtils
                     double ry = ParseDoubleAttr(element, "ry", 0);
                     if (rx > 0 && ry > 0)
                     {
-                        dc.DrawEllipse(currentFill, currentPen, new Point(cx, cy), rx, ry);
+                        dc.DrawEllipse(currentFill, currentPen, new System.Windows.Point(cx, cy), rx, ry);
                     }
                     break;
                 }
@@ -334,9 +360,8 @@ public static class PosImageUtils
                     string? pts = element.Attribute("points")?.Value;
                     if (!string.IsNullOrWhiteSpace(pts))
                     {
-                        string prefix = localName == "polygon" ? "M " : "M ";
                         string suffix = localName == "polygon" ? " Z" : "";
-                        var geom = Geometry.Parse(prefix + pts + suffix);
+                        var geom = Geometry.Parse("M " + pts + suffix);
                         dc.DrawGeometry(localName == "polygon" ? currentFill : null, currentPen, geom);
                     }
                     break;
@@ -363,16 +388,13 @@ public static class PosImageUtils
 
                         double tx = (viewWidth - formatted.Width) / 2.0;
                         double ty = (viewHeight - formatted.Height) / 2.0;
-                        dc.DrawText(formatted, new Point(tx, ty));
+                        dc.DrawText(formatted, new System.Windows.Point(tx, ty));
                     }
                     break;
                 }
             }
         }
-        catch
-        {
-            // Ignore individual unsupported SVG shape syntax and continue rendering
-        }
+        catch { }
         finally
         {
             if (pushedOpacity) dc.Pop();
@@ -411,7 +433,6 @@ public static class PosImageUtils
         string? fillStr = el.Attribute("fill")?.Value ?? GetStyleProperty(el, "fill");
         if (string.IsNullOrWhiteSpace(fillStr))
         {
-            // In SVG, default fill on shapes is black if not specified anywhere
             return fallback == Brushes.Transparent && el.Name.LocalName.ToLowerInvariant() is "path" or "rect" or "circle" or "ellipse" or "polygon"
                 ? Brushes.Black
                 : fallback;
@@ -427,7 +448,7 @@ public static class PosImageUtils
 
         try
         {
-            var color = (Color)ColorConverter.ConvertFromString(fillStr);
+            var color = (System.Windows.Media.Color)ColorConverter.ConvertFromString(fillStr);
             var brush = new SolidColorBrush(color);
             brush.Freeze();
             return brush;
@@ -438,7 +459,7 @@ public static class PosImageUtils
         }
     }
 
-    private static Pen? ParseSvgStrokePen(XElement el)
+    private static System.Windows.Media.Pen? ParseSvgStrokePen(XElement el)
     {
         string? strokeStr = el.Attribute("stroke")?.Value ?? GetStyleProperty(el, "stroke");
         if (string.IsNullOrWhiteSpace(strokeStr) || strokeStr.Equals("none", StringComparison.OrdinalIgnoreCase))
@@ -446,9 +467,9 @@ public static class PosImageUtils
 
         try
         {
-            var color = (Color)ColorConverter.ConvertFromString(strokeStr.Trim());
+            var color = (System.Windows.Media.Color)ColorConverter.ConvertFromString(strokeStr.Trim());
             double width = ParseDoubleAttr(el, "stroke-width", 1.0);
-            var pen = new Pen(new SolidColorBrush(color), Math.Max(0.5, width));
+            var pen = new System.Windows.Media.Pen(new SolidColorBrush(color), Math.Max(0.5, width));
             pen.Freeze();
             return pen;
         }

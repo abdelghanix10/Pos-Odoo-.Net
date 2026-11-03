@@ -419,11 +419,40 @@ public class OdooSyncService
     {
         foreach (string name in propNames)
         {
-            if (item.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String)
+            if (!item.TryGetProperty(name, out var prop))
+                continue;
+
+            // Odoo 17/18/19: binary/image field is a bare base64 string
+            if (prop.ValueKind == JsonValueKind.String)
             {
                 string? s = prop.GetString();
                 if (!string.IsNullOrWhiteSpace(s) && !s.Equals("false", StringComparison.OrdinalIgnoreCase))
                     return s;
+            }
+            // Odoo 20: binary/image field is returned as an object: { "content": "<base64>", "size": ... }
+            else if (prop.ValueKind == JsonValueKind.Object)
+            {
+                foreach (string key in new[] { "content", "data", "value", "base64" })
+                {
+                    if (prop.TryGetProperty(key, out var sub) && sub.ValueKind == JsonValueKind.String)
+                    {
+                        string? s = sub.GetString();
+                        if (!string.IsNullOrWhiteSpace(s) && !s.Equals("false", StringComparison.OrdinalIgnoreCase))
+                            return s;
+                    }
+                }
+
+                foreach (var child in prop.EnumerateObject())
+                {
+                    if (child.Value.ValueKind == JsonValueKind.String &&
+                        !child.Name.Equals("filename", StringComparison.OrdinalIgnoreCase) &&
+                        !child.Name.Equals("mimetype", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string? s = child.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(s) && s.Length > 32)
+                            return s;
+                    }
+                }
             }
         }
         return null;

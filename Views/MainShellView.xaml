@@ -367,45 +367,6 @@
                                    Foreground="{StaticResource SecondaryTextBrush}"
                                    VerticalAlignment="Center"
                                    Margin="4,0,0,0"/>
-
-                        <!-- <Button x:Name="SidebarToggleButton"
-                                Click="SidebarToggle_Click"
-                                Width="30" Height="30"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                ToolTip="Collapse / Expand Sidebar">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="TglBdr" Background="Transparent" CornerRadius="6">
-                                        <Viewbox Width="13" Height="13">
-                                            <Canvas Width="24" Height="24">
-                                                <Path x:Name="ToggleIconPath"
-                                                      Data="M 6,4 L 6,20 M 18,5 L 11,12 L 18,19"
-                                                      Stroke="{StaticResource SecondaryTextBrush}"
-                                                      StrokeThickness="2.4"
-                                                      StrokeStartLineCap="Round"
-                                                      StrokeEndLineCap="Round"
-                                                      StrokeLineJoin="Round"
-                                                      RenderTransformOrigin="0.5,0.5">
-                                                    <Path.RenderTransform>
-                                                        <ScaleTransform x:Name="ToggleIconScale" ScaleX="1"/>
-                                                    </Path.RenderTransform>
-                                                </Path>
-                                            </Canvas>
-                                        </Viewbox>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="TglBdr" Property="Background" Value="#F3F4F6"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button> -->
-
                         <Button x:Name="SidebarToggleButton"
                                 Click="SidebarToggle_Click"
                                 Width="30" Height="30"

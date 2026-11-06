@@ -85,6 +85,29 @@ public partial class PosDashboardViewModel : ViewModelBase
         try
         {
             var configs = await SqliteDatabaseService.Instance.LoadAllPosConfigsAsync();
+            var orders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync();
+            var today = DateTime.Today;
+
+            foreach (var cfg in configs)
+            {
+                var matchingOrders = orders.Where(o => !o.IsCancelled &&
+                    (!string.IsNullOrWhiteSpace(cfg.Name) &&
+                     (string.Equals(o.PosConfigName, cfg.Name, StringComparison.OrdinalIgnoreCase) ||
+                      (!string.IsNullOrWhiteSpace(o.SessionName) && o.SessionName.StartsWith(cfg.Name + "/", StringComparison.OrdinalIgnoreCase))))).ToList();
+
+                var points7 = new List<double>(7);
+                for (int i = 6; i >= 0; i--)
+                {
+                    var day = today.AddDays(-i);
+                    double daySum = matchingOrders
+                        .Where(o => o.DateOrder.HasValue && o.DateOrder.Value.Date == day)
+                        .Sum(o => (double)o.AmountTotal);
+                    points7.Add(daySum);
+                }
+
+                cfg.Set7DaySalesPoints(points7, today);
+            }
+
             _allConfigs.Clear();
             _allConfigs.AddRange(configs);
             RefreshFilter();

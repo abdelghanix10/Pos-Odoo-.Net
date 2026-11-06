@@ -155,6 +155,27 @@ public class PosCategoryRecord : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Soft pastel background color matching Odoo 20's $o-colors-bg-subtle palette for POS Category buttons
+    /// </summary>
+    public Brush CategoryButtonBgBrush
+    {
+        get
+        {
+            try
+            {
+                string hex = GetOdooSubtleBgHex(ColorIndex);
+                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                brush.Freeze();
+                return brush;
+            }
+            catch
+            {
+                return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F3F4F6"));
+            }
+        }
+    }
+
     public List<string> LinkedShopsList
     {
         get
@@ -183,6 +204,25 @@ public class PosCategoryRecord : INotifyPropertyChanged
         10 => "#30C381", // Green
         11 => "#9365B8", // Purple
         _ => "#9CA3AF"   // Default / Gray
+    };
+
+    /// <summary>
+    /// Odoo 20 $o-colors-bg-subtle palette for pastel category button backgrounds
+    /// </summary>
+    public static string GetOdooSubtleBgHex(int colorIndex) => colorIndex switch
+    {
+        1 => "#FEDBD5",  // Red / Salmon pastel (Chairs)
+        2 => "#FEDEC5",  // Orange pastel
+        3 => "#F4DC9D",  // Yellow pastel (Desks)
+        4 => "#C2ECFE",  // Light Blue pastel
+        5 => "#EBCAF6",  // Lavender pastel
+        6 => "#F2E1D4",  // Warm Peach pastel
+        7 => "#AEF4EE",  // Mint / Teal pastel
+        8 => "#C3D9FE",  // Blue pastel
+        9 => "#FEC5D9",  // Pink pastel (Misc)
+        10 => "#BAE5BD", // Green pastel
+        11 => "#E4E1FE", // Purple pastel
+        _ => "#E5E7EB"   // Default subtle gray
     };
 
     public event PropertyChangedEventHandler? PropertyChanged;

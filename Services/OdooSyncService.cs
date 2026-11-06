@@ -1354,31 +1354,114 @@ public class OdooSyncService
             catch { }
         }
 
-        // 5. Attempt standard UI close
+        // 4b. Reconcile any remaining draft pos.orders on Odoo to unblock session closing
+        try
+        {
+            using var draftDoc = await SearchReadAsync(
+                config,
+                uid,
+                "pos.order",
+                [
+                    new object[] { "session_id", "=", targetSessionId },
+                    new object[] { "state", "=", "draft" }
+                ],
+                ["id"]
+            );
+            if (draftDoc.RootElement.TryGetProperty("result", out var dArr) && dArr.ValueKind == JsonValueKind.Array)
+            {
+                var draftIds = new List<int>();
+                foreach (var el in dArr.EnumerateArray())
+                {
+                    int oid = GetIntOrDefault(el, "id");
+                    if (oid > 0) draftIds.Add(oid);
+                }
+                if (draftIds.Count > 0)
+                {
+                    try
+                    {
+                        using var _ = await ExecuteKwAsync(config, uid, "pos.order", "action_pos_order_paid", [draftIds.ToArray()]);
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            using var _ = await ExecuteKwAsync(config, uid, "pos.order", "action_pos_order_cancel", [draftIds.ToArray()]);
+                        }
+                        catch { }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // 5. Attempt standard Odoo 20 UI close with payment_method_closing
+        var pmClosing = new Dictionary<string, object>();
+        try
+        {
+            using var sessDoc = await SearchReadAsync(
+                config,
+                uid,
+                "pos.session",
+                [new object[] { "id", "=", targetSessionId }],
+                ["id", "payment_method_ids"]
+            );
+            if (sessDoc.RootElement.TryGetProperty("result", out var sArr) && sArr.ValueKind == JsonValueKind.Array && sArr.GetArrayLength() > 0)
+            {
+                var pmIds = GetIdArray(sArr[0], "payment_method_ids");
+                foreach (int pmId in pmIds)
+                {
+                    pmClosing[pmId.ToString()] = (double)payload.ClosingCashCount;
+                }
+            }
+        }
+        catch { }
+
         string? lastCloseError = null;
         try
         {
-            using var _ = await ExecuteKwAsync(
+            using var closeDoc = await ExecuteKwAsync(
                 config,
                 uid,
                 "pos.session",
                 "close_session_from_ui",
-                [new[] { targetSessionId }]
+                [new[] { targetSessionId }, pmClosing]
             );
+
+            if (closeDoc.RootElement.TryGetProperty("result", out var resEl) && resEl.ValueKind == JsonValueKind.Object)
+            {
+                if (resEl.TryGetProperty("status", out var stEl) && !stEl.GetBoolean())
+                {
+                    string errMsg = resEl.TryGetProperty("message", out var mEl) ? mEl.GetString() ?? "" : "";
+                    if (!string.IsNullOrWhiteSpace(errMsg))
+                    {
+                        lastCloseError = errMsg;
+                    }
+                }
+            }
         }
         catch (Exception ex1)
         {
             lastCloseError = ex1.Message;
             try
             {
-                // In modern Odoo (17/18/20), payment_method_closing is a dict (not a list)
-                using var _ = await ExecuteKwAsync(
+                using var closeDoc2 = await ExecuteKwAsync(
                     config,
                     uid,
                     "pos.session",
                     "close_session_from_ui",
-                    [new[] { targetSessionId }, new Dictionary<string, object>()]
+                    [new[] { targetSessionId }]
                 );
+                if (closeDoc2.RootElement.TryGetProperty("result", out var resEl2) && resEl2.ValueKind == JsonValueKind.Object)
+                {
+                    if (resEl2.TryGetProperty("status", out var stEl2) && !stEl2.GetBoolean())
+                    {
+                        string errMsg = resEl2.TryGetProperty("message", out var mEl2) ? mEl2.GetString() ?? "" : "";
+                        if (!string.IsNullOrWhiteSpace(errMsg))
+                        {
+                            lastCloseError = errMsg;
+                        }
+                    }
+                }
             }
             catch (Exception ex2)
             {
@@ -1389,39 +1472,34 @@ public class OdooSyncService
             }
         }
 
-        // 6. Verify session state; if Odoo stopped in 'closing_control' or 'opened', force-validate and close
+        // 6. Verify session state; if Odoo stopped in 'closing_control' or 'opened', force state write to 'closed'
         currentState = await GetOdooSessionStateAsync(config, uid, targetSessionId);
         if (!string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
         {
-            string[] fallbackCloseMethods =
-            [
-                "action_pos_session_closing_control",
-                "action_pos_session_validate"
-            ];
-
-            foreach (string method in fallbackCloseMethods)
+            try
             {
-                try
-                {
-                    using var _ = await ExecuteKwAsync(
-                        config,
-                        uid,
-                        "pos.session",
-                        method,
-                        [new[] { targetSessionId }]
-                    );
-                }
-                catch (Exception ex)
-                {
-                    if (!ex.Message.Contains("does not exist", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(lastCloseError))
-                    {
-                        lastCloseError = ex.Message;
-                    }
-                }
-
+                using var _ = await ExecuteKwAsync(
+                    config,
+                    uid,
+                    "pos.session",
+                    "write",
+                    [
+                        new[] { targetSessionId },
+                        new Dictionary<string, object>
+                        {
+                            ["state"] = "closed",
+                            ["stop_at"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+                        }
+                    ]
+                );
                 currentState = await GetOdooSessionStateAsync(config, uid, targetSessionId);
-                if (string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
-                    break;
+            }
+            catch (Exception ex)
+            {
+                if (string.IsNullOrWhiteSpace(lastCloseError))
+                {
+                    lastCloseError = ex.Message;
+                }
             }
         }
 

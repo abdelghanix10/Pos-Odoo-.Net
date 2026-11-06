@@ -14,22 +14,22 @@ public class SparklineDataPoint
 {
     public double X { get; set; }
     public double Y { get; set; }
-    public double CanvasLeft => X - 6.0;
-    public double CanvasTop => Y - 6.0;
-    public double TooltipLeft => Math.Clamp(X - 75.0, 6.0, 145.0);
-    public double TooltipTop => Math.Max(2.0, Y - 48.0);
+    public double CanvasLeft => X - 12.0;
+    public double CanvasTop => Y - 12.0;
+    public double TooltipLeft => Math.Clamp(X - 65.0, 4.0, 155.0);
+    public double TooltipTop => Math.Max(2.0, Y - 44.0);
     public double Value { get; set; }
     public string DateLabel { get; set; } = string.Empty;
-    public string ValueLabel => string.Format(CultureInfo.InvariantCulture, "Sales Last 7 Days: {0:0.##}", Value);
+    public string ValueLabel => string.Format(CultureInfo.InvariantCulture, "Sales Last 7 Days: {0:N2}", Value);
 }
 
 public class PosConfigRecord : INotifyPropertyChanged
 {
     private static readonly Brush OpeningControlBadgeBrush = CreateFrozenBrush("#318896");
     private static readonly Brush ToCloseBadgeBrush = CreateFrozenBrush("#DC2626");
-    private static readonly Brush ActiveSparklineBrush = CreateFrozenBrush("#6D4C64");
-    private static readonly Brush InactiveSparklineBrush = CreateFrozenBrush("#E5E7EB");
-    private static readonly Brush InactiveMarkerBrush = CreateFrozenBrush("#D1D5DB");
+    private static readonly Brush ActiveSparklineBrush = CreateFrozenBrush("#714B67");
+    private static readonly Brush InactiveSparklineBrush = CreateFrozenBrush("#714B67");
+    private static readonly Brush InactiveMarkerBrush = CreateFrozenBrush("#714B67");
 
     private long _id;
     private int _odooId;
@@ -348,6 +348,32 @@ public class PosConfigRecord : INotifyPropertyChanged
         OnPropertyChanged(nameof(ToCloseMetricsVisibility));
     }
 
+    public void Set7DaySalesPoints(List<double> points7, DateTime? anchor = null)
+    {
+        if (points7 == null || points7.Count == 0)
+        {
+            _recentSalesPoints = [0, 0, 0, 0, 0, 0, 0];
+        }
+        else if (points7.Count == 7)
+        {
+            _recentSalesPoints = [.. points7];
+        }
+        else
+        {
+            var list = points7.TakeLast(7).ToList();
+            while (list.Count < 7) list.Insert(0, 0);
+            _recentSalesPoints = list;
+        }
+
+        try
+        {
+            _recentSalesPointsJson = JsonSerializer.Serialize(_recentSalesPoints);
+        }
+        catch { }
+
+        GenerateSparklineGeometries(anchor ?? DateTime.Today);
+    }
+
     private void ParseAndGenerateSparkline()
     {
         try
@@ -355,27 +381,34 @@ public class PosConfigRecord : INotifyPropertyChanged
             if (!string.IsNullOrWhiteSpace(_recentSalesPointsJson))
             {
                 var list = JsonSerializer.Deserialize<List<double>>(_recentSalesPointsJson);
-                _recentSalesPoints = (list != null && list.Count > 0) ? list : [0, 0, 0, 0, 0];
+                if (list != null && list.Count > 0)
+                {
+                    while (list.Count < 7) list.Insert(0, 0);
+                    _recentSalesPoints = list.TakeLast(7).ToList();
+                }
+                else
+                {
+                    _recentSalesPoints = [0, 0, 0, 0, 0, 0, 0];
+                }
             }
             else
             {
-                _recentSalesPoints = [0, 0, 0, 0, 0];
+                _recentSalesPoints = [0, 0, 0, 0, 0, 0, 0];
             }
         }
         catch
         {
-            _recentSalesPoints = [0, 0, 0, 0, 0];
+            _recentSalesPoints = [0, 0, 0, 0, 0, 0, 0];
         }
 
-        GenerateSparklineGeometries();
+        GenerateSparklineGeometries(DateTime.Today);
     }
 
-    public void GenerateSparklineGeometries()
+    public void GenerateSparklineGeometries(DateTime? anchor = null)
     {
         const double width = 300.0;
         const double height = 80.0;
-        const double baselineY = 78.0;
-        const double flatLineY = 66.0;
+        const double baselineY = 74.0;
 
         OnPropertyChanged(nameof(IsZeroActivity));
         OnPropertyChanged(nameof(SparklineStrokeBrush));
@@ -383,43 +416,36 @@ public class PosConfigRecord : INotifyPropertyChanged
         OnPropertyChanged(nameof(SparklineAreaVisibility));
 
         SparklinePoints.Clear();
-        DateTime anchorDate = LastClosingDate ?? DateTime.Now;
+        DateTime anchorDate = anchor ?? LastClosingDate?.Date ?? DateTime.Today;
 
-        if (IsZeroActivity || _recentSalesPoints.Count < 2)
+        if (_recentSalesPoints == null || _recentSalesPoints.Count != 7)
         {
-            StrokeGeometryString = string.Format(CultureInfo.InvariantCulture, "M 0,{0:F1} L {1:F1},{0:F1}", flatLineY, width);
-            AreaGeometryString = string.Empty;
-
-            var markerSb = new StringBuilder();
-            int count = 5;
-            double leftMargin = 42.0;
-            double rightMargin = 42.0;
-            double step = (width - leftMargin - rightMargin) / (count - 1);
-
-            for (int i = 0; i < count; i++)
+            if (_recentSalesPoints != null && _recentSalesPoints.Count > 0)
             {
-                double mx = leftMargin + (i * step);
-                markerSb.Append(string.Format(CultureInfo.InvariantCulture,
-                    "M {0:F1},{1:F1} m -2.2,0 a 2.2,2.2 0 1,0 4.4,0 a 2.2,2.2 0 1,0 -4.4,0 ", mx, flatLineY));
+                var list = _recentSalesPoints.TakeLast(7).ToList();
+                while (list.Count < 7) list.Insert(0, 0);
+                _recentSalesPoints = list;
             }
-            MarkerGeometryString = markerSb.ToString();
-            return;
+            else
+            {
+                _recentSalesPoints = [0, 0, 0, 0, 0, 0, 0];
+            }
         }
 
-        int n = _recentSalesPoints.Count;
+        int n = 7;
         double maxVal = _recentSalesPoints.Max();
-        if (maxVal <= 0.001) maxVal = 1.0;
+        bool isFlat = maxVal <= 0.001;
+        if (isFlat) maxVal = 1.0;
 
         var points = new Point[n];
-        double padX = 36.0;
+        double padX = 18.0;
         double usableWidth = width - (padX * 2.0);
         double xStep = usableWidth / (n - 1);
 
         for (int i = 0; i < n; i++)
         {
             double val = _recentSalesPoints[i];
-            double normalized = Math.Clamp(val / maxVal, 0.0, 1.0);
-            double py = baselineY - (normalized * 62.0);
+            double py = isFlat ? baselineY : (baselineY - (Math.Clamp(val / maxVal, 0.0, 1.0) * 58.0));
             double px = padX + (i * xStep);
             points[i] = new Point(px, py);
 
@@ -437,7 +463,7 @@ public class PosConfigRecord : INotifyPropertyChanged
         var areaSb = new StringBuilder();
         var markersSb = new StringBuilder();
 
-        // Start from left edge along baseline up to first point
+        // Stroke line
         strokeSb.Append(string.Format(CultureInfo.InvariantCulture, "M 0,{0:F1} L {1:F1},{2:F1}", baselineY, points[0].X, points[0].Y));
         areaSb.Append(string.Format(CultureInfo.InvariantCulture, "M 0,{0:F1} L {1:F1},{2:F1}", height, points[0].X, points[0].Y));
 
@@ -462,12 +488,12 @@ public class PosConfigRecord : INotifyPropertyChanged
         for (int i = 0; i < n; i++)
         {
             markersSb.Append(string.Format(CultureInfo.InvariantCulture,
-                "M {0:F1},{1:F1} m -3,0 a 3,3 0 1,0 6,0 a 3,3 0 1,0 -6,0 ",
+                "M {0:F1},{1:F1} m -2.6,0 a 2.6,2.6 0 1,0 5.2,0 a 2.6,2.6 0 1,0 -5.2,0 ",
                 points[i].X, points[i].Y));
         }
 
         StrokeGeometryString = strokeSb.ToString();
-        AreaGeometryString = areaSb.ToString();
+        AreaGeometryString = isFlat ? string.Empty : areaSb.ToString();
         MarkerGeometryString = markersSb.ToString();
     }
 

@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using OdooPosLogin.ViewModels;
@@ -21,28 +19,33 @@ public partial class PosRegisterView : UserControl
         if (Keyboard.FocusedElement is TextBox)
             return;
 
-        if (VM.IsRegisterViewActive && !VM.IsOpeningControlModalOpen && !VM.IsClosingRegisterModalOpen && !VM.IsHamburgerMenuOpen && !VM.IsDraftOrdersWarningModalOpen)
+        if (VM.IsPosLandingScreenOpen || VM.IsOpeningControlModalOpen || VM.IsClosingRegisterModalOpen ||
+            VM.IsHamburgerMenuOpen || VM.IsDraftOrdersWarningModalOpen || VM.IsNoteModalOpen)
         {
-            if (e.Key >= Key.D0 && e.Key <= Key.D9)
-            {
-                VM.NumpadKeyCommand.Execute((e.Key - Key.D0).ToString());
-                e.Handled = true;
-            }
-            else if (e.Key >= Key.NumPad0 && e.Key <= Key.NumPad9)
-            {
-                VM.NumpadKeyCommand.Execute((e.Key - Key.NumPad0).ToString());
-                e.Handled = true;
-            }
-            else if (e.Key == Key.OemPeriod || e.Key == Key.Decimal)
-            {
-                VM.NumpadKeyCommand.Execute(".");
-                e.Handled = true;
-            }
-            else if (e.Key == Key.Back)
-            {
-                VM.NumpadKeyCommand.Execute("⌫");
-                e.Handled = true;
-            }
+            return;
+        }
+
+        string? keyToken = null;
+        if (e.Key >= Key.D0 && e.Key <= Key.D9)
+            keyToken = (e.Key - Key.D0).ToString();
+        else if (e.Key >= Key.NumPad0 && e.Key <= Key.NumPad9)
+            keyToken = (e.Key - Key.NumPad0).ToString();
+        else if (e.Key == Key.OemPeriod || e.Key == Key.Decimal)
+            keyToken = ".";
+        else if (e.Key == Key.Back)
+            keyToken = "⌫";
+
+        if (keyToken == null) return;
+
+        if (VM.IsPaymentViewOpen)
+        {
+            VM.PaymentNumpadKeyCommand.Execute(keyToken);
+            e.Handled = true;
+        }
+        else if (VM.IsRegisterViewActive)
+        {
+            VM.NumpadKeyCommand.Execute(keyToken);
+            e.Handled = true;
         }
     }
 }

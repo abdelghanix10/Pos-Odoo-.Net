@@ -242,12 +242,14 @@
     <Grid>
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="64"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- 1. TOP HEADER BAR -->
-            <Border Grid.Row="0"
+            <!-- 1. TOP HEADER BAR (Visible on Login Screen; Collapsed inside POS/Backend) -->
+            <Border x:Name="TopLoginHeaderBar"
+                    Grid.Row="0"
+                    Height="64"
                     Background="{StaticResource SurfaceCardBrush}"
                     BorderBrush="{StaticResource SubtleBorderBrush}"
                     BorderThickness="0,0,0,1"
@@ -308,7 +310,7 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
 
-                        <!-- Quick Setup / Sync Button (visible on Login Screen) -->
+                        <!-- Quick Setup / Sync Button -->
                         <Button x:Name="HeaderQuickSetupBtn"
                                 Click="OpenSetupSettings_Click"
                                 Background="#F3F4F6"
@@ -466,7 +468,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- RIGHT INTERACTIVE COLUMN (USER CARDS OR INITIAL ODOO SYNC CARD + FOOTER EXIT) -->
+                <!-- RIGHT INTERACTIVE COLUMN -->
                 <Grid Grid.Column="1" Width="400">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
@@ -639,7 +641,6 @@
                     Padding="28"
                     Effect="{StaticResource ModalShadowEffect}">
                 <StackPanel>
-                    <!-- Modal Header -->
                     <Grid Margin="0,0,0,20">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border x:Name="ModalRoleBadge"
@@ -676,7 +677,6 @@
                                 Click="ClosePinModal_Click"/>
                     </Grid>
 
-                    <!-- Masked PIN Dots Box -->
                     <Border Background="#F9FAFB"
                             BorderBrush="{StaticResource SubtleBorderBrush}"
                             BorderThickness="1"
@@ -693,7 +693,6 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- 3x4 Touch Numeric Keypad -->
                     <UniformGrid Rows="4" Columns="3" Margin="-5">
                         <Button Content="1" Style="{StaticResource PinPadKeyStyle}" Margin="5" Click="PinDigit_Click"/>
                         <Button Content="2" Style="{StaticResource PinPadKeyStyle}" Margin="5" Click="PinDigit_Click"/>
@@ -743,7 +742,7 @@
                                       Stroke="{StaticResource DangerRedBrush}"
                                       StrokeThickness="2.4"
                                       StrokeStartLineCap="Round"
-                                          StrokeEndLineCap="Round"/>
+                                      StrokeEndLineCap="Round"/>
                                 <Path Data="M 18.36,6.64 A 9,9 0 1 1 5.64,6.64"
                                       Stroke="{StaticResource DangerRedBrush}"
                                       StrokeThickness="2.4"

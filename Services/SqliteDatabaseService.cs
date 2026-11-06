@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -209,7 +210,98 @@ public record DatabaseCountsSummary(
     int OrdersCount,
     int PaymentsCount,
     int CompaniesCount = 0,
-    int PaymentMethodsCount = 0
+    int PaymentMethodsCount = 0,
+    int PendingSyncCount = 0
+);
+
+// =========================================================================
+// OFFLINE SEQUENTIAL SYNC QUEUE RECORDS & PAYLOADS
+// =========================================================================
+public record PendingSyncItemRecord(
+    long Id,
+    string OperationType,
+    string EntityUuid,
+    long? LocalEntityId,
+    int? PosConfigOdooId,
+    int? SessionOdooId,
+    string PayloadJson,
+    string Status,
+    int RetryCount,
+    string? LastError,
+    string CreatedAt
+);
+
+public record OpenSessionSyncPayload(
+    int ConfigOdooId,
+    string ConfigName,
+    long LocalSessionId,
+    int? ExistingSessionOdooId,
+    decimal OpeningBalance,
+    string? OpeningNote,
+    int? UserId,
+    string CashierName,
+    DateTime OpenedAt
+);
+
+public record PosOrderLineSyncPayload(
+    int? ProductOdooId,
+    string ProductName,
+    decimal Qty,
+    decimal PriceUnit,
+    decimal Discount,
+    string Taxes,
+    decimal TaxRate,
+    decimal PriceSubtotal,
+    decimal PriceSubtotalIncl,
+    string? CustomerNote
+);
+
+public record PosPaymentSyncPayload(
+    int? PaymentMethodOdooId,
+    string PaymentMethodName,
+    decimal Amount,
+    DateTime PaymentDate
+);
+
+public record CreateOrderSyncPayload(
+    string OrderUuid,
+    long LocalOrderId,
+    int ConfigOdooId,
+    int? SessionOdooId,
+    long? LocalSessionId,
+    string Name,
+    string PosReference,
+    string TrackingNumber,
+    DateTime DateOrder,
+    int? CashierId,
+    string CashierName,
+    int? PartnerId,
+    string CustomerName,
+    bool IsToInvoice,
+    decimal AmountTotal,
+    decimal AmountTax,
+    decimal AmountPaid,
+    string Note,
+    List<PosOrderLineSyncPayload> Lines,
+    List<PosPaymentSyncPayload> Payments
+);
+
+public record CashInOutSyncPayload(
+    int ConfigOdooId,
+    int? SessionOdooId,
+    long? LocalSessionId,
+    decimal Amount,
+    string Reason,
+    DateTime CreatedAt
+);
+
+public record CloseSessionSyncPayload(
+    int ConfigOdooId,
+    int? SessionOdooId,
+    long? LocalSessionId,
+    decimal ClosingCashCount,
+    string? ClosingNote,
+    DateTime ClosedAt
 );
 
 public class SqliteDatabaseService
@@ -414,15 +506,20 @@ public class SqliteDatabaseService
                 State TEXT DEFAULT 'opened',
                 OpeningBalance REAL DEFAULT 0.0,
                 ClosingBalance REAL DEFAULT 0.0,
+                CashInOutTotal REAL DEFAULT 0.0,
+                OpeningNote TEXT,
+                ClosingNote TEXT,
                 OrdersCount INTEGER DEFAULT 0,
                 TotalPaymentsAmount REAL DEFAULT 0.0,
                 Employees TEXT,
+                IsSynced INTEGER DEFAULT 1,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS PosOrders (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 OdooId INTEGER UNIQUE,
+                Uuid TEXT,
                 Name TEXT NOT NULL,
                 PosReference TEXT,
                 TrackingNumber TEXT,
@@ -434,6 +531,9 @@ public class SqliteDatabaseService
                 CashierId INTEGER,
                 CashierName TEXT,
                 CashierAvatarBase64 TEXT,
+                PartnerId INTEGER,
+                CustomerName TEXT,
+                IsToInvoice INTEGER DEFAULT 0,
                 FiscalPosition TEXT DEFAULT '—',
                 AmountTotal REAL DEFAULT 0.0,
                 AmountTax REAL DEFAULT 0.0,
@@ -446,6 +546,7 @@ public class SqliteDatabaseService
                 Note TEXT,
                 LinesJson TEXT,
                 PaymentsJson TEXT,
+                IsSynced INTEGER DEFAULT 1,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -463,6 +564,7 @@ public class SqliteDatabaseService
                 Taxes TEXT DEFAULT '15%',
                 PriceSubtotal REAL DEFAULT 0.0,
                 PriceSubtotalIncl REAL DEFAULT 0.0,
+                CustomerNote TEXT,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -482,6 +584,7 @@ public class SqliteDatabaseService
                 CurrencyName TEXT DEFAULT 'MAD',
                 ForeignCurrency TEXT DEFAULT '—',
                 PaymentDate TEXT,
+                IsSynced INTEGER DEFAULT 1,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -500,6 +603,20 @@ public class SqliteDatabaseService
                 ActiveUserAvatar TEXT,
                 RecentSalesPointsJson TEXT,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS PendingSyncQueue (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                OperationType TEXT NOT NULL,
+                EntityUuid TEXT NOT NULL,
+                LocalEntityId INTEGER,
+                PosConfigOdooId INTEGER,
+                SessionOdooId INTEGER,
+                PayloadJson TEXT NOT NULL,
+                Status TEXT DEFAULT 'Pending',
+                RetryCount INTEGER DEFAULT 0,
+                LastError TEXT,
+                CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
             """;
         command.ExecuteNonQuery();
@@ -532,7 +649,18 @@ public class SqliteDatabaseService
             "ALTER TABLE Products ADD COLUMN PurchaseTaxLabel TEXT DEFAULT '15%';",
             "ALTER TABLE Products ADD COLUMN UomName TEXT DEFAULT 'Units';",
             "ALTER TABLE Products ADD COLUMN CompanyName TEXT DEFAULT '';",
-            "ALTER TABLE Products ADD COLUMN PosDescription TEXT DEFAULT '';"
+            "ALTER TABLE Products ADD COLUMN PosDescription TEXT DEFAULT '';",
+            "ALTER TABLE PosSessions ADD COLUMN CashInOutTotal REAL DEFAULT 0.0;",
+            "ALTER TABLE PosSessions ADD COLUMN OpeningNote TEXT;",
+            "ALTER TABLE PosSessions ADD COLUMN ClosingNote TEXT;",
+            "ALTER TABLE PosSessions ADD COLUMN IsSynced INTEGER DEFAULT 1;",
+            "ALTER TABLE PosOrders ADD COLUMN Uuid TEXT;",
+            "ALTER TABLE PosOrders ADD COLUMN PartnerId INTEGER;",
+            "ALTER TABLE PosOrders ADD COLUMN CustomerName TEXT;",
+            "ALTER TABLE PosOrders ADD COLUMN IsToInvoice INTEGER DEFAULT 0;",
+            "ALTER TABLE PosOrders ADD COLUMN IsSynced INTEGER DEFAULT 1;",
+            "ALTER TABLE PosOrderLines ADD COLUMN CustomerNote TEXT;",
+            "ALTER TABLE PosPayments ADD COLUMN IsSynced INTEGER DEFAULT 1;"
         ];
 
         foreach (string sql in migrations)
@@ -577,6 +705,7 @@ public class SqliteDatabaseService
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
+            DELETE FROM PendingSyncQueue;
             DELETE FROM Companies;
             DELETE FROM Users;
             DELETE FROM PosPaymentMethods;
@@ -630,6 +759,10 @@ public class SqliteDatabaseService
             return Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
         }
 
+        await using var queueCmd = connection.CreateCommand();
+        queueCmd.CommandText = "SELECT COUNT(*) FROM PendingSyncQueue WHERE Status != 'Completed';";
+        int pendingSync = Convert.ToInt32(await queueCmd.ExecuteScalarAsync() ?? 0);
+
         return new DatabaseCountsSummary(
             await CountTableAsync("Users"),
             await CountTableAsync("PosCategories"),
@@ -642,7 +775,8 @@ public class SqliteDatabaseService
             await CountTableAsync("PosOrders"),
             await CountTableAsync("PosPayments"),
             await CountTableAsync("Companies"),
-            await CountTableAsync("PosPaymentMethods")
+            await CountTableAsync("PosPaymentMethods"),
+            pendingSync
         );
     }
 
@@ -765,7 +899,6 @@ public class SqliteDatabaseService
             });
         }
 
-        // Populate Branches collection on parent companies
         var byOdooId = list.Where(c => c.OdooId > 0).ToDictionary(c => c.OdooId, c => c);
         foreach (var comp in list)
         {
@@ -2313,14 +2446,30 @@ public class SqliteDatabaseService
         {
             await using var checkCmd = connection.CreateCommand();
             checkCmd.Transaction = transaction;
-            checkCmd.CommandText = "SELECT Id FROM PosSessions WHERE OdooId = @odooId LIMIT 1;";
+            checkCmd.CommandText = "SELECT Id, COALESCE(IsSynced, 1) FROM PosSessions WHERE OdooId = @odooId LIMIT 1;";
             checkCmd.Parameters.AddWithValue("@odooId", s.OdooId);
-            var existingId = await checkCmd.ExecuteScalarAsync();
+
+            long? existingId = null;
+            bool isLocalUnsynced = false;
+            await using (var r = await checkCmd.ExecuteReaderAsync())
+            {
+                if (await r.ReadAsync())
+                {
+                    existingId = r.GetInt64(0);
+                    isLocalUnsynced = r.GetInt32(1) == 0;
+                }
+            }
+
+            if (isLocalUnsynced)
+            {
+                // Preserve local unsynced session changes until the offline queue flushes them to Odoo
+                continue;
+            }
 
             await using var cmd = connection.CreateCommand();
             cmd.Transaction = transaction;
 
-            if (existingId != null && existingId != DBNull.Value)
+            if (existingId.HasValue)
             {
                 cmd.CommandText = """
                     UPDATE PosSessions
@@ -2329,7 +2478,7 @@ public class SqliteDatabaseService
                         StartAt = @startAt, StopAt = @stopAt, State = @state,
                         OpeningBalance = @openBal, ClosingBalance = @closeBal,
                         OrdersCount = @ordersCount, TotalPaymentsAmount = @totalPayments,
-                        Employees = @employees, UpdatedAt = CURRENT_TIMESTAMP
+                        Employees = @employees, IsSynced = 1, UpdatedAt = CURRENT_TIMESTAMP
                     WHERE OdooId = @odooId;
                     """;
                 updated++;
@@ -2338,9 +2487,9 @@ public class SqliteDatabaseService
             {
                 cmd.CommandText = """
                     INSERT INTO PosSessions (OdooId, Name, PosConfigId, PosConfigName, UserId, UserName, UserAvatarBase64,
-                                            StartAt, StopAt, State, OpeningBalance, ClosingBalance, OrdersCount, TotalPaymentsAmount, Employees)
+                                            StartAt, StopAt, State, OpeningBalance, ClosingBalance, OrdersCount, TotalPaymentsAmount, Employees, IsSynced)
                     VALUES (@odooId, @name, @posConfigId, @posConfigName, @userId, @userName, @avatar,
-                            @startAt, @stopAt, @state, @openBal, @closeBal, @ordersCount, @totalPayments, @employees);
+                            @startAt, @stopAt, @state, @openBal, @closeBal, @ordersCount, @totalPayments, @employees, 1);
                     """;
                 imported++;
             }
@@ -2367,13 +2516,16 @@ public class SqliteDatabaseService
         await using (var fetchCmd = connection.CreateCommand())
         {
             fetchCmd.Transaction = transaction;
-            fetchCmd.CommandText = "SELECT Id, OdooId FROM PosSessions;";
+            fetchCmd.CommandText = "SELECT Id, OdooId, COALESCE(IsSynced, 1) FROM PosSessions;";
             await using var reader = await fetchCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
                 long id = reader.GetInt64(0);
                 int? oId = reader.IsDBNull(1) ? null : reader.GetInt32(1);
-                if (!oId.HasValue || !odooIds.Contains(oId.Value)) delIds.Add(id);
+                bool isSynced = reader.GetInt32(2) != 0;
+                // Never delete local unsynced sessions
+                if (isSynced && (!oId.HasValue || !odooIds.Contains(oId.Value)))
+                    delIds.Add(id);
             }
         }
 
@@ -2426,7 +2578,8 @@ public class SqliteDatabaseService
             cmd.CommandText = """
                 SELECT o.Id, o.OdooId, o.Name, o.PosReference, o.TrackingNumber, o.SessionId, o.SessionOdooId, o.SessionName, o.PosConfigName,
                        o.DateOrder, o.CashierId, o.CashierName, COALESCE(o.CashierAvatarBase64, u.AvatarBase64), o.FiscalPosition,
-                       o.AmountTotal, o.AmountTax, o.AmountPaid, o.Margin, o.MarginRatio, o.State, o.IsEdited, o.Company, o.Note, o.LinesJson
+                       o.AmountTotal, o.AmountTax, o.AmountPaid, o.Margin, o.MarginRatio, o.State, o.IsEdited, o.Company, o.Note, o.LinesJson,
+                       COALESCE(o.Uuid, ''), COALESCE(o.IsSynced, 1), COALESCE(o.CustomerName, '')
                 FROM PosOrders o
                 LEFT JOIN Users u ON o.CashierId = u.OdooId
                 WHERE o.SessionName = @filter OR o.PosConfigName = @filter OR CAST(o.SessionOdooId AS TEXT) = @filter
@@ -2439,7 +2592,8 @@ public class SqliteDatabaseService
             cmd.CommandText = """
                 SELECT o.Id, o.OdooId, o.Name, o.PosReference, o.TrackingNumber, o.SessionId, o.SessionOdooId, o.SessionName, o.PosConfigName,
                        o.DateOrder, o.CashierId, o.CashierName, COALESCE(o.CashierAvatarBase64, u.AvatarBase64), o.FiscalPosition,
-                       o.AmountTotal, o.AmountTax, o.AmountPaid, o.Margin, o.MarginRatio, o.State, o.IsEdited, o.Company, o.Note, o.LinesJson
+                       o.AmountTotal, o.AmountTax, o.AmountPaid, o.Margin, o.MarginRatio, o.State, o.IsEdited, o.Company, o.Note, o.LinesJson,
+                       COALESCE(o.Uuid, ''), COALESCE(o.IsSynced, 1), COALESCE(o.CustomerName, '')
                 FROM PosOrders o
                 LEFT JOIN Users u ON o.CashierId = u.OdooId
                 ORDER BY COALESCE(o.OdooId, o.Id) DESC;
@@ -2450,6 +2604,10 @@ public class SqliteDatabaseService
         {
             while (await reader.ReadAsync())
             {
+                string uuid = reader.IsDBNull(24) || string.IsNullOrWhiteSpace(reader.GetString(24))
+                    ? Guid.NewGuid().ToString()
+                    : reader.GetString(24);
+
                 result.Add(new PosOrderRecord
                 {
                     Id = reader.GetInt64(0),
@@ -2475,7 +2633,10 @@ public class SqliteDatabaseService
                     IsEdited = !reader.IsDBNull(20) && reader.GetInt32(20) == 1,
                     Company = reader.IsDBNull(21) ? "My Company" : reader.GetString(21),
                     Note = reader.IsDBNull(22) ? "" : reader.GetString(22),
-                    RefundedOrderIdsJson = reader.IsDBNull(23) ? null : reader.GetString(23)
+                    RefundedOrderIdsJson = reader.IsDBNull(23) ? null : reader.GetString(23),
+                    Uuid = uuid,
+                    IsSynced = reader.IsDBNull(25) || reader.GetInt32(25) != 0,
+                    CustomerName = reader.IsDBNull(26) ? "" : reader.GetString(26)
                 });
             }
         }
@@ -2613,39 +2774,48 @@ public class SqliteDatabaseService
         {
             await using var checkCmd = connection.CreateCommand();
             checkCmd.Transaction = transaction;
-            checkCmd.CommandText = "SELECT Id FROM PosOrders WHERE OdooId = @odooId LIMIT 1;";
+            checkCmd.CommandText = """
+                SELECT Id FROM PosOrders
+                WHERE OdooId = @odooId
+                   OR (PosReference IS NOT NULL AND PosReference != '' AND PosReference = @refNum)
+                LIMIT 1;
+                """;
             checkCmd.Parameters.AddWithValue("@odooId", o.OdooId);
-            var existingId = await checkCmd.ExecuteScalarAsync();
+            checkCmd.Parameters.AddWithValue("@refNum", o.PosReference ?? "");
+            var existingIdObj = await checkCmd.ExecuteScalarAsync();
 
             await using var cmd = connection.CreateCommand();
             cmd.Transaction = transaction;
 
-            if (existingId != null && existingId != DBNull.Value)
+            if (existingIdObj != null && existingIdObj != DBNull.Value)
             {
+                long existingId = Convert.ToInt64(existingIdObj);
                 cmd.CommandText = """
                     UPDATE PosOrders
-                    SET Name = @name, PosReference = @refNum, TrackingNumber = @trackNum,
+                    SET OdooId = @odooId, Name = @name, PosReference = @refNum, TrackingNumber = @trackNum,
                         SessionOdooId = @sessOdooId, SessionName = @sessName, PosConfigName = @cfgName,
                         DateOrder = @dateOrder, CashierId = @cashierId, CashierName = @cashierName,
                         CashierAvatarBase64 = @avatar, FiscalPosition = @fiscal,
                         AmountTotal = @total, AmountTax = @tax, AmountPaid = @paid,
                         Margin = @margin, MarginRatio = @marginRatio, State = @state,
                         IsEdited = @isEdited, Company = @company, Note = @note,
-                        LinesJson = @linesJson, UpdatedAt = CURRENT_TIMESTAMP
-                    WHERE OdooId = @odooId;
+                        LinesJson = @linesJson, IsSynced = 1, UpdatedAt = CURRENT_TIMESTAMP
+                    WHERE Id = @id;
                     """;
+                cmd.Parameters.AddWithValue("@id", existingId);
                 updated++;
             }
             else
             {
                 cmd.CommandText = """
-                    INSERT INTO PosOrders (OdooId, Name, PosReference, TrackingNumber, SessionOdooId, SessionName, PosConfigName,
+                    INSERT INTO PosOrders (OdooId, Uuid, Name, PosReference, TrackingNumber, SessionOdooId, SessionName, PosConfigName,
                                           DateOrder, CashierId, CashierName, CashierAvatarBase64, FiscalPosition, AmountTotal, AmountTax,
-                                          AmountPaid, Margin, MarginRatio, State, IsEdited, Company, Note, LinesJson)
-                    VALUES (@odooId, @name, @refNum, @trackNum, @sessOdooId, @sessName, @cfgName,
+                                          AmountPaid, Margin, MarginRatio, State, IsEdited, Company, Note, LinesJson, IsSynced)
+                    VALUES (@odooId, @uuid, @name, @refNum, @trackNum, @sessOdooId, @sessName, @cfgName,
                             @dateOrder, @cashierId, @cashierName, @avatar, @fiscal, @total, @tax,
-                            @paid, @margin, @marginRatio, @state, @isEdited, @company, @note, @linesJson);
+                            @paid, @margin, @marginRatio, @state, @isEdited, @company, @note, @linesJson, 1);
                     """;
+                cmd.Parameters.AddWithValue("@uuid", Guid.NewGuid().ToString());
                 imported++;
             }
 
@@ -2672,6 +2842,18 @@ public class SqliteDatabaseService
             cmd.Parameters.AddWithValue("@note", o.Note);
             cmd.Parameters.AddWithValue("@linesJson", (object?)o.LinesJson ?? DBNull.Value);
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Remove stale local lines that belong to synced orders before re-upserting remote lines
+        await using (var cleanSyncedLinesCmd = connection.CreateCommand())
+        {
+            cleanSyncedLinesCmd.Transaction = transaction;
+            cleanSyncedLinesCmd.CommandText = """
+                DELETE FROM PosOrderLines
+                WHERE OdooId IS NULL
+                  AND OrderId IN (SELECT Id FROM PosOrders WHERE OdooId IS NOT NULL AND COALESCE(IsSynced, 1) = 1);
+                """;
+            await cleanSyncedLinesCmd.ExecuteNonQueryAsync();
         }
 
         foreach (var l in lines)
@@ -2717,17 +2899,18 @@ public class SqliteDatabaseService
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Only delete lines that have a remote OdooId which no longer exists on Odoo
         var delLineIds = new List<long>();
         await using (var fetchLinesCmd = connection.CreateCommand())
         {
             fetchLinesCmd.Transaction = transaction;
-            fetchLinesCmd.CommandText = "SELECT Id, OdooId FROM PosOrderLines;";
+            fetchLinesCmd.CommandText = "SELECT Id, OdooId FROM PosOrderLines WHERE OdooId IS NOT NULL;";
             await using var reader = await fetchLinesCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
                 long id = reader.GetInt64(0);
-                int? oId = reader.IsDBNull(1) ? null : reader.GetInt32(1);
-                if (!oId.HasValue || !odooLineIds.Contains(oId.Value)) delLineIds.Add(id);
+                int oId = reader.GetInt32(1);
+                if (!odooLineIds.Contains(oId)) delLineIds.Add(id);
             }
         }
 
@@ -2740,17 +2923,23 @@ public class SqliteDatabaseService
             await delLineCmd.ExecuteNonQueryAsync();
         }
 
+        // Never delete local unsynced orders or local ongoing draft orders
         var delOrderIds = new List<long>();
         await using (var fetchCmd = connection.CreateCommand())
         {
             fetchCmd.Transaction = transaction;
-            fetchCmd.CommandText = "SELECT Id, OdooId FROM PosOrders;";
+            fetchCmd.CommandText = "SELECT Id, OdooId, COALESCE(IsSynced, 1), LOWER(COALESCE(State, 'paid')) FROM PosOrders;";
             await using var reader = await fetchCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
                 long id = reader.GetInt64(0);
                 int? oId = reader.IsDBNull(1) ? null : reader.GetInt32(1);
-                if (!oId.HasValue || !odooOrderIds.Contains(oId.Value)) delOrderIds.Add(id);
+                bool isSynced = reader.GetInt32(2) != 0;
+                string state = reader.GetString(3);
+                bool isDraft = state is "draft" or "ongoing" or "new";
+
+                if (isSynced && !isDraft && (!oId.HasValue || !odooOrderIds.Contains(oId.Value)))
+                    delOrderIds.Add(id);
             }
         }
 
@@ -2758,7 +2947,10 @@ public class SqliteDatabaseService
         {
             await using var delCmd = connection.CreateCommand();
             delCmd.Transaction = transaction;
-            delCmd.CommandText = "DELETE FROM PosOrders WHERE Id = @id;";
+            delCmd.CommandText = """
+                DELETE FROM PosOrderLines WHERE OrderId = @id;
+                DELETE FROM PosOrders WHERE Id = @id;
+                """;
             delCmd.Parameters.AddWithValue("@id", delId);
             await delCmd.ExecuteNonQueryAsync();
             deleted++;
@@ -2878,7 +3070,7 @@ public class SqliteDatabaseService
                     UPDATE PosPayments
                     SET OrderOdooId = @orderOdooId, OrderName = @orderName, SessionOdooId = @sessOdooId, SessionName = @sessName,
                         CashierName = @cashier, PaymentMethodId = @methodId, PaymentMethodName = @methodName, Amount = @amount,
-                        CurrencyName = @curr, ForeignCurrency = @foreignCurr, PaymentDate = @date, UpdatedAt = CURRENT_TIMESTAMP
+                        CurrencyName = @curr, ForeignCurrency = @foreignCurr, PaymentDate = @date, IsSynced = 1, UpdatedAt = CURRENT_TIMESTAMP
                     WHERE OdooId = @odooId;
                     """;
                 updated++;
@@ -2887,9 +3079,9 @@ public class SqliteDatabaseService
             {
                 cmd.CommandText = """
                     INSERT INTO PosPayments (OdooId, OrderOdooId, OrderName, SessionOdooId, SessionName, CashierName,
-                                            PaymentMethodId, PaymentMethodName, Amount, CurrencyName, ForeignCurrency, PaymentDate)
+                                            PaymentMethodId, PaymentMethodName, Amount, CurrencyName, ForeignCurrency, PaymentDate, IsSynced)
                     VALUES (@odooId, @orderOdooId, @orderName, @sessOdooId, @sessName, @cashier,
-                            @methodId, @methodName, @amount, @curr, @foreignCurr, @date);
+                            @methodId, @methodName, @amount, @curr, @foreignCurr, @date, 1);
                     """;
                 imported++;
             }
@@ -2909,17 +3101,20 @@ public class SqliteDatabaseService
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Never delete local unsynced payments
         var delIds = new List<long>();
         await using (var fetchCmd = connection.CreateCommand())
         {
             fetchCmd.Transaction = transaction;
-            fetchCmd.CommandText = "SELECT Id, OdooId FROM PosPayments;";
+            fetchCmd.CommandText = "SELECT Id, OdooId, COALESCE(IsSynced, 1) FROM PosPayments;";
             await using var reader = await fetchCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
                 long id = reader.GetInt64(0);
                 int? oId = reader.IsDBNull(1) ? null : reader.GetInt32(1);
-                if (!oId.HasValue || !odooIds.Contains(oId.Value)) delIds.Add(id);
+                bool isSynced = reader.GetInt32(2) != 0;
+                if (isSynced && (!oId.HasValue || !odooIds.Contains(oId.Value)))
+                    delIds.Add(id);
             }
         }
 
@@ -3009,6 +3204,23 @@ public class SqliteDatabaseService
 
         var odooIds = configs.Select(c => c.OdooId).ToHashSet();
 
+        // Check which configs have pending offline session operations
+        var pendingConfigIds = new HashSet<int>();
+        await using (var pendCmd = connection.CreateCommand())
+        {
+            pendCmd.Transaction = transaction;
+            pendCmd.CommandText = """
+                SELECT DISTINCT PosConfigOdooId
+                FROM PendingSyncQueue
+                WHERE Status != 'Completed' AND PosConfigOdooId IS NOT NULL;
+                """;
+            await using var pr = await pendCmd.ExecuteReaderAsync();
+            while (await pr.ReadAsync())
+            {
+                if (!pr.IsDBNull(0)) pendingConfigIds.Add(pr.GetInt32(0));
+            }
+        }
+
         foreach (var c in configs)
         {
             await using var checkCmd = connection.CreateCommand();
@@ -3016,6 +3228,24 @@ public class SqliteDatabaseService
             checkCmd.CommandText = "SELECT Id FROM PosConfigs WHERE OdooId = @odooId LIMIT 1;";
             checkCmd.Parameters.AddWithValue("@odooId", c.OdooId);
             var existingId = await checkCmd.ExecuteScalarAsync();
+
+            if (existingId != null && existingId != DBNull.Value && pendingConfigIds.Contains(c.OdooId))
+            {
+                // Preserve local session state for configs that have pending offline queue items
+                await using var sparkCmd = connection.CreateCommand();
+                sparkCmd.Transaction = transaction;
+                sparkCmd.CommandText = """
+                    UPDATE PosConfigs
+                    SET Name = @name, RecentSalesPointsJson = @salesPoints, UpdatedAt = CURRENT_TIMESTAMP
+                    WHERE OdooId = @odooId;
+                    """;
+                sparkCmd.Parameters.AddWithValue("@name", c.Name);
+                sparkCmd.Parameters.AddWithValue("@salesPoints", c.RecentSalesPointsJson ?? "[]");
+                sparkCmd.Parameters.AddWithValue("@odooId", c.OdooId);
+                await sparkCmd.ExecuteNonQueryAsync();
+                updated++;
+                continue;
+            }
 
             await using var cmd = connection.CreateCommand();
             cmd.Transaction = transaction;
@@ -3110,69 +3340,354 @@ public class SqliteDatabaseService
     }
 
     // =========================================================================
-    // 13. POS REGISTER & SELLING WORKFLOW HELPER METHODS
+    // 13. POS REGISTER & SELLING WORKFLOW HELPER METHODS + OFFLINE SYNC QUEUE
     // =========================================================================
-    public async Task UpdateSessionOpeningControlAsync(int configId, int sessionId, decimal openingBalance, string? openingNote)
+    public async Task<(long LocalSessionId, int? SessionOdooId, string SessionName)> UpdateSessionOpeningControlAsync(
+        int configId,
+        int? sessionId,
+        decimal openingBalance,
+        string? openingNote,
+        string? configName = null,
+        int? userId = null,
+        string? cashierName = null,
+        bool enqueueForOdooSync = true)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
 
-        await using var cmdSession = connection.CreateCommand();
-        cmdSession.CommandText = """
-            UPDATE PosSessions
-            SET OpeningBalance = @openBal,
-                State = 'opened',
-                StartAt = COALESCE(StartAt, CURRENT_TIMESTAMP),
-                UpdatedAt = CURRENT_TIMESTAMP
-            WHERE OdooId = @sessId OR Id = @sessId;
-            """;
-        cmdSession.Parameters.AddWithValue("@openBal", (double)openingBalance);
-        cmdSession.Parameters.AddWithValue("@sessId", sessionId);
-        await cmdSession.ExecuteNonQueryAsync();
+        string resolvedConfigName = configName ?? "Point of Sale";
+        if (string.IsNullOrWhiteSpace(configName))
+        {
+            await using var cfgNameCmd = connection.CreateCommand();
+            cfgNameCmd.Transaction = transaction;
+            cfgNameCmd.CommandText = "SELECT Name FROM PosConfigs WHERE OdooId = @cfgId OR Id = @cfgId LIMIT 1;";
+            cfgNameCmd.Parameters.AddWithValue("@cfgId", configId);
+            var nObj = await cfgNameCmd.ExecuteScalarAsync();
+            if (nObj is string s && !string.IsNullOrWhiteSpace(s)) resolvedConfigName = s;
+        }
 
-        await using var cmdConfig = connection.CreateCommand();
-        cmdConfig.CommandText = """
-            UPDATE PosConfigs
-            SET OpeningBalance = @openBal,
-                CurrentSessionState = 'opened',
-                UpdatedAt = CURRENT_TIMESTAMP
-            WHERE OdooId = @cfgId OR Id = @cfgId;
-            """;
-        cmdConfig.Parameters.AddWithValue("@openBal", (double)openingBalance);
-        cmdConfig.Parameters.AddWithValue("@cfgId", configId);
-        await cmdConfig.ExecuteNonQueryAsync();
+        long localSessId = 0;
+        int? odooSessId = sessionId;
+        string sessName = $"{resolvedConfigName}/{DateTime.Now:HHmmss}";
+
+        // Check if an active or opening_control session already exists for this config
+        await using (var findCmd = connection.CreateCommand())
+        {
+            findCmd.Transaction = transaction;
+            findCmd.CommandText = """
+                SELECT Id, OdooId, Name
+                FROM PosSessions
+                WHERE ( (@sessId IS NOT NULL AND (OdooId = @sessId OR Id = @sessId))
+                     OR (PosConfigId = @cfgId AND LOWER(State) != 'closed') )
+                ORDER BY Id DESC
+                LIMIT 1;
+                """;
+            findCmd.Parameters.AddWithValue("@sessId", (object?)sessionId ?? DBNull.Value);
+            findCmd.Parameters.AddWithValue("@cfgId", configId);
+            await using var r = await findCmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                localSessId = r.GetInt64(0);
+                if (!r.IsDBNull(1)) odooSessId = r.GetInt32(1);
+                if (!r.IsDBNull(2) && !string.IsNullOrWhiteSpace(r.GetString(2))) sessName = r.GetString(2);
+            }
+        }
+
+        if (localSessId > 0)
+        {
+            await using var cmdSession = connection.CreateCommand();
+            cmdSession.Transaction = transaction;
+            cmdSession.CommandText = """
+                UPDATE PosSessions
+                SET OpeningBalance = @openBal,
+                    OpeningNote = @note,
+                    State = 'opened',
+                    StartAt = COALESCE(StartAt, @now),
+                    UserName = COALESCE(@userName, UserName),
+                    IsSynced = @synced,
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE Id = @id;
+                """;
+            cmdSession.Parameters.AddWithValue("@openBal", (double)openingBalance);
+            cmdSession.Parameters.AddWithValue("@note", openingNote ?? "");
+            cmdSession.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            cmdSession.Parameters.AddWithValue("@userName", (object?)cashierName ?? DBNull.Value);
+            cmdSession.Parameters.AddWithValue("@synced", enqueueForOdooSync ? 0 : 1);
+            cmdSession.Parameters.AddWithValue("@id", localSessId);
+            await cmdSession.ExecuteNonQueryAsync();
+        }
+        else
+        {
+            await using var seqCmd = connection.CreateCommand();
+            seqCmd.Transaction = transaction;
+            seqCmd.CommandText = "SELECT COUNT(*) + 1 FROM PosSessions;";
+            long nextSeq = Convert.ToInt64(await seqCmd.ExecuteScalarAsync() ?? 1L);
+            sessName = $"{resolvedConfigName}/{nextSeq:D5}";
+
+            await using var insSession = connection.CreateCommand();
+            insSession.Transaction = transaction;
+            insSession.CommandText = """
+                INSERT INTO PosSessions (OdooId, Name, PosConfigId, PosConfigName, UserId, UserName,
+                                        StartAt, State, OpeningBalance, OpeningNote, IsSynced)
+                VALUES (NULL, @name, @cfgId, @cfgName, @userId, @userName,
+                        @now, 'opened', @openBal, @note, @synced);
+                SELECT last_insert_rowid();
+                """;
+            insSession.Parameters.AddWithValue("@name", sessName);
+            insSession.Parameters.AddWithValue("@cfgId", configId);
+            insSession.Parameters.AddWithValue("@cfgName", resolvedConfigName);
+            insSession.Parameters.AddWithValue("@userId", (object?)userId ?? DBNull.Value);
+            insSession.Parameters.AddWithValue("@userName", cashierName ?? "Mitchell Admin");
+            insSession.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            insSession.Parameters.AddWithValue("@openBal", (double)openingBalance);
+            insSession.Parameters.AddWithValue("@note", openingNote ?? "");
+            insSession.Parameters.AddWithValue("@synced", enqueueForOdooSync ? 0 : 1);
+
+            localSessId = Convert.ToInt64(await insSession.ExecuteScalarAsync() ?? 0L);
+            odooSessId = null;
+        }
+
+        int effectiveSessionRef = odooSessId ?? (int)localSessId;
+
+        await using (var cmdConfig = connection.CreateCommand())
+        {
+            cmdConfig.Transaction = transaction;
+            cmdConfig.CommandText = """
+                UPDATE PosConfigs
+                SET CurrentSessionId = @sessRef,
+                    CurrentSessionName = @sessName,
+                    OpeningBalance = @openBal,
+                    CurrentSessionState = 'opened',
+                    ActiveUserId = COALESCE(@userId, ActiveUserId),
+                    ActiveUserName = COALESCE(@userName, ActiveUserName),
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE OdooId = @cfgId OR Id = @cfgId;
+                """;
+            cmdConfig.Parameters.AddWithValue("@sessRef", effectiveSessionRef);
+            cmdConfig.Parameters.AddWithValue("@sessName", sessName);
+            cmdConfig.Parameters.AddWithValue("@openBal", (double)openingBalance);
+            cmdConfig.Parameters.AddWithValue("@userId", (object?)userId ?? DBNull.Value);
+            cmdConfig.Parameters.AddWithValue("@userName", (object?)cashierName ?? DBNull.Value);
+            cmdConfig.Parameters.AddWithValue("@cfgId", configId);
+            await cmdConfig.ExecuteNonQueryAsync();
+        }
+
+        if (enqueueForOdooSync)
+        {
+            var payload = new OpenSessionSyncPayload(
+                configId,
+                resolvedConfigName,
+                localSessId,
+                odooSessId,
+                openingBalance,
+                openingNote,
+                userId,
+                cashierName ?? "Mitchell Admin",
+                DateTime.Now
+            );
+
+            await EnqueueSyncItemInternalAsync(
+                connection,
+                transaction,
+                "OPEN_SESSION",
+                $"session-{localSessId}-{DateTime.UtcNow.Ticks}",
+                localSessId,
+                configId,
+                odooSessId,
+                JsonSerializer.Serialize(payload)
+            );
+        }
+
+        await transaction.CommitAsync();
+        return (localSessId, odooSessId, sessName);
     }
 
-    public async Task CloseSessionAsync(int configId, int sessionId, decimal closingBalance, string? closingNote)
+    public async Task RecordCashInOutAsync(
+        int configId,
+        int? sessionId,
+        decimal amount,
+        string reason,
+        bool enqueueForOdooSync = true)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
 
-        await using var cmdSession = connection.CreateCommand();
-        cmdSession.CommandText = """
-            UPDATE PosSessions
-            SET ClosingBalance = @closeBal,
-                StopAt = CURRENT_TIMESTAMP,
-                State = 'closed',
-                UpdatedAt = CURRENT_TIMESTAMP
-            WHERE OdooId = @sessId OR Id = @sessId;
-            """;
-        cmdSession.Parameters.AddWithValue("@closeBal", (double)closingBalance);
-        cmdSession.Parameters.AddWithValue("@sessId", sessionId);
-        await cmdSession.ExecuteNonQueryAsync();
+        long? localSessId = null;
+        int? odooSessId = sessionId;
 
-        await using var cmdConfig = connection.CreateCommand();
-        cmdConfig.CommandText = """
-            UPDATE PosConfigs
-            SET CurrentSessionState = 'closed',
-                LastClosingBalance = @closeBal,
-                LastClosingDate = CURRENT_TIMESTAMP,
-                UpdatedAt = CURRENT_TIMESTAMP
-            WHERE OdooId = @cfgId OR Id = @cfgId;
+        await using (var findCmd = connection.CreateCommand())
+        {
+            findCmd.Transaction = transaction;
+            findCmd.CommandText = """
+                SELECT Id, OdooId FROM PosSessions
+                WHERE (@sessId IS NOT NULL AND (OdooId = @sessId OR Id = @sessId))
+                   OR (PosConfigId = @cfgId AND LOWER(State) != 'closed')
+                ORDER BY Id DESC LIMIT 1;
+                """;
+            findCmd.Parameters.AddWithValue("@sessId", (object?)sessionId ?? DBNull.Value);
+            findCmd.Parameters.AddWithValue("@cfgId", configId);
+            await using var r = await findCmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                localSessId = r.GetInt64(0);
+                if (!r.IsDBNull(1)) odooSessId = r.GetInt32(1);
+            }
+        }
+
+        if (localSessId.HasValue)
+        {
+            await using var updCmd = connection.CreateCommand();
+            updCmd.Transaction = transaction;
+            updCmd.CommandText = """
+                UPDATE PosSessions
+                SET CashInOutTotal = COALESCE(CashInOutTotal, 0.0) + @amt,
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE Id = @id;
+                """;
+            updCmd.Parameters.AddWithValue("@amt", (double)amount);
+            updCmd.Parameters.AddWithValue("@id", localSessId.Value);
+            await updCmd.ExecuteNonQueryAsync();
+        }
+
+        if (enqueueForOdooSync)
+        {
+            var payload = new CashInOutSyncPayload(
+                configId,
+                odooSessId,
+                localSessId,
+                amount,
+                reason ?? "",
+                DateTime.Now
+            );
+
+            await EnqueueSyncItemInternalAsync(
+                connection,
+                transaction,
+                "CASH_IN_OUT",
+                $"cash-{Guid.NewGuid():N}",
+                localSessId,
+                configId,
+                odooSessId,
+                JsonSerializer.Serialize(payload)
+            );
+        }
+
+        await transaction.CommitAsync();
+    }
+
+    public async Task<decimal> GetSessionCashInOutTotalAsync(int sessionId)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT COALESCE(CashInOutTotal, 0.0)
+            FROM PosSessions
+            WHERE OdooId = @sessId OR Id = @sessId
+            LIMIT 1;
             """;
-        cmdConfig.Parameters.AddWithValue("@closeBal", (double)closingBalance);
-        cmdConfig.Parameters.AddWithValue("@cfgId", configId);
-        await cmdConfig.ExecuteNonQueryAsync();
+        cmd.Parameters.AddWithValue("@sessId", sessionId);
+        var res = await cmd.ExecuteScalarAsync();
+        return res != null && res != DBNull.Value ? Convert.ToDecimal(res) : 0.00m;
+    }
+
+    public async Task CloseSessionAsync(
+        int configId,
+        int sessionId,
+        decimal closingBalance,
+        string? closingNote,
+        bool enqueueForOdooSync = true)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        long? localSessId = null;
+        int? odooSessId = null;
+
+        await using (var findCmd = connection.CreateCommand())
+        {
+            findCmd.Transaction = transaction;
+            findCmd.CommandText = """
+                SELECT Id, OdooId FROM PosSessions
+                WHERE OdooId = @sessId OR Id = @sessId
+                ORDER BY Id DESC LIMIT 1;
+                """;
+            findCmd.Parameters.AddWithValue("@sessId", sessionId);
+            await using var r = await findCmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                localSessId = r.GetInt64(0);
+                if (!r.IsDBNull(1)) odooSessId = r.GetInt32(1);
+            }
+        }
+
+        string nowStr = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+
+        await using (var cmdSession = connection.CreateCommand())
+        {
+            cmdSession.Transaction = transaction;
+            cmdSession.CommandText = """
+                UPDATE PosSessions
+                SET ClosingBalance = @closeBal,
+                    ClosingNote = @note,
+                    StopAt = @now,
+                    State = 'closed',
+                    IsSynced = @synced,
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE OdooId = @sessId OR Id = @sessId;
+                """;
+            cmdSession.Parameters.AddWithValue("@closeBal", (double)closingBalance);
+            cmdSession.Parameters.AddWithValue("@note", closingNote ?? "");
+            cmdSession.Parameters.AddWithValue("@now", nowStr);
+            cmdSession.Parameters.AddWithValue("@synced", enqueueForOdooSync ? 0 : 1);
+            cmdSession.Parameters.AddWithValue("@sessId", sessionId);
+            await cmdSession.ExecuteNonQueryAsync();
+        }
+
+        await using (var cmdConfig = connection.CreateCommand())
+        {
+            cmdConfig.Transaction = transaction;
+            cmdConfig.CommandText = """
+                UPDATE PosConfigs
+                SET CurrentSessionState = 'closed',
+                    LastClosingBalance = @closeBal,
+                    LastClosingDate = @now,
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE OdooId = @cfgId OR Id = @cfgId;
+                """;
+            cmdConfig.Parameters.AddWithValue("@closeBal", (double)closingBalance);
+            cmdConfig.Parameters.AddWithValue("@now", nowStr);
+            cmdConfig.Parameters.AddWithValue("@cfgId", configId);
+            await cmdConfig.ExecuteNonQueryAsync();
+        }
+
+        if (enqueueForOdooSync)
+        {
+            var payload = new CloseSessionSyncPayload(
+                configId,
+                odooSessId,
+                localSessId ?? sessionId,
+                closingBalance,
+                closingNote,
+                DateTime.Now
+            );
+
+            await EnqueueSyncItemInternalAsync(
+                connection,
+                transaction,
+                "CLOSE_SESSION",
+                $"close-session-{localSessId ?? sessionId}-{DateTime.UtcNow.Ticks}",
+                localSessId ?? sessionId,
+                configId,
+                odooSessId,
+                JsonSerializer.Serialize(payload)
+            );
+        }
+
+        await transaction.CommitAsync();
     }
 
     public async Task<int> GetSessionDraftOrdersCountAsync(int sessionId)
@@ -3226,28 +3741,63 @@ public class SqliteDatabaseService
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task<long> SavePosOrderAsync(PosOrderRecord order, List<PosOrderLineRecord> lines, List<PosPaymentRecord> payments)
+    public async Task<long> SavePosOrderAsync(
+        PosOrderRecord order,
+        List<PosOrderLineRecord> lines,
+        List<PosPaymentRecord> payments,
+        int configOdooId = 1,
+        bool isToInvoice = false,
+        int? partnerId = null,
+        bool enqueueForOdooSync = true)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
 
+        if (string.IsNullOrWhiteSpace(order.Uuid))
+        {
+            order.Uuid = Guid.NewGuid().ToString();
+        }
+
+        bool isPaidOrder = string.Equals(order.State, "paid", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(order.State, "done", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(order.State, "invoiced", StringComparison.OrdinalIgnoreCase);
+
+        bool shouldEnqueue = isPaidOrder && enqueueForOdooSync;
+        order.IsSynced = !shouldEnqueue;
+
         long orderId = order.Id;
+        if (orderId <= 0 && !string.IsNullOrWhiteSpace(order.Uuid))
+        {
+            await using var findByUuidCmd = connection.CreateCommand();
+            findByUuidCmd.Transaction = transaction;
+            findByUuidCmd.CommandText = "SELECT Id FROM PosOrders WHERE Uuid = @uuid LIMIT 1;";
+            findByUuidCmd.Parameters.AddWithValue("@uuid", order.Uuid);
+            var existingObj = await findByUuidCmd.ExecuteScalarAsync();
+            if (existingObj != null && existingObj != DBNull.Value)
+            {
+                orderId = Convert.ToInt64(existingObj);
+                order.Id = orderId;
+            }
+        }
+
         if (orderId > 0)
         {
             await using var updateCmd = connection.CreateCommand();
             updateCmd.Transaction = transaction;
             updateCmd.CommandText = """
                 UPDATE PosOrders
-                SET Name = @name, PosReference = @posRef, TrackingNumber = @trackNum,
+                SET Uuid = @uuid, Name = @name, PosReference = @posRef, TrackingNumber = @trackNum,
                     SessionId = @sessId, SessionOdooId = @sessOdooId, SessionName = @sessName,
                     PosConfigName = @cfgName, DateOrder = @dateOrder,
                     CashierId = @cashierId, CashierName = @cashierName,
+                    PartnerId = @partnerId, CustomerName = @customerName, IsToInvoice = @toInvoice,
                     AmountTotal = @total, AmountTax = @tax, AmountPaid = @paid,
-                    State = @state, Note = @note, UpdatedAt = CURRENT_TIMESTAMP
+                    State = @state, Note = @note, IsSynced = @isSynced, UpdatedAt = CURRENT_TIMESTAMP
                 WHERE Id = @id;
                 """;
             updateCmd.Parameters.AddWithValue("@id", orderId);
+            updateCmd.Parameters.AddWithValue("@uuid", order.Uuid);
             updateCmd.Parameters.AddWithValue("@name", order.Name);
             updateCmd.Parameters.AddWithValue("@posRef", order.PosReference);
             updateCmd.Parameters.AddWithValue("@trackNum", order.TrackingNumber);
@@ -3258,16 +3808,23 @@ public class SqliteDatabaseService
             updateCmd.Parameters.AddWithValue("@dateOrder", order.DateOrder.HasValue ? order.DateOrder.Value.ToString("yyyy-MM-dd HH:mm:ss") : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             updateCmd.Parameters.AddWithValue("@cashierId", (object?)order.CashierId ?? DBNull.Value);
             updateCmd.Parameters.AddWithValue("@cashierName", order.CashierName);
+            updateCmd.Parameters.AddWithValue("@partnerId", (object?)partnerId ?? DBNull.Value);
+            updateCmd.Parameters.AddWithValue("@customerName", order.CustomerName ?? "");
+            updateCmd.Parameters.AddWithValue("@toInvoice", isToInvoice ? 1 : 0);
             updateCmd.Parameters.AddWithValue("@total", (double)order.AmountTotal);
             updateCmd.Parameters.AddWithValue("@tax", (double)order.AmountTax);
             updateCmd.Parameters.AddWithValue("@paid", (double)order.AmountPaid);
             updateCmd.Parameters.AddWithValue("@state", order.State);
             updateCmd.Parameters.AddWithValue("@note", order.Note ?? "");
+            updateCmd.Parameters.AddWithValue("@isSynced", order.IsSynced ? 1 : 0);
             await updateCmd.ExecuteNonQueryAsync();
 
             await using var clearLinesCmd = connection.CreateCommand();
             clearLinesCmd.Transaction = transaction;
-            clearLinesCmd.CommandText = "DELETE FROM PosOrderLines WHERE OrderId = @orderId;";
+            clearLinesCmd.CommandText = """
+                DELETE FROM PosOrderLines WHERE OrderId = @orderId;
+                DELETE FROM PosPayments WHERE OrderId = @orderId;
+                """;
             clearLinesCmd.Parameters.AddWithValue("@orderId", orderId);
             await clearLinesCmd.ExecuteNonQueryAsync();
         }
@@ -3276,14 +3833,17 @@ public class SqliteDatabaseService
             await using var insertCmd = connection.CreateCommand();
             insertCmd.Transaction = transaction;
             insertCmd.CommandText = """
-                INSERT INTO PosOrders (Name, PosReference, TrackingNumber, SessionId, SessionOdooId, SessionName, PosConfigName,
-                                       DateOrder, CashierId, CashierName, FiscalPosition, AmountTotal, AmountTax, AmountPaid,
-                                       Margin, MarginRatio, State, IsEdited, Company, Note)
-                VALUES (@name, @posRef, @trackNum, @sessId, @sessOdooId, @sessName, @cfgName,
-                        @dateOrder, @cashierId, @cashierName, @fiscal, @total, @tax, @paid,
-                        @margin, @marginRatio, @state, @isEdited, @company, @note);
+                INSERT INTO PosOrders (Uuid, Name, PosReference, TrackingNumber, SessionId, SessionOdooId, SessionName, PosConfigName,
+                                       DateOrder, CashierId, CashierName, PartnerId, CustomerName, IsToInvoice,
+                                       FiscalPosition, AmountTotal, AmountTax, AmountPaid,
+                                       Margin, MarginRatio, State, IsEdited, Company, Note, IsSynced)
+                VALUES (@uuid, @name, @posRef, @trackNum, @sessId, @sessOdooId, @sessName, @cfgName,
+                        @dateOrder, @cashierId, @cashierName, @partnerId, @customerName, @toInvoice,
+                        @fiscal, @total, @tax, @paid,
+                        @margin, @marginRatio, @state, @isEdited, @company, @note, @isSynced);
                 SELECT last_insert_rowid();
                 """;
+            insertCmd.Parameters.AddWithValue("@uuid", order.Uuid);
             insertCmd.Parameters.AddWithValue("@name", order.Name);
             insertCmd.Parameters.AddWithValue("@posRef", order.PosReference);
             insertCmd.Parameters.AddWithValue("@trackNum", order.TrackingNumber);
@@ -3294,6 +3854,9 @@ public class SqliteDatabaseService
             insertCmd.Parameters.AddWithValue("@dateOrder", order.DateOrder.HasValue ? order.DateOrder.Value.ToString("yyyy-MM-dd HH:mm:ss") : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             insertCmd.Parameters.AddWithValue("@cashierId", (object?)order.CashierId ?? DBNull.Value);
             insertCmd.Parameters.AddWithValue("@cashierName", order.CashierName);
+            insertCmd.Parameters.AddWithValue("@partnerId", (object?)partnerId ?? DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@customerName", order.CustomerName ?? "");
+            insertCmd.Parameters.AddWithValue("@toInvoice", isToInvoice ? 1 : 0);
             insertCmd.Parameters.AddWithValue("@fiscal", order.FiscalPosition ?? "Standard Tax");
             insertCmd.Parameters.AddWithValue("@total", (double)order.AmountTotal);
             insertCmd.Parameters.AddWithValue("@tax", (double)order.AmountTax);
@@ -3304,6 +3867,7 @@ public class SqliteDatabaseService
             insertCmd.Parameters.AddWithValue("@isEdited", order.IsEdited ? 1 : 0);
             insertCmd.Parameters.AddWithValue("@company", order.Company);
             insertCmd.Parameters.AddWithValue("@note", order.Note ?? "");
+            insertCmd.Parameters.AddWithValue("@isSynced", order.IsSynced ? 1 : 0);
             orderId = (long)(await insertCmd.ExecuteScalarAsync() ?? 0L);
             order.Id = orderId;
         }
@@ -3321,17 +3885,12 @@ public class SqliteDatabaseService
             lineCmd.Parameters.AddWithValue("@productName", l.ProductName);
             lineCmd.Parameters.AddWithValue("@isEdited", l.IsEdited ? 1 : 0);
             lineCmd.Parameters.AddWithValue("@qty", (double)l.Qty);
-            cmdAddLinePrices(lineCmd, l);
+            lineCmd.Parameters.AddWithValue("@unitPrice", (double)l.PriceUnit);
+            lineCmd.Parameters.AddWithValue("@discount", (double)l.Discount);
+            lineCmd.Parameters.AddWithValue("@taxes", l.Taxes ?? "15%");
+            lineCmd.Parameters.AddWithValue("@subtotal", (double)l.PriceSubtotal);
+            lineCmd.Parameters.AddWithValue("@subtotalIncl", (double)l.PriceSubtotalIncl);
             await lineCmd.ExecuteNonQueryAsync();
-        }
-
-        static void cmdAddLinePrices(SqliteCommand cmd, PosOrderLineRecord l)
-        {
-            cmd.Parameters.AddWithValue("@unitPrice", (double)l.PriceUnit);
-            cmd.Parameters.AddWithValue("@discount", (double)l.Discount);
-            cmd.Parameters.AddWithValue("@taxes", l.Taxes ?? "15%");
-            cmd.Parameters.AddWithValue("@subtotal", (double)l.PriceSubtotal);
-            cmd.Parameters.AddWithValue("@subtotalIncl", (double)l.PriceSubtotalIncl);
         }
 
         foreach (var p in payments)
@@ -3339,8 +3898,10 @@ public class SqliteDatabaseService
             await using var payCmd = connection.CreateCommand();
             payCmd.Transaction = transaction;
             payCmd.CommandText = """
-                INSERT INTO PosPayments (OrderId, OrderName, SessionId, SessionOdooId, SessionName, CashierName, PaymentMethodName, Amount, CurrencyName, PaymentDate)
-                VALUES (@orderId, @orderName, @sessId, @sessOdooId, @sessName, @cashier, @method, @amount, @curr, @date);
+                INSERT INTO PosPayments (OrderId, OrderName, SessionId, SessionOdooId, SessionName, CashierName,
+                                         PaymentMethodId, PaymentMethodName, Amount, CurrencyName, PaymentDate, IsSynced)
+                VALUES (@orderId, @orderName, @sessId, @sessOdooId, @sessName, @cashier,
+                        @methodId, @method, @amount, @curr, @date, @isSynced);
                 """;
             payCmd.Parameters.AddWithValue("@orderId", orderId);
             payCmd.Parameters.AddWithValue("@orderName", order.Name);
@@ -3348,14 +3909,16 @@ public class SqliteDatabaseService
             payCmd.Parameters.AddWithValue("@sessOdooId", (object?)order.SessionOdooId ?? DBNull.Value);
             payCmd.Parameters.AddWithValue("@sessName", order.SessionName);
             payCmd.Parameters.AddWithValue("@cashier", order.CashierName);
+            payCmd.Parameters.AddWithValue("@methodId", (object?)p.PaymentMethodId ?? DBNull.Value);
             payCmd.Parameters.AddWithValue("@method", p.PaymentMethodName ?? "Cash");
             payCmd.Parameters.AddWithValue("@amount", (double)p.Amount);
             payCmd.Parameters.AddWithValue("@curr", p.CurrencyName ?? "MAD");
             payCmd.Parameters.AddWithValue("@date", p.PaymentDate.HasValue ? p.PaymentDate.Value.ToString("yyyy-MM-dd HH:mm:ss") : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            payCmd.Parameters.AddWithValue("@isSynced", order.IsSynced ? 1 : 0);
             await payCmd.ExecuteNonQueryAsync();
         }
 
-        if (order.State == "paid" && (order.SessionOdooId.HasValue || order.SessionId.HasValue))
+        if (isPaidOrder && (order.SessionOdooId.HasValue || order.SessionId.HasValue))
         {
             int sId = order.SessionOdooId ?? order.SessionId!.Value;
             await using var updSessCmd = connection.CreateCommand();
@@ -3372,7 +3935,300 @@ public class SqliteDatabaseService
             await updSessCmd.ExecuteNonQueryAsync();
         }
 
+        if (shouldEnqueue)
+        {
+            var syncLines = lines.Select(l => new PosOrderLineSyncPayload(
+                l.ProductId,
+                l.ProductName,
+                l.Qty,
+                l.PriceUnit,
+                l.Discount,
+                l.Taxes ?? "15%",
+                15.0m,
+                l.PriceSubtotal,
+                l.PriceSubtotalIncl,
+                null
+            )).ToList();
+
+            var syncPayments = payments.Select(p => new PosPaymentSyncPayload(
+                p.PaymentMethodId,
+                p.PaymentMethodName ?? "Cash",
+                p.Amount,
+                p.PaymentDate ?? DateTime.Now
+            )).ToList();
+
+            var orderPayload = new CreateOrderSyncPayload(
+                order.Uuid,
+                orderId,
+                configOdooId,
+                order.SessionOdooId,
+                order.SessionId,
+                order.Name,
+                order.PosReference,
+                order.TrackingNumber,
+                order.DateOrder ?? DateTime.Now,
+                order.CashierId,
+                order.CashierName,
+                partnerId,
+                order.CustomerName ?? "",
+                isToInvoice,
+                order.AmountTotal,
+                order.AmountTax,
+                order.AmountPaid,
+                order.Note ?? "",
+                syncLines,
+                syncPayments
+            );
+
+            await EnqueueSyncItemInternalAsync(
+                connection,
+                transaction,
+                "CREATE_ORDER",
+                order.Uuid,
+                orderId,
+                configOdooId,
+                order.SessionOdooId,
+                JsonSerializer.Serialize(orderPayload)
+            );
+        }
+
         await transaction.CommitAsync();
         return orderId;
+    }
+
+    // =========================================================================
+    // 14. SEQUENTIAL OFFLINE SYNC QUEUE REPOSITORY METHODS
+    // =========================================================================
+    private static async Task EnqueueSyncItemInternalAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        string operationType,
+        string entityUuid,
+        long? localEntityId,
+        int? posConfigOdooId,
+        int? sessionOdooId,
+        string payloadJson)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = """
+            INSERT INTO PendingSyncQueue (OperationType, EntityUuid, LocalEntityId, PosConfigOdooId, SessionOdooId, PayloadJson, Status, RetryCount, CreatedAt)
+            VALUES (@op, @uuid, @localId, @cfgId, @sessId, @payload, 'Pending', 0, @now);
+            """;
+        cmd.Parameters.AddWithValue("@op", operationType);
+        cmd.Parameters.AddWithValue("@uuid", entityUuid);
+        cmd.Parameters.AddWithValue("@localId", (object?)localEntityId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@cfgId", (object?)posConfigOdooId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@sessId", (object?)sessionOdooId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@payload", payloadJson);
+        cmd.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<List<PendingSyncItemRecord>> GetPendingSyncQueueAsync()
+    {
+        var items = new List<PendingSyncItemRecord>();
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, OperationType, EntityUuid, LocalEntityId, PosConfigOdooId, SessionOdooId,
+                   PayloadJson, Status, RetryCount, LastError, CreatedAt
+            FROM PendingSyncQueue
+            WHERE Status != 'Completed'
+            ORDER BY Id ASC;
+            """;
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            items.Add(new PendingSyncItemRecord(
+                reader.GetInt64(0),
+                reader.GetString(1),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                reader.GetString(6),
+                reader.IsDBNull(7) ? "Pending" : reader.GetString(7),
+                reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
+                reader.IsDBNull(9) ? null : reader.GetString(9),
+                reader.IsDBNull(10) ? "" : reader.GetString(10)
+            ));
+        }
+
+        return items;
+    }
+
+    public async Task<int> GetPendingSyncCountAsync()
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM PendingSyncQueue WHERE Status != 'Completed';";
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync() ?? 0);
+    }
+
+    public async Task MarkSyncQueueItemCompletedAsync(long queueId)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "DELETE FROM PendingSyncQueue WHERE Id = @id;";
+        cmd.Parameters.AddWithValue("@id", queueId);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task MarkSyncQueueItemFailedAsync(long queueId, string errorMessage)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            UPDATE PendingSyncQueue
+            SET Status = 'Failed',
+                RetryCount = RetryCount + 1,
+                LastError = @err
+            WHERE Id = @id;
+            """;
+        cmd.Parameters.AddWithValue("@err", errorMessage);
+        cmd.Parameters.AddWithValue("@id", queueId);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task BindLocalSessionToOdooSessionAsync(
+        long localSessionId,
+        int configOdooId,
+        int odooSessionId,
+        string? odooSessionName)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        await using (var updSess = connection.CreateCommand())
+        {
+            updSess.Transaction = transaction;
+            updSess.CommandText = """
+                UPDATE PosSessions
+                SET OdooId = @odooId,
+                    Name = COALESCE(@name, Name),
+                    IsSynced = 1,
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE Id = @localId OR OdooId = @odooId;
+                """;
+            updSess.Parameters.AddWithValue("@odooId", odooSessionId);
+            updSess.Parameters.AddWithValue("@name", (object?)odooSessionName ?? DBNull.Value);
+            updSess.Parameters.AddWithValue("@localId", localSessionId);
+            await updSess.ExecuteNonQueryAsync();
+        }
+
+        await using (var updCfg = connection.CreateCommand())
+        {
+            updCfg.Transaction = transaction;
+            updCfg.CommandText = """
+                UPDATE PosConfigs
+                SET CurrentSessionId = @odooId,
+                    CurrentSessionName = COALESCE(@name, CurrentSessionName),
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE OdooId = @cfgId;
+                """;
+            updCfg.Parameters.AddWithValue("@odooId", odooSessionId);
+            updCfg.Parameters.AddWithValue("@name", (object?)odooSessionName ?? DBNull.Value);
+            updCfg.Parameters.AddWithValue("@cfgId", configOdooId);
+            await updCfg.ExecuteNonQueryAsync();
+        }
+
+        await using (var updOrders = connection.CreateCommand())
+        {
+            updOrders.Transaction = transaction;
+            updOrders.CommandText = """
+                UPDATE PosOrders
+                SET SessionOdooId = @odooId,
+                    SessionName = COALESCE(@name, SessionName)
+                WHERE SessionId = @localId OR (SessionOdooId IS NULL AND PosConfigName IN (SELECT Name FROM PosConfigs WHERE OdooId = @cfgId));
+                """;
+            updOrders.Parameters.AddWithValue("@odooId", odooSessionId);
+            updOrders.Parameters.AddWithValue("@name", (object?)odooSessionName ?? DBNull.Value);
+            updOrders.Parameters.AddWithValue("@localId", localSessionId);
+            updOrders.Parameters.AddWithValue("@cfgId", configOdooId);
+            await updOrders.ExecuteNonQueryAsync();
+        }
+
+        await using (var updQueue = connection.CreateCommand())
+        {
+            updQueue.Transaction = transaction;
+            updQueue.CommandText = """
+                UPDATE PendingSyncQueue
+                SET SessionOdooId = @odooId
+                WHERE Status != 'Completed'
+                  AND PosConfigOdooId = @cfgId
+                  AND SessionOdooId IS NULL;
+                """;
+            updQueue.Parameters.AddWithValue("@odooId", odooSessionId);
+            updQueue.Parameters.AddWithValue("@cfgId", configOdooId);
+            await updQueue.ExecuteNonQueryAsync();
+        }
+
+        await transaction.CommitAsync();
+    }
+
+    public async Task BindLocalOrderToOdooOrderAsync(
+        long localOrderId,
+        string orderUuid,
+        int odooOrderId,
+        string? odooOrderName = null)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        await using (var updOrder = connection.CreateCommand())
+        {
+            updOrder.Transaction = transaction;
+            updOrder.CommandText = """
+                UPDATE PosOrders
+                SET OdooId = @odooId,
+                    Name = COALESCE(@odooName, Name),
+                    IsSynced = 1,
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE Id = @localId OR Uuid = @uuid;
+                """;
+            updOrder.Parameters.AddWithValue("@odooId", odooOrderId);
+            updOrder.Parameters.AddWithValue("@odooName", (object?)odooOrderName ?? DBNull.Value);
+            updOrder.Parameters.AddWithValue("@localId", localOrderId);
+            updOrder.Parameters.AddWithValue("@uuid", orderUuid);
+            await updOrder.ExecuteNonQueryAsync();
+        }
+
+        await using (var updLines = connection.CreateCommand())
+        {
+            updLines.Transaction = transaction;
+            updLines.CommandText = """
+                UPDATE PosOrderLines
+                SET OrderOdooId = @odooId
+                WHERE OrderId = @localId;
+                """;
+            updLines.Parameters.AddWithValue("@odooId", odooOrderId);
+            updLines.Parameters.AddWithValue("@localId", localOrderId);
+            await updLines.ExecuteNonQueryAsync();
+        }
+
+        await using (var updPays = connection.CreateCommand())
+        {
+            updPays.Transaction = transaction;
+            updPays.CommandText = """
+                UPDATE PosPayments
+                SET OrderOdooId = @odooId,
+                    IsSynced = 1
+                WHERE OrderId = @localId;
+                """;
+            updPays.Parameters.AddWithValue("@odooId", odooOrderId);
+            updPays.Parameters.AddWithValue("@localId", localOrderId);
+            await updPays.ExecuteNonQueryAsync();
+        }
+
+        await transaction.CommitAsync();
     }
 }

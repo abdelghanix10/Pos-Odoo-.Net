@@ -76,6 +76,7 @@ public class PosOrderLineRecord : INotifyPropertyChanged
                 _qty = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(QtyDisplay));
+                OnPropertyChanged(nameof(QtyShortDisplay));
             }
         }
     }
@@ -142,11 +143,17 @@ public class PosOrderLineRecord : INotifyPropertyChanged
         }
     }
 
-    public string QtyDisplay => $"{Qty:N2}";
-    public string PriceUnitDisplay => $"$ {PriceUnit:N2}";
-    public string DiscountDisplay => $"{Discount:N1}%";
-    public string PriceSubtotalDisplay => $"$ {PriceSubtotal:N2}";
-    public string PriceSubtotalInclDisplay => $"$ {PriceSubtotalIncl:N2}";
+    public string QtyDisplay => string.Format(CultureInfo.InvariantCulture, "{0:N2}", Qty);
+
+    public string QtyShortDisplay =>
+        Qty == Math.Truncate(Qty)
+            ? ((int)Qty).ToString(CultureInfo.InvariantCulture)
+            : Qty.ToString("0.##", CultureInfo.InvariantCulture);
+
+    public string PriceUnitDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", PriceUnit);
+    public string DiscountDisplay => string.Format(CultureInfo.InvariantCulture, "{0:N1}%", Discount);
+    public string PriceSubtotalDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", PriceSubtotal);
+    public string PriceSubtotalInclDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", PriceSubtotalIncl);
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -157,11 +164,24 @@ public class PosOrderLineRecord : INotifyPropertyChanged
 
 public class PosOrderRecord : INotifyPropertyChanged
 {
+    private static readonly Brush OngoingPillBrush = CreateFrozenBrush("#319795");
+    private static readonly Brush PaidPillBrush = CreateFrozenBrush("#28A745");
+    private static readonly Brush CancelledPillBrush = CreateFrozenBrush("#DC3545");
+    private static readonly Brush CancelledListPillBrush = CreateFrozenBrush("#E5E7EB");
+    private static readonly Brush CancelledListFgBrush = CreateFrozenBrush("#374151");
+    private static readonly Brush ActiveGreenBrush = CreateFrozenBrush("#10B981");
+    private static readonly Brush ActiveGreenSoftBrush = CreateFrozenBrush("#ECFDF5");
+    private static readonly Brush DraftTealSoftBrush = CreateFrozenBrush("#E6F4F5");
+    private static readonly Brush CancelledGraySoftBrush = CreateFrozenBrush("#F3F4F6");
+
     private long _id;
     private int? _odooId;
+    private string _uuid = Guid.NewGuid().ToString();
+    private bool _isSynced = true;
+    private bool _isSelectedInPos;
     private string _name = string.Empty; // Order Ref: "Bakery Shop - 000001"
-    private string _posReference = string.Empty; // Receipt Number: "262-3-000001"
-    private string _trackingNumber = string.Empty; // Order Number: "2001"
+    private string _posReference = string.Empty; // Receipt Number: "261-3-000002"
+    private string _trackingNumber = string.Empty; // Order Number: "1002"
     private int? _sessionId;
     private int? _sessionOdooId;
     private string _sessionName = string.Empty; // "Bakery Shop/00004"
@@ -178,11 +198,18 @@ public class PosOrderRecord : INotifyPropertyChanged
     private decimal _amountPaid = 0.00m;
     private decimal _margin = 0.00m;
     private decimal _marginRatio = 0.00m;
-    private string _state = "paid"; // draft, paid, done, invoiced, cancel
-    private bool _isEdited = false;
+    private string _state = "paid"; // draft, ongoing, paid, done, invoiced, cancel
+    private bool _isEdited;
     private string _company = "My Company";
     private string _note = string.Empty;
     private string? _refundedOrderIdsJson;
+
+    private static SolidColorBrush CreateFrozenBrush(string hex)
+    {
+        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        brush.Freeze();
+        return brush;
+    }
 
     public long Id
     {
@@ -194,6 +221,34 @@ public class PosOrderRecord : INotifyPropertyChanged
     {
         get => _odooId;
         set { if (_odooId != value) { _odooId = value; OnPropertyChanged(); } }
+    }
+
+    public string Uuid
+    {
+        get => _uuid;
+        set { if (_uuid != value) { _uuid = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsSynced
+    {
+        get => _isSynced;
+        set
+        {
+            if (_isSynced != value)
+            {
+                _isSynced = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsPendingSync));
+            }
+        }
+    }
+
+    public bool IsPendingSync => !_isSynced;
+
+    public bool IsSelectedInPos
+    {
+        get => _isSelectedInPos;
+        set { if (_isSelectedInPos != value) { _isSelectedInPos = value; OnPropertyChanged(); } }
     }
 
     public string Name
@@ -219,8 +274,19 @@ public class PosOrderRecord : INotifyPropertyChanged
     public string TrackingNumber
     {
         get => _trackingNumber;
-        set { if (_trackingNumber != value) { _trackingNumber = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_trackingNumber != value)
+            {
+                _trackingNumber = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(TrackingNumberDisplay));
+            }
+        }
     }
+
+    public string TrackingNumberDisplay =>
+        !string.IsNullOrWhiteSpace(TrackingNumber) ? TrackingNumber : Name;
 
     public int? SessionId
     {
@@ -257,6 +323,8 @@ public class PosOrderRecord : INotifyPropertyChanged
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DateDisplay));
                 OnPropertyChanged(nameof(DateShortDisplay));
+                OnPropertyChanged(nameof(InPosDayDisplay));
+                OnPropertyChanged(nameof(InPosTimeDisplay));
             }
         }
     }
@@ -405,7 +473,10 @@ public class PosOrderRecord : INotifyPropertyChanged
             {
                 _state = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(IsDraft));
                 OnPropertyChanged(nameof(StateDisplay));
+                OnPropertyChanged(nameof(InPosStatusText));
+                OnPropertyChanged(nameof(InPosStatusBackground));
                 OnPropertyChanged(nameof(StatusBrush));
                 OnPropertyChanged(nameof(StatusSoftBrush));
                 OnPropertyChanged(nameof(ListStatusBackground));
@@ -480,76 +551,110 @@ public class PosOrderRecord : INotifyPropertyChanged
             ? string.Join(", ", LinkedRefundOrders.Select(o => o.Name))
             : "—";
 
-    public bool IsDraft => string.Equals(State, "draft", StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(State, "ongoing", StringComparison.OrdinalIgnoreCase);
+    public bool IsDraft =>
+        string.Equals(State, "draft", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(State, "ongoing", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(State, "new", StringComparison.OrdinalIgnoreCase);
+
+    // ==================== IN-POS ORDERS SCREEN DISPLAY (Screenshot 3) ====================
+    public string InPosDayDisplay
+    {
+        get
+        {
+            if (!DateOrder.HasValue) return "Today";
+            var dt = DateOrder.Value.Date;
+            var today = DateTime.Now.Date;
+            if (dt == today) return "Today";
+            if (dt == today.AddDays(-1)) return "Yesterday";
+            return DateOrder.Value.ToString("MMM d", CultureInfo.InvariantCulture);
+        }
+    }
+
+    public string InPosTimeDisplay =>
+        DateOrder.HasValue
+            ? DateOrder.Value.ToString("h:mmtt", CultureInfo.InvariantCulture).ToLowerInvariant()
+            : DateTime.Now.ToString("h:mmtt", CultureInfo.InvariantCulture).ToLowerInvariant();
+
+    public string InPosStatusText => State?.ToLowerInvariant() switch
+    {
+        "draft" or "ongoing" or "new" => "Ongoing",
+        "cancel" => "Cancelled",
+        "done" or "invoiced" => "Posted",
+        _ => "Paid"
+    };
+
+    public Brush InPosStatusBackground => State?.ToLowerInvariant() switch
+    {
+        "draft" or "ongoing" or "new" => OngoingPillBrush,
+        "cancel" => CancelledPillBrush,
+        _ => PaidPillBrush
+    };
 
     // ==================== COMPUTED & DISPLAY PROPERTIES ====================
-    public string DateDisplay => DateOrder.HasValue ? DateOrder.Value.ToString("yyyy-MM-dd HH:mm:ss") : "—";
+    public string DateDisplay => DateOrder.HasValue ? DateOrder.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) : "—";
     public string DateShortDisplay => DateOrder.HasValue ? DateOrder.Value.ToString("MMM d, h:mm tt", CultureInfo.InvariantCulture) : "—";
 
-    public string TotalDisplay => $"$ {AmountTotal:N2}";
-    public string TaxDisplay => $"$ {AmountTax:N2}";
-    public string PaidDisplay => $"$ {AmountPaid:N2}";
+    public string TotalDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", AmountTotal);
+    public string TaxDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", AmountTax);
+    public string PaidDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", AmountPaid);
 
     // Aliases for XAML compatibility
     public string AmountTotalDisplay => TotalDisplay;
     public string AmountTaxDisplay => TaxDisplay;
     public string AmountPaidDisplay => PaidDisplay;
 
-    public string MarginDisplay => $"$ {Margin:N2} ({MarginRatio:N1}%)";
+    public string MarginDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2} ({1:N1}%)", Margin, MarginRatio);
 
     public string StateDisplay => State?.ToLowerInvariant() switch
     {
-        "draft" => "New",
+        "draft" or "ongoing" or "new" => "New",
         "paid" => "Paid",
         "done" or "invoiced" => "Posted",
         "cancel" => "Cancelled",
         _ => "Posted"
     };
 
-    // Odoo 20 List View Pill (Green filled for Posted/Paid, Soft Gray for Cancelled)
     public Brush ListStatusBackground => State?.ToLowerInvariant() switch
     {
-        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E5E7EB")),
-        "draft" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84")),
-        _ => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#28A745"))
+        "cancel" => CancelledListPillBrush,
+        "draft" or "ongoing" or "new" => OngoingPillBrush,
+        _ => PaidPillBrush
     };
 
     public Brush ListStatusForeground => State?.ToLowerInvariant() switch
     {
-        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#374151")),
+        "cancel" => CancelledListFgBrush,
         _ => Brushes.White
     };
 
-    // Odoo 20 Kanban View Pill (Solid Green for Posted/Paid, Solid Red for Cancelled)
     public Brush KanbanStatusBackground => State?.ToLowerInvariant() switch
     {
-        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC3545")),
-        "draft" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84")),
-        _ => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#28A745"))
+        "cancel" => CancelledPillBrush,
+        "draft" or "ongoing" or "new" => OngoingPillBrush,
+        _ => PaidPillBrush
     };
 
     public Brush KanbanStatusForeground => Brushes.White;
 
     public Brush StatusBrush => State?.ToLowerInvariant() switch
     {
-        "draft" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84")),
-        "paid" or "done" or "invoiced" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981")),
-        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626")),
-        _ => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981"))
+        "draft" or "ongoing" or "new" => OngoingPillBrush,
+        "paid" or "done" or "invoiced" => ActiveGreenBrush,
+        "cancel" => CancelledPillBrush,
+        _ => ActiveGreenBrush
     };
 
     public Brush StatusSoftBrush => State?.ToLowerInvariant() switch
     {
-        "draft" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E6F4F5")),
-        "paid" or "done" or "invoiced" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ECFDF5")),
-        "cancel" => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F3F4F6")),
-        _ => new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ECFDF5"))
+        "draft" or "ongoing" or "new" => DraftTealSoftBrush,
+        "paid" or "done" or "invoiced" => ActiveGreenSoftBrush,
+        "cancel" => CancelledGraySoftBrush,
+        _ => ActiveGreenSoftBrush
     };
 
     public bool IsCancelled => string.Equals(State, "cancel", StringComparison.OrdinalIgnoreCase);
 
-    public bool IsStageNew => string.Equals(State, "draft", StringComparison.OrdinalIgnoreCase);
+    public bool IsStageNew => IsDraft;
     public bool IsStagePaid => string.Equals(State, "paid", StringComparison.OrdinalIgnoreCase);
     public bool IsStagePosted => string.Equals(State, "done", StringComparison.OrdinalIgnoreCase) ||
                                  string.Equals(State, "invoiced", StringComparison.OrdinalIgnoreCase);

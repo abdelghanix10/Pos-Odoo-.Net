@@ -32,6 +32,7 @@ public partial class MainWindow : Window
         MainShellModule.LogoutRequested += (_, _) =>
         {
             MainShellModule.Visibility = Visibility.Collapsed;
+            TopLoginHeaderBar.Visibility = Visibility.Visible;
             LoginWorkspaceGrid.Visibility = Visibility.Visible;
             HeaderQuickSetupBtn.Visibility = Visibility.Visible;
             _ = RefreshLoginCardsAsync();
@@ -51,12 +52,26 @@ public partial class MainWindow : Window
             SessionToastBanner.Visibility = Visibility.Collapsed;
         };
 
-        // Live Odoo Connectivity Monitor & Global Header Status Badge
+        // Live Odoo Connectivity Monitor & Offline Queue Auto-Flush
         OdooSyncService.Instance.OnlineStatusChanged += isOnline =>
         {
             Dispatcher.Invoke(() => UpdateConnectionStatusVisual(isOnline));
         };
-        _connectivityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+
+        OdooSyncService.Instance.PendingQueueFlushed += count =>
+        {
+            Dispatcher.InvokeAsync(async () =>
+            {
+                await MainShellModule.DashboardControl.ReloadConfigsFromDatabaseAsync();
+                await MainShellModule.SessionsControl.ReloadSessionsFromDatabaseAsync(resetDetailView: false);
+                await MainShellModule.OrdersControl.ReloadOrdersFromDatabaseAsync(resetDetailView: false);
+                await MainShellModule.PaymentsControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
+                await MainShellModule.RefreshDatabaseCountsAsync();
+                MainShellModule.ShowToast($"Synchronized {count} queued POS transaction(s) with Odoo.");
+            });
+        };
+
+        _connectivityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         _connectivityTimer.Tick += async (_, _) => await OdooSyncService.Instance.CheckConnectivityAsync();
         _connectivityTimer.Start();
         _ = OdooSyncService.Instance.CheckConnectivityAsync();
@@ -87,7 +102,7 @@ public partial class MainWindow : Window
             GlobalStatusText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#92400E"));
             GlobalConnectionStatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFBEB"));
             GlobalConnectionStatusBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FDE68A"));
-            GlobalConnectionStatusBadge.ToolTip = "Operating in Offline (Local Mode) - Odoo Online is unreachable";
+            GlobalConnectionStatusBadge.ToolTip = "Operating in Offline (Local Mode) - Queued transactions will sync when online";
         }
     }
 
@@ -162,6 +177,7 @@ public partial class MainWindow : Window
     private void OpenSetupSettings_Click(object sender, RoutedEventArgs e)
     {
         LoginWorkspaceGrid.Visibility = Visibility.Collapsed;
+        TopLoginHeaderBar.Visibility = Visibility.Collapsed;
         HeaderQuickSetupBtn.Visibility = Visibility.Collapsed;
         MainShellModule.Visibility = Visibility.Visible;
         MainShellModule.SetCurrentUser("Administrator");
@@ -176,14 +192,12 @@ public partial class MainWindow : Window
 
         _selectedUser = user;
 
-        // If no PIN configured, log in immediately
         if (string.IsNullOrWhiteSpace(user.Pin))
         {
             StartPosSession(user.Name);
             return;
         }
 
-        // Open Touch PIN Pad Modal for PIN-protected user
         _currentPin = string.Empty;
         ModalRoleTitleText.Text = user.Name.Trim();
         ModalRoleBadge.Background = user.AvatarSoftBrush;
@@ -323,6 +337,7 @@ public partial class MainWindow : Window
     private void StartPosSession(string userName)
     {
         LoginWorkspaceGrid.Visibility = Visibility.Collapsed;
+        TopLoginHeaderBar.Visibility = Visibility.Collapsed;
         HeaderQuickSetupBtn.Visibility = Visibility.Collapsed;
         MainShellModule.Visibility = Visibility.Visible;
         MainShellModule.SetCurrentUser(userName);

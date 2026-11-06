@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using OdooPosLogin.ViewModels;
 
 namespace OdooPosLogin;
@@ -19,7 +20,7 @@ public partial class PosDashboardView : UserControl
         await VM.ReloadConfigsAsync();
     }
 
-    private void CardMenuButton_Click(object sender, RoutedEventArgs e)
+    private void HeaderActionsMenuBtn_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button btn && btn.ContextMenu != null)
         {
@@ -37,27 +38,53 @@ public partial class PosDashboardView : UserControl
         }
     }
 
-    private void MenuItem_ViewOrders_Click(object sender, RoutedEventArgs e)
+    private static void CloseParentPopup(DependencyObject? sender)
     {
-        if (sender is MenuItem mi && mi.DataContext is PosConfigRecord config)
+        DependencyObject? current = sender;
+        while (current != null)
         {
+            if (current is Popup popup)
+            {
+                popup.IsOpen = false;
+                return;
+            }
+            current = VisualTreeHelper.GetParent(current) ?? LogicalTreeHelper.GetParent(current);
+        }
+    }
+
+    private void PopoverViewOrders_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is PosConfigRecord config)
+        {
+            CloseParentPopup(elem);
             VM.ViewOrdersCommand.Execute(config);
         }
     }
 
-    private void MenuItem_ViewSessions_Click(object sender, RoutedEventArgs e)
+    private void PopoverViewSessions_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is MenuItem mi && mi.DataContext is PosConfigRecord config)
+        if (sender is FrameworkElement elem && elem.DataContext is PosConfigRecord config)
         {
+            CloseParentPopup(elem);
             VM.ViewSessionsCommand.Execute(config);
         }
     }
 
-    private void MenuItem_ViewPayments_Click(object sender, RoutedEventArgs e)
+    private void PopoverReportingOrders_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is MenuItem mi && mi.DataContext is PosConfigRecord config)
+        if (sender is FrameworkElement elem && elem.DataContext is PosConfigRecord config)
         {
-            VM.ViewPaymentsCommand.Execute(config);
+            CloseParentPopup(elem);
+            VM.ReportingOrdersCommand.Execute(config);
+        }
+    }
+
+    private void PopoverConfigure_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is PosConfigRecord config)
+        {
+            CloseParentPopup(elem);
+            VM.ConfigureShopCommand.Execute(config);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -14,6 +15,15 @@ public partial class PosDashboardViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isKanbanView = true;
+
+    [ObservableProperty]
+    private bool _isListView;
+
+    [ObservableProperty]
+    private string _listCounterText = "0-0 / 0";
 
     [ObservableProperty]
     private bool _isSyncing;
@@ -43,6 +53,7 @@ public partial class PosDashboardViewModel : ViewModelBase
     public event Action<string>? ViewOrdersRequested;
     public event Action<string>? ViewSessionsRequested;
     public event Action<string>? ViewPaymentsRequested;
+    public event Action<PosConfigRecord>? ConfigureShopRequested;
     public event EventHandler? ConfigsUpdated;
 
     private readonly DispatcherTimer _toastTimer;
@@ -54,6 +65,14 @@ public partial class PosDashboardViewModel : ViewModelBase
         {
             _toastTimer.Stop();
             IsToastVisible = false;
+        };
+
+        OdooSyncService.Instance.PendingQueueFlushed += _ =>
+        {
+            Application.Current?.Dispatcher?.InvokeAsync(async () =>
+            {
+                await ReloadConfigsAsync();
+            });
         };
 
         _ = ReloadConfigsAsync();
@@ -99,6 +118,23 @@ public partial class PosDashboardViewModel : ViewModelBase
         TotalShopsCount = _allConfigs.Count;
         ActiveSessionsCount = _allConfigs.Count(c => !c.IsClosed);
         IsEmptyStateVisible = FilteredConfigs.Count == 0;
+        ListCounterText = FilteredConfigs.Count > 0
+            ? $"1-{FilteredConfigs.Count} / {FilteredConfigs.Count}"
+            : "0-0 / 0";
+    }
+
+    [RelayCommand]
+    private void SwitchToKanban()
+    {
+        IsKanbanView = true;
+        IsListView = false;
+    }
+
+    [RelayCommand]
+    private void SwitchToList()
+    {
+        IsListView = true;
+        IsKanbanView = false;
     }
 
     [RelayCommand]
@@ -170,6 +206,27 @@ public partial class PosDashboardViewModel : ViewModelBase
     {
         if (config == null) return;
         ViewPaymentsRequested?.Invoke(config.Name);
+    }
+
+    [RelayCommand]
+    private void ReportingOrders(PosConfigRecord? config)
+    {
+        if (config == null) return;
+        ViewOrdersRequested?.Invoke(config.Name);
+    }
+
+    [RelayCommand]
+    private void ConfigureShop(PosConfigRecord? config)
+    {
+        if (config == null) return;
+        if (ConfigureShopRequested != null)
+        {
+            ConfigureShopRequested.Invoke(config);
+        }
+        else
+        {
+            ShowToast($"Point of Sale '{config.Name}' configuration is managed in Odoo.", "Success");
+        }
     }
 
     public void ShowToast(string message, string severity = "Success")

@@ -82,6 +82,7 @@ public class OdooSyncService
     public string ConnectionStatusLabel { get; private set; } = "Offline (Local Mode)";
     public event Action<bool>? OnlineStatusChanged;
     public event Action<int>? PendingQueueFlushed;
+    public event Action? QueueUpdated;
 
     private OdooSyncService()
     {
@@ -89,6 +90,15 @@ public class OdooSyncService
         {
             Timeout = TimeSpan.FromSeconds(45)
         };
+    }
+
+    public void NotifyQueueUpdated()
+    {
+        try
+        {
+            QueueUpdated?.Invoke();
+        }
+        catch { }
     }
 
     private static string NormalizeUrl(string? url)
@@ -119,7 +129,6 @@ public class OdooSyncService
 
             if (reachable)
             {
-                // Automatically flush any queued offline transactions in sequential order
                 _ = Task.Run(() => ProcessPendingQueueAsync());
             }
 
@@ -540,14 +549,14 @@ public class OdooSyncService
     // =========================================================================
     public async Task<int> ProcessPendingQueueAsync(OdooConfigRecord? overrideConfig = null)
     {
-        if (!await _queueLock.WaitAsync(0))
-            return 0;
+        // Wait for the queue lock so no caller's request is ever dropped
+        await _queueLock.WaitAsync();
 
         int processedCount = 0;
         try
         {
-            var queueItems = await SqliteDatabaseService.Instance.GetPendingSyncQueueAsync();
-            if (queueItems.Count == 0)
+            var initialItems = await SqliteDatabaseService.Instance.GetPendingSyncQueueAsync();
+            if (initialItems.Count == 0)
                 return 0;
 
             var config = overrideConfig ?? await SqliteDatabaseService.Instance.GetOdooConfigAsync();
@@ -565,16 +574,26 @@ public class OdooSyncService
             }
 
             int uid = await EnsureAuthenticatedUidAsync(config);
+            var attemptedInThisRun = new HashSet<long>();
 
-            foreach (var item in queueItems)
+            while (true)
             {
+                // Re-query on each iteration so any SessionOdooId bound by OPEN_SESSION
+                // or any newly enqueued order is picked up immediately in FIFO order
+                var queueItems = await SqliteDatabaseService.Instance.GetPendingSyncQueueAsync();
+                var nextItem = queueItems.FirstOrDefault(i => !attemptedInThisRun.Contains(i.Id));
+                if (nextItem == null)
+                    break;
+
+                attemptedInThisRun.Add(nextItem.Id);
+
                 try
                 {
-                    switch (item.OperationType)
+                    switch (nextItem.OperationType)
                     {
                         case "OPEN_SESSION":
                         {
-                            var payload = JsonSerializer.Deserialize<OpenSessionSyncPayload>(item.PayloadJson);
+                            var payload = JsonSerializer.Deserialize<OpenSessionSyncPayload>(nextItem.PayloadJson);
                             if (payload != null)
                             {
                                 await PushOpenSessionToOdooAsync(config, uid, payload);
@@ -583,51 +602,55 @@ public class OdooSyncService
                         }
                         case "CREATE_ORDER":
                         {
-                            var payload = JsonSerializer.Deserialize<CreateOrderSyncPayload>(item.PayloadJson);
+                            var payload = JsonSerializer.Deserialize<CreateOrderSyncPayload>(nextItem.PayloadJson);
                             if (payload != null)
                             {
-                                int? effectiveSessionOdooId = item.SessionOdooId ?? payload.SessionOdooId;
+                                int? effectiveSessionOdooId = nextItem.SessionOdooId ?? payload.SessionOdooId;
                                 await PushPosOrderToOdooAsync(config, uid, payload, effectiveSessionOdooId);
                             }
                             break;
                         }
                         case "CASH_IN_OUT":
                         {
-                            var payload = JsonSerializer.Deserialize<CashInOutSyncPayload>(item.PayloadJson);
+                            var payload = JsonSerializer.Deserialize<CashInOutSyncPayload>(nextItem.PayloadJson);
                             if (payload != null)
                             {
-                                int? effectiveSessionOdooId = item.SessionOdooId ?? payload.SessionOdooId;
+                                int? effectiveSessionOdooId = nextItem.SessionOdooId ?? payload.SessionOdooId;
                                 await PushCashInOutToOdooAsync(config, uid, payload, effectiveSessionOdooId);
                             }
                             break;
                         }
                         case "CLOSE_SESSION":
                         {
-                            var payload = JsonSerializer.Deserialize<CloseSessionSyncPayload>(item.PayloadJson);
+                            var payload = JsonSerializer.Deserialize<CloseSessionSyncPayload>(nextItem.PayloadJson);
                             if (payload != null)
                             {
-                                int? effectiveSessionOdooId = item.SessionOdooId ?? payload.SessionOdooId;
+                                int? effectiveSessionOdooId = nextItem.SessionOdooId ?? payload.SessionOdooId;
                                 await PushCloseSessionToOdooAsync(config, uid, payload, effectiveSessionOdooId);
                             }
                             break;
                         }
                     }
 
-                    await SqliteDatabaseService.Instance.MarkSyncQueueItemCompletedAsync(item.Id);
+                    await SqliteDatabaseService.Instance.MarkSyncQueueItemCompletedAsync(nextItem.Id);
                     processedCount++;
+                    NotifyQueueUpdated();
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
                 {
                     // Network dropped mid-queue: stop immediately to preserve strict sequential order
                     UpdateStatus(false, "Offline (Local Mode)");
-                    await SqliteDatabaseService.Instance.MarkSyncQueueItemFailedAsync(item.Id, ex.Message);
+                    await SqliteDatabaseService.Instance.MarkSyncQueueItemFailedAsync(nextItem.Id, ex.Message);
+                    NotifyQueueUpdated();
                     break;
                 }
                 catch (Exception ex)
                 {
-                    await SqliteDatabaseService.Instance.MarkSyncQueueItemFailedAsync(item.Id, ex.Message);
+                    await SqliteDatabaseService.Instance.MarkSyncQueueItemFailedAsync(nextItem.Id, ex.Message);
+                    NotifyQueueUpdated();
+
                     // If opening a session failed, do not attempt dependent orders for that session yet
-                    if (item.OperationType == "OPEN_SESSION")
+                    if (nextItem.OperationType == "OPEN_SESSION")
                         break;
                 }
             }
@@ -655,30 +678,7 @@ public class OdooSyncService
 
     private async Task<int> EnsureOdooOpenSessionIdAsync(OdooConfigRecord config, int uid, int configOdooId, int? knownSessionOdooId = null)
     {
-        // 1. Check if knownSessionOdooId is still valid and not closed
-        if (knownSessionOdooId.HasValue && knownSessionOdooId.Value > 0)
-        {
-            using var checkDoc = await SearchReadAsync(
-                config,
-                uid,
-                "pos.session",
-                [new object[] { "id", "=", knownSessionOdooId.Value }],
-                ["id", "name", "state"]
-            );
-            if (checkDoc.RootElement.TryGetProperty("result", out var arr) &&
-                arr.ValueKind == JsonValueKind.Array &&
-                arr.GetArrayLength() > 0)
-            {
-                var first = arr[0];
-                string state = GetStringOrDefault(first, "state", "opened");
-                if (!string.Equals(state, "closed", StringComparison.OrdinalIgnoreCase))
-                {
-                    return knownSessionOdooId.Value;
-                }
-            }
-        }
-
-        // 2. Search for any non-closed session on Odoo for this pos.config
+        // 1. Always prefer an existing non-closed session on Odoo for this pos.config
         using (var searchDoc = await SearchReadAsync(
             config,
             uid,
@@ -695,6 +695,32 @@ public class OdooSyncService
                 arr.GetArrayLength() > 0)
             {
                 return GetIntOrDefault(arr[0], "id");
+            }
+        }
+
+        // 2. If knownSessionOdooId was provided, check if it exists and is not closed
+        if (knownSessionOdooId.HasValue && knownSessionOdooId.Value > 0)
+        {
+            using var checkDoc = await SearchReadAsync(
+                config,
+                uid,
+                "pos.session",
+                [
+                    new object[] { "id", "=", knownSessionOdooId.Value },
+                    new object[] { "config_id", "=", configOdooId }
+                ],
+                ["id", "name", "state"]
+            );
+            if (checkDoc.RootElement.TryGetProperty("result", out var arr) &&
+                arr.ValueKind == JsonValueKind.Array &&
+                arr.GetArrayLength() > 0)
+            {
+                var first = arr[0];
+                string state = GetStringOrDefault(first, "state", "opened");
+                if (!string.Equals(state, "closed", StringComparison.OrdinalIgnoreCase))
+                {
+                    return knownSessionOdooId.Value;
+                }
             }
         }
 
@@ -728,7 +754,6 @@ public class OdooSyncService
     {
         int odooSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, payload.ExistingSessionOdooId);
 
-        // Call set_opening_control on pos.session (sets cash_register_balance_start, opening_notes, and opens session)
         try
         {
             using var _ = await ExecuteKwAsync(
@@ -745,7 +770,6 @@ public class OdooSyncService
         }
         catch
         {
-            // Fallback if set_opening_control signature differs or session is already opened
             try
             {
                 using var _ = await ExecuteKwAsync(
@@ -759,7 +783,6 @@ public class OdooSyncService
             catch { }
         }
 
-        // Read back the session name from Odoo
         string? odooSessionName = null;
         try
         {
@@ -787,20 +810,24 @@ public class OdooSyncService
         );
     }
 
-    private async Task<Dictionary<int, int>> ResolveProductVariantIdsAsync(OdooConfigRecord config, int uid, IEnumerable<int> templateIds)
+    private async Task<Dictionary<int, (int VariantId, List<int> TaxIds)>> ResolveProductVariantsAndTaxesAsync(
+        OdooConfigRecord config,
+        int uid,
+        IEnumerable<int> templateIds)
     {
-        var map = new Dictionary<int, int>();
+        var map = new Dictionary<int, (int VariantId, List<int> TaxIds)>();
         var distinctIds = templateIds.Where(id => id > 0).Distinct().ToArray();
         if (distinctIds.Length == 0) return map;
 
         try
         {
+            var fields = await FilterValidFieldsAsync(config, uid, "product.product", "id", "product_tmpl_id", "taxes_id");
             using var doc = await SearchReadAsync(
                 config,
                 uid,
                 "product.product",
                 [new object[] { "product_tmpl_id", "in", distinctIds }],
-                ["id", "product_tmpl_id"]
+                fields
             );
 
             if (doc.RootElement.TryGetProperty("result", out var arr) && arr.ValueKind == JsonValueKind.Array)
@@ -809,9 +836,10 @@ public class OdooSyncService
                 {
                     int prodVariantId = GetIntOrDefault(el, "id");
                     var (tmplId, _) = GetMany2One(el, "product_tmpl_id");
+                    var taxIds = GetIdArray(el, "taxes_id");
                     if (prodVariantId > 0 && tmplId.HasValue && !map.ContainsKey(tmplId.Value))
                     {
-                        map[tmplId.Value] = prodVariantId;
+                        map[tmplId.Value] = (prodVariantId, taxIds);
                     }
                 }
             }
@@ -819,6 +847,30 @@ public class OdooSyncService
         catch { }
 
         return map;
+    }
+
+    private static int ExtractSequenceNumber(string? posReference, string? orderName)
+    {
+        if (!string.IsNullOrWhiteSpace(posReference))
+        {
+            string[] parts = posReference.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (parts.Length >= 3 && int.TryParse(parts[^1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int seq) && seq > 0)
+            {
+                return seq;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(orderName))
+        {
+            int dash = orderName.LastIndexOf('-');
+            if (dash >= 0 && dash + 1 < orderName.Length &&
+                int.TryParse(orderName[(dash + 1)..].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int seq) && seq > 0)
+            {
+                return seq;
+            }
+        }
+
+        return 1;
     }
 
     private async Task PushPosOrderToOdooAsync(
@@ -857,17 +909,48 @@ public class OdooSyncService
             }
         }
 
-        // 2. Ensure we have an active Odoo session ID
+        // 2. Ensure we have an active Odoo session ID (and ensure it is in 'opened' state)
         int activeSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, sessionOdooId);
+        try
+        {
+            using var sessStateDoc = await SearchReadAsync(
+                config,
+                uid,
+                "pos.session",
+                [new object[] { "id", "=", activeSessionId }],
+                ["id", "state"]
+            );
+            if (sessStateDoc.RootElement.TryGetProperty("result", out var sArr) &&
+                sArr.ValueKind == JsonValueKind.Array &&
+                sArr.GetArrayLength() > 0)
+            {
+                string st = GetStringOrDefault(sArr[0], "state", "opened");
+                if (string.Equals(st, "opening_control", StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        using var _ = await ExecuteKwAsync(config, uid, "pos.session", "set_opening_control", [new[] { activeSessionId }, 0.0, ""]);
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            using var _ = await ExecuteKwAsync(config, uid, "pos.session", "action_pos_session_open", [new[] { activeSessionId }]);
+                        }
+                        catch { }
+                    }
+                }
+            }
+        }
+        catch { }
 
-        // 3. Resolve product.template IDs -> product.product variant IDs
+        // 3. Resolve product.template IDs -> product.product variant IDs + taxes
         var tmplIds = payload.Lines
             .Where(l => l.ProductOdooId.HasValue)
             .Select(l => l.ProductOdooId!.Value);
-        var variantMap = await ResolveProductVariantIdsAsync(config, uid, tmplIds);
+        var variantMap = await ResolveProductVariantsAndTaxesAsync(config, uid, tmplIds);
 
-        // Fallback product ID if a custom/unmapped product was used
-        int fallbackProductId = variantMap.Values.FirstOrDefault();
+        int fallbackProductId = variantMap.Values.Select(v => v.VariantId).FirstOrDefault();
         if (fallbackProductId == 0)
         {
             using var anyProdDoc = await SearchReadAsync(
@@ -891,9 +974,17 @@ public class OdooSyncService
 
         foreach (var l in payload.Lines)
         {
-            int prodId = (l.ProductOdooId.HasValue && variantMap.TryGetValue(l.ProductOdooId.Value, out int vId))
-                ? vId
-                : (l.ProductOdooId ?? fallbackProductId);
+            int prodId = fallbackProductId;
+            List<int> taxIds = [];
+            if (l.ProductOdooId.HasValue && variantMap.TryGetValue(l.ProductOdooId.Value, out var vInfo))
+            {
+                prodId = vInfo.VariantId;
+                taxIds = vInfo.TaxIds;
+            }
+            else if (l.ProductOdooId.HasValue && l.ProductOdooId.Value > 0)
+            {
+                prodId = l.ProductOdooId.Value;
+            }
 
             var lineDict = new Dictionary<string, object>
             {
@@ -909,18 +1000,22 @@ public class OdooSyncService
                 lineDict["full_product_name"] = l.ProductName;
             if (orderLineFields.Count == 0 || orderLineFields.Contains("name"))
                 lineDict["name"] = l.ProductName;
+            if (taxIds.Count > 0 && (orderLineFields.Count == 0 || orderLineFields.Contains("tax_ids")))
+                lineDict["tax_ids"] = new object[] { new object[] { 6, 0, taxIds.ToArray() } };
             if (!string.IsNullOrWhiteSpace(l.CustomerNote) && (orderLineFields.Count == 0 || orderLineFields.Contains("customer_note")))
                 lineDict["customer_note"] = l.CustomerNote;
 
             lineTuples.Add(new object[] { 0, 0, lineDict });
         }
 
-        // 5. Resolve payment method ID on Odoo
+        // 5. Build pos.order values matching Odoo 20's exact schema
         var paymentMethods = await SqliteDatabaseService.Instance.LoadAllPaymentMethodsAsync();
         var orderFields = await GetAvailableFieldsAsync(config, uid, "pos.order");
+        int seqNumber = ExtractSequenceNumber(payload.PosReference, payload.Name);
 
         var orderVals = new Dictionary<string, object>
         {
+            ["name"] = payload.Name,
             ["session_id"] = activeSessionId,
             ["pos_reference"] = payload.PosReference,
             ["amount_total"] = (double)payload.AmountTotal,
@@ -930,6 +1025,8 @@ public class OdooSyncService
             ["lines"] = lineTuples
         };
 
+        if (orderFields.Count == 0 || orderFields.Contains("sequence_number"))
+            orderVals["sequence_number"] = seqNumber;
         if (orderFields.Count == 0 || orderFields.Contains("user_id"))
             orderVals["user_id"] = payload.CashierId ?? uid;
         if (orderFields.Count == 0 || orderFields.Contains("date_order"))
@@ -983,19 +1080,15 @@ public class OdooSyncService
                 methodOdooId = paymentMethods.FirstOrDefault()?.OdooId ?? 1;
             }
 
-            try
+            var payVals = new Dictionary<string, object>
             {
-                var payVals = new Dictionary<string, object>
-                {
-                    ["pos_order_id"] = createdOrderId,
-                    ["session_id"] = activeSessionId,
-                    ["payment_method_id"] = methodOdooId.Value,
-                    ["amount"] = (double)pay.Amount,
-                    ["payment_date"] = pay.PaymentDate.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-                };
-                using var _ = await ExecuteKwAsync(config, uid, "pos.payment", "create", [payVals]);
-            }
-            catch { }
+                ["pos_order_id"] = createdOrderId,
+                ["session_id"] = activeSessionId,
+                ["payment_method_id"] = methodOdooId.Value,
+                ["amount"] = (double)pay.Amount,
+                ["payment_date"] = pay.PaymentDate.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            };
+            using var _ = await ExecuteKwAsync(config, uid, "pos.payment", "create", [payVals]);
         }
 
         try
@@ -1004,7 +1097,6 @@ public class OdooSyncService
         }
         catch { }
 
-        // Read back the Odoo-generated order name (e.g. "Bakery Shop/0001")
         string? odooOrderName = null;
         try
         {
@@ -1042,23 +1134,38 @@ public class OdooSyncService
         string operation = payload.Amount >= 0m ? "in" : "out";
         double absAmount = (double)Math.Abs(payload.Amount);
 
-        try
+        using var _ = await ExecuteKwAsync(
+            config,
+            uid,
+            "pos.session",
+            "try_cash_in_out",
+            [
+                new[] { activeSessionId },
+                operation,
+                absAmount,
+                payload.Reason ?? "",
+                new { }
+            ]
+        );
+    }
+
+    private async Task<string> GetOdooSessionStateAsync(OdooConfigRecord config, int uid, int sessionId)
+    {
+        using var doc = await SearchReadAsync(
+            config,
+            uid,
+            "pos.session",
+            [new object[] { "id", "=", sessionId }],
+            ["id", "state"]
+        );
+
+        if (doc.RootElement.TryGetProperty("result", out var arr) &&
+            arr.ValueKind == JsonValueKind.Array &&
+            arr.GetArrayLength() > 0)
         {
-            using var _ = await ExecuteKwAsync(
-                config,
-                uid,
-                "pos.session",
-                "try_cash_in_out",
-                [
-                    new[] { activeSessionId },
-                    operation,
-                    absAmount,
-                    payload.Reason ?? "",
-                    new { }
-                ]
-            );
+            return GetStringOrDefault(arr[0], "state", "");
         }
-        catch { }
+        return "";
     }
 
     private async Task PushCloseSessionToOdooAsync(
@@ -1067,8 +1174,63 @@ public class OdooSyncService
         CloseSessionSyncPayload payload,
         int? sessionOdooId)
     {
-        int activeSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, sessionOdooId);
+        // 1. Find the open/active session on Odoo for this pos.config
+        int targetSessionId = 0;
 
+        using (var searchDoc = await SearchReadAsync(
+            config,
+            uid,
+            "pos.session",
+            [
+                new object[] { "config_id", "=", payload.ConfigOdooId },
+                new object[] { "state", "!=", "closed" }
+            ],
+            ["id", "name", "state"]
+        ))
+        {
+            if (searchDoc.RootElement.TryGetProperty("result", out var arr) &&
+                arr.ValueKind == JsonValueKind.Array &&
+                arr.GetArrayLength() > 0)
+            {
+                targetSessionId = GetIntOrDefault(arr[0], "id");
+            }
+        }
+
+        if (targetSessionId <= 0 && sessionOdooId.HasValue && sessionOdooId.Value > 0)
+        {
+            targetSessionId = sessionOdooId.Value;
+        }
+
+        if (targetSessionId <= 0)
+        {
+            // No non-closed session exists on Odoo for this shop — already closed
+            return;
+        }
+
+        string currentState = await GetOdooSessionStateAsync(config, uid, targetSessionId);
+        if (string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // 2. If the session is still in 'opening_control', transition it to 'opened' first
+        if (string.Equals(currentState, "opening_control", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                using var _ = await ExecuteKwAsync(config, uid, "pos.session", "set_opening_control", [new[] { targetSessionId }, 0.0, ""]);
+            }
+            catch
+            {
+                try
+                {
+                    using var _ = await ExecuteKwAsync(config, uid, "pos.session", "action_pos_session_open", [new[] { targetSessionId }]);
+                }
+                catch { }
+            }
+        }
+
+        // 3. Post closing cash details
         try
         {
             using var _ = await ExecuteKwAsync(
@@ -1076,34 +1238,7 @@ public class OdooSyncService
                 uid,
                 "pos.session",
                 "post_closing_cash_details",
-                [new[] { activeSessionId }, (double)payload.ClosingCashCount]
-            );
-        }
-        catch { }
-
-        if (!string.IsNullOrWhiteSpace(payload.ClosingNote))
-        {
-            try
-            {
-                using var _ = await ExecuteKwAsync(
-                    config,
-                    uid,
-                    "pos.session",
-                    "update_closing_control_state_session",
-                    [new[] { activeSessionId }, payload.ClosingNote]
-                );
-            }
-            catch { }
-        }
-
-        try
-        {
-            using var _ = await ExecuteKwAsync(
-                config,
-                uid,
-                "pos.session",
-                "close_session_from_ui",
-                [new[] { activeSessionId }, new object[] { }]
+                [new[] { targetSessionId }, (double)payload.ClosingCashCount]
             );
         }
         catch
@@ -1114,14 +1249,92 @@ public class OdooSyncService
                     config,
                     uid,
                     "pos.session",
-                    "action_pos_session_closing_control",
-                    [new[] { activeSessionId }]
+                    "write",
+                    [
+                        new[] { targetSessionId },
+                        new Dictionary<string, object>
+                        {
+                            ["cash_register_balance_end_real"] = (double)payload.ClosingCashCount
+                        }
+                    ]
                 );
             }
             catch { }
         }
-    }
 
+        // 4. Update closing notes if present
+        if (!string.IsNullOrWhiteSpace(payload.ClosingNote))
+        {
+            try
+            {
+                using var _ = await ExecuteKwAsync(
+                    config,
+                    uid,
+                    "pos.session",
+                    "update_closing_control_state_session",
+                    [new[] { targetSessionId }, payload.ClosingNote]
+                );
+            }
+            catch { }
+        }
+
+        // 5. Attempt standard UI close
+        string? lastCloseError = null;
+        try
+        {
+            using var _ = await ExecuteKwAsync(
+                config,
+                uid,
+                "pos.session",
+                "close_session_from_ui",
+                [new[] { targetSessionId }, Array.Empty<object>()]
+            );
+        }
+        catch (Exception ex)
+        {
+            lastCloseError = ex.Message;
+        }
+
+        // 6. Verify session state; if Odoo stopped in 'closing_control' or 'opened', force-validate and close
+        currentState = await GetOdooSessionStateAsync(config, uid, targetSessionId);
+        if (!string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
+        {
+            string[] fallbackCloseMethods =
+            [
+                "action_pos_session_closing_control",
+                "action_pos_session_validate",
+                "action_pos_session_close"
+            ];
+
+            foreach (string method in fallbackCloseMethods)
+            {
+                try
+                {
+                    using var _ = await ExecuteKwAsync(
+                        config,
+                        uid,
+                        "pos.session",
+                        method,
+                        [new[] { targetSessionId }]
+                    );
+                }
+                catch (Exception ex)
+                {
+                    lastCloseError = ex.Message;
+                }
+
+                currentState = await GetOdooSessionStateAsync(config, uid, targetSessionId);
+                if (string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
+                    break;
+            }
+        }
+
+        if (!string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Odoo session #{targetSessionId} remained in state '{currentState}' after close attempt. {lastCloseError}");
+        }
+    }
     // =========================================================================
     // 1. COMPANIES (res.company)
     // =========================================================================
@@ -2234,74 +2447,62 @@ public class OdooSyncService
 
         DateTime now = DateTime.Now;
 
-        // 1. Companies
         Report(1, "Companies", "Fetching & reconciling Companies (res.company)...");
         var companies = await FetchOdooCompaniesInternalAsync(config, uid);
         await SqliteDatabaseService.Instance.UpsertOdooCompaniesAsync(companies);
         await SqliteDatabaseService.Instance.UpdateCompanySyncStatusAsync(now, $"Companies: {companies.Count}");
 
-        // 2. Users
         Report(2, "Users", "Fetching & reconciling Users (res.users)...");
         var users = await FetchOdooUsersInternalAsync(config, uid);
         var (uImp, uUpd, uDel) = await SqliteDatabaseService.Instance.UpsertOdooUsersAsync(users);
         await SqliteDatabaseService.Instance.UpdateSyncStatusAsync(now, $"Users: {uImp} imported, {uUpd} updated, {uDel} removed");
 
-        // 3. Payment Methods
         Report(3, "Payment Methods", "Fetching & reconciling Payment Methods (pos.payment.method)...");
         var paymentMethods = await FetchOdooPaymentMethodsInternalAsync(config, uid);
         await SqliteDatabaseService.Instance.UpsertOdooPaymentMethodsAsync(paymentMethods);
         await SqliteDatabaseService.Instance.UpdatePaymentMethodSyncStatusAsync(now, $"Payment Methods: {paymentMethods.Count}");
 
-        // 4. POS Categories
         Report(4, "PoS Categories", "Fetching & reconciling PoS Categories (pos.category)...");
         var categories = await FetchOdooCategoriesInternalAsync(config, uid);
         await SqliteDatabaseService.Instance.UpsertOdooCategoriesAsync(categories);
         await SqliteDatabaseService.Instance.UpdateCategorySyncStatusAsync(now, $"Categories: {categories.Count}");
 
-        // 5. Product Attributes & Values
         Report(5, "Attributes", "Fetching & reconciling Product Attributes & Values...");
         var (attrs, attrVals) = await FetchOdooAttributesInternalAsync(config, uid);
         await SqliteDatabaseService.Instance.UpsertOdooAttributesAsync(attrs, attrVals);
         await SqliteDatabaseService.Instance.UpdateAttributeSyncStatusAsync(now, $"Attributes: {attrs.Count}");
 
-        // 6. Product Tags
         Report(6, "Product Tags", "Fetching & reconciling Product Tags (product.tag)...");
         var tags = await FetchOdooTagsInternalAsync(config, uid);
         await SqliteDatabaseService.Instance.UpsertOdooTagsAsync(tags);
         await SqliteDatabaseService.Instance.UpdateTagSyncStatusAsync(now, $"Tags: {tags.Count}");
 
-        // 7. Combo Choices
         Report(7, "Combo Choices", "Fetching & reconciling Combo Choices...");
         var (combos, comboLines) = await FetchOdooComboChoicesInternalAsync(config, uid);
         await SqliteDatabaseService.Instance.UpsertOdooCombosAsync(combos, comboLines);
         await SqliteDatabaseService.Instance.UpdateComboSyncStatusAsync(now, $"Combos: {combos.Count}");
 
-        // 8. Products (reusing preloaded categories, tags, combos, and attribute values)
         Report(8, "Products", "Fetching & reconciling Products (product.template)...");
         var products = await FetchOdooProductsInternalAsync(config, uid, categories, tags, combos, attrVals);
         await SqliteDatabaseService.Instance.UpsertOdooProductsAsync(products);
         await SqliteDatabaseService.Instance.UpdateProductSyncStatusAsync(now, $"Products: {products.Count}");
 
-        // 9. POS Sessions
         Report(9, "Sessions", "Fetching & reconciling POS Sessions (pos.session)...");
         var userAvatarMap = users.ToDictionary(u => u.OdooId, u => u.AvatarBase64);
         var sessions = await FetchOdooSessionsInternalAsync(config, uid, userAvatarMap);
         await SqliteDatabaseService.Instance.UpsertOdooSessionsAsync(sessions);
         await SqliteDatabaseService.Instance.UpdateSessionSyncStatusAsync(now, $"Sessions: {sessions.Count}");
 
-        // 10. POS Configurations
         Report(10, "POS Shops", "Fetching & reconciling POS Configurations (pos.config)...");
         var posConfigs = await FetchOdooPosConfigsInternalAsync(config, uid, sessions);
         await SqliteDatabaseService.Instance.UpsertOdooPosConfigsAsync(posConfigs);
         await SqliteDatabaseService.Instance.UpdatePosConfigSyncStatusAsync(now, $"POS Shops: {posConfigs.Count}");
 
-        // 11. POS Orders & Order Lines
         Report(11, "Orders", "Fetching & reconciling POS Orders & Order Lines...");
         var (orders, orderLines, payments) = await FetchOdooOrdersInternalAsync(config, uid);
         await SqliteDatabaseService.Instance.UpsertOdooOrdersAsync(orders, orderLines, payments);
         await SqliteDatabaseService.Instance.UpdateOrderSyncStatusAsync(now, $"Orders: {orders.Count}");
 
-        // 12. POS Payments
         Report(12, "Payments", "Reconciling POS Payments (pos.payment)...");
         await SqliteDatabaseService.Instance.UpsertOdooPaymentsAsync(payments);
         await SqliteDatabaseService.Instance.UpdatePaymentSyncStatusAsync(now, $"Payments: {payments.Count}");

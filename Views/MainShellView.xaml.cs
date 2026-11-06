@@ -59,7 +59,9 @@ public partial class MainShellView : UserControl
         {
             RegisterViewControl.Visibility = Visibility.Collapsed;
             await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
-            await SessionsViewControl.ReloadSessionsFromDatabaseAsync();
+            await SessionsViewControl.ReloadSessionsFromDatabaseAsync(resetDetailView: false);
+            await OrdersViewControl.ReloadOrdersFromDatabaseAsync(resetDetailView: false);
+            await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
         };
         DashboardViewControl.VM.ViewOrdersRequested += shopName =>
@@ -73,6 +75,10 @@ public partial class MainShellView : UserControl
         DashboardViewControl.VM.ViewPaymentsRequested += shopName =>
         {
             SwitchToPayments(shopName);
+        };
+        DashboardViewControl.VM.ConfigureShopRequested += _ =>
+        {
+            SwitchToSettings();
         };
 
         // Wire cross-navigation: Sessions smart buttons to Orders and Payments
@@ -99,6 +105,12 @@ public partial class MainShellView : UserControl
         OrdersViewControl.VM.OrdersUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
         PaymentsViewControl.VM.PaymentsUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
 
+        // Live queue counter updates
+        OdooSyncService.Instance.QueueUpdated += () =>
+        {
+            Dispatcher.InvokeAsync(RefreshDatabaseCountsAsync);
+        };
+
         // Listen for live online status updates
         OdooSyncService.Instance.OnlineStatusChanged += isOnline =>
         {
@@ -118,6 +130,22 @@ public partial class MainShellView : UserControl
         };
 
         _ = LoadSavedConfigAsync();
+    }
+
+    private async void OpenPendingSyncQueueWindow_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new PendingSyncWindow();
+        if (Application.Current?.MainWindow != null && Application.Current.MainWindow.IsVisible)
+        {
+            win.Owner = Application.Current.MainWindow;
+        }
+        win.ShowDialog();
+
+        await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
+        await SessionsViewControl.ReloadSessionsFromDatabaseAsync(resetDetailView: false);
+        await OrdersViewControl.ReloadOrdersFromDatabaseAsync(resetDetailView: false);
+        await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
+        await RefreshDatabaseCountsAsync();
     }
 
     public async Task RefreshConfigAndCountsAsync()
@@ -232,6 +260,9 @@ public partial class MainShellView : UserControl
             AttributesCountBadgeText.Text = FormatCount(counts.AttributesCount);
             TagsCountBadgeText.Text = FormatCount(counts.TagsCount);
             UsersCountBadgeText.Text = FormatCount(counts.UsersCount);
+
+            SidebarPendingCountText.Text = counts.PendingSyncCount.ToString();
+            OpenPendingQueueBtnText.Text = $"Unsynced Queue ({counts.PendingSyncCount})";
         }
         catch { }
     }
@@ -286,6 +317,8 @@ public partial class MainShellView : UserControl
         ProductTagsLabel.Visibility = labelVis;
         CompaniesLabel.Visibility = labelVis;
         UsersLabel.Visibility = labelVis;
+        PendingSyncLabel.Visibility = labelVis;
+        SidebarPendingCountBadge.Visibility = labelVis;
         SettingsLabel.Visibility = labelVis;
         LogoutLabel.Visibility = labelVis;
 

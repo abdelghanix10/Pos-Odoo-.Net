@@ -2462,7 +2462,6 @@ public class SqliteDatabaseService
 
             if (isLocalUnsynced)
             {
-                // Preserve local unsynced session changes until the offline queue flushes them to Odoo
                 continue;
             }
 
@@ -2523,7 +2522,6 @@ public class SqliteDatabaseService
                 long id = reader.GetInt64(0);
                 int? oId = reader.IsDBNull(1) ? null : reader.GetInt32(1);
                 bool isSynced = reader.GetInt32(2) != 0;
-                // Never delete local unsynced sessions
                 if (isSynced && (!oId.HasValue || !odooIds.Contains(oId.Value)))
                     delIds.Add(id);
             }
@@ -2700,7 +2698,7 @@ public class SqliteDatabaseService
                     CashierName = payReader.IsDBNull(8) ? "" : payReader.GetString(8),
                     PaymentMethodId = payReader.IsDBNull(9) ? null : payReader.GetInt32(9),
                     PaymentMethodName = payReader.IsDBNull(10) ? "Cash" : payReader.GetString(10),
-                    Amount = payReader.IsDBNull(11) ? 0.00m : Convert.ToDecimal(payReader.GetDouble(11)),
+                    Amount = payReader.IsDBNull(11) ? 0.00m : Convert.ToDecimal(lineOrPayAmount(payReader, 11)),
                     CurrencyName = payReader.IsDBNull(12) ? "MAD" : payReader.GetString(12),
                     ForeignCurrency = payReader.IsDBNull(13) ? "—" : payReader.GetString(13),
                     PaymentDate = payReader.IsDBNull(14) ? null : (DateTime.TryParse(payReader.GetString(14), out var pd) ? pd : null)
@@ -2708,6 +2706,7 @@ public class SqliteDatabaseService
             }
         }
 
+        static double lineOrPayAmount(SqliteDataReader r, int idx) => r.GetDouble(idx);
         // Link Original Orders <-> Refund Orders bidirectionally
         var byOdooId = result.Where(o => o.OdooId.HasValue).ToDictionary(o => o.OdooId!.Value, o => o);
         var byName = result
@@ -2755,6 +2754,92 @@ public class SqliteDatabaseService
         }
 
         return result;
+    }
+
+    public async Task<(int NextSequence, int DeviceDigit)> GetNextOrderSequenceForShopAsync(
+        string shopName,
+        int configOdooId,
+        int? sessionOdooId = null)
+    {
+        int maxSeq = 0;
+        int detectedDeviceDigit = 2; // Matches Odoo 20's "262-1-000001" / "2001" device identifier when present
+        bool deviceFound = false;
+
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT Name, PosReference, TrackingNumber
+            FROM PosOrders
+            WHERE PosConfigName = @shop
+               OR (@sessId IS NOT NULL AND (SessionOdooId = @sessId OR SessionId = @sessId))
+               OR PosReference LIKE @cfgPattern
+            ORDER BY COALESCE(OdooId, Id) DESC;
+            """;
+        cmd.Parameters.AddWithValue("@shop", shopName ?? "");
+        cmd.Parameters.AddWithValue("@sessId", (object?)sessionOdooId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@cfgPattern", $"%-{configOdooId}-%");
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            string name = reader.IsDBNull(0) ? "" : reader.GetString(0);
+            string posRef = reader.IsDBNull(1) ? "" : reader.GetString(1);
+            string trackNum = reader.IsDBNull(2) ? "" : reader.GetString(2);
+
+            // 1. Parse sequence from Name (e.g. "Furniture Shop - 000002" -> 2)
+            int dashIdx = name.LastIndexOf('-');
+            if (dashIdx >= 0 && dashIdx + 1 < name.Length)
+            {
+                string tail = name[(dashIdx + 1)..].Trim();
+                if (int.TryParse(tail, NumberStyles.Integer, CultureInfo.InvariantCulture, out int nameSeq) && nameSeq > maxSeq)
+                {
+                    maxSeq = nameSeq;
+                }
+            }
+
+            // 2. Parse sequence and device digit from PosReference (e.g. "262-1-000002")
+            if (!string.IsNullOrWhiteSpace(posRef))
+            {
+                string[] parts = posRef.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (parts.Length >= 3)
+                {
+                    if (int.TryParse(parts[^1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int refSeq) && refSeq > maxSeq)
+                    {
+                        maxSeq = refSeq;
+                    }
+
+                    // Only adopt device digit from canonical Odoo references where middle part == configOdooId
+                    if (!deviceFound &&
+                        int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int refCfgId) &&
+                        refCfgId == configOdooId &&
+                        parts[0].Length >= 3 &&
+                        char.IsDigit(parts[0][^1]))
+                    {
+                        int digit = parts[0][^1] - '0';
+                        if (digit is >= 1 and <= 9)
+                        {
+                            detectedDeviceDigit = digit;
+                            deviceFound = true;
+                        }
+                    }
+                }
+            }
+
+            // 3. Fallback device digit detection from TrackingNumber (e.g. "2002" -> 2)
+            if (!deviceFound && trackNum.Length == 4 && int.TryParse(trackNum, NumberStyles.Integer, CultureInfo.InvariantCulture, out int tn))
+            {
+                int d = tn / 1000;
+                if (d is >= 1 and <= 9)
+                {
+                    detectedDeviceDigit = d;
+                    deviceFound = true;
+                }
+            }
+        }
+
+        return (maxSeq + 1, detectedDeviceDigit);
     }
 
     public async Task<(int imported, int updated, int deleted)> UpsertOdooOrdersAsync(
@@ -2844,7 +2929,6 @@ public class SqliteDatabaseService
             await cmd.ExecuteNonQueryAsync();
         }
 
-        // Remove stale local lines that belong to synced orders before re-upserting remote lines
         await using (var cleanSyncedLinesCmd = connection.CreateCommand())
         {
             cleanSyncedLinesCmd.Transaction = transaction;
@@ -2899,7 +2983,6 @@ public class SqliteDatabaseService
             await cmd.ExecuteNonQueryAsync();
         }
 
-        // Only delete lines that have a remote OdooId which no longer exists on Odoo
         var delLineIds = new List<long>();
         await using (var fetchLinesCmd = connection.CreateCommand())
         {
@@ -2923,7 +3006,6 @@ public class SqliteDatabaseService
             await delLineCmd.ExecuteNonQueryAsync();
         }
 
-        // Never delete local unsynced orders or local ongoing draft orders
         var delOrderIds = new List<long>();
         await using (var fetchCmd = connection.CreateCommand())
         {
@@ -3101,7 +3183,6 @@ public class SqliteDatabaseService
             await cmd.ExecuteNonQueryAsync();
         }
 
-        // Never delete local unsynced payments
         var delIds = new List<long>();
         await using (var fetchCmd = connection.CreateCommand())
         {
@@ -3204,7 +3285,6 @@ public class SqliteDatabaseService
 
         var odooIds = configs.Select(c => c.OdooId).ToHashSet();
 
-        // Check which configs have pending offline session operations
         var pendingConfigIds = new HashSet<int>();
         await using (var pendCmd = connection.CreateCommand())
         {
@@ -3231,7 +3311,6 @@ public class SqliteDatabaseService
 
             if (existingId != null && existingId != DBNull.Value && pendingConfigIds.Contains(c.OdooId))
             {
-                // Preserve local session state for configs that have pending offline queue items
                 await using var sparkCmd = connection.CreateCommand();
                 sparkCmd.Transaction = transaction;
                 sparkCmd.CommandText = """
@@ -3371,7 +3450,6 @@ public class SqliteDatabaseService
         int? odooSessId = sessionId;
         string sessName = $"{resolvedConfigName}/{DateTime.Now:HHmmss}";
 
-        // Check if an active or opening_control session already exists for this config
         await using (var findCmd = connection.CreateCommand())
         {
             findCmd.Transaction = transaction;
@@ -3612,9 +3690,13 @@ public class SqliteDatabaseService
             findCmd.Transaction = transaction;
             findCmd.CommandText = """
                 SELECT Id, OdooId FROM PosSessions
-                WHERE OdooId = @sessId OR Id = @sessId
-                ORDER BY Id DESC LIMIT 1;
+                WHERE (PosConfigId = @cfgId AND LOWER(State) != 'closed')
+                   OR OdooId = @sessId
+                   OR Id = @sessId
+                ORDER BY CASE WHEN PosConfigId = @cfgId AND LOWER(State) != 'closed' THEN 0 ELSE 1 END, Id DESC
+                LIMIT 1;
                 """;
+            findCmd.Parameters.AddWithValue("@cfgId", configId);
             findCmd.Parameters.AddWithValue("@sessId", sessionId);
             await using var r = await findCmd.ExecuteReaderAsync();
             if (await r.ReadAsync())
@@ -3622,6 +3704,11 @@ public class SqliteDatabaseService
                 localSessId = r.GetInt64(0);
                 if (!r.IsDBNull(1)) odooSessId = r.GetInt32(1);
             }
+        }
+
+        if (!odooSessId.HasValue && sessionId > 0)
+        {
+            odooSessId = sessionId;
         }
 
         string nowStr = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
@@ -3637,13 +3724,17 @@ public class SqliteDatabaseService
                     State = 'closed',
                     IsSynced = @synced,
                     UpdatedAt = CURRENT_TIMESTAMP
-                WHERE OdooId = @sessId OR Id = @sessId;
+                WHERE (@localId IS NOT NULL AND Id = @localId)
+                   OR OdooId = @sessId
+                   OR (PosConfigId = @cfgId AND LOWER(State) != 'closed');
                 """;
             cmdSession.Parameters.AddWithValue("@closeBal", (double)closingBalance);
             cmdSession.Parameters.AddWithValue("@note", closingNote ?? "");
             cmdSession.Parameters.AddWithValue("@now", nowStr);
             cmdSession.Parameters.AddWithValue("@synced", enqueueForOdooSync ? 0 : 1);
+            cmdSession.Parameters.AddWithValue("@localId", (object?)localSessId ?? DBNull.Value);
             cmdSession.Parameters.AddWithValue("@sessId", sessionId);
+            cmdSession.Parameters.AddWithValue("@cfgId", configId);
             await cmdSession.ExecuteNonQueryAsync();
         }
 
@@ -3690,7 +3781,7 @@ public class SqliteDatabaseService
         await transaction.CommitAsync();
     }
 
-    public async Task<int> GetSessionDraftOrdersCountAsync(int sessionId)
+    public async Task<int> GetSessionDraftOrdersCountAsync(int sessionId, string? shopName = null)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
@@ -3698,15 +3789,16 @@ public class SqliteDatabaseService
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = """
             SELECT COUNT(*) FROM PosOrders
-            WHERE (SessionId = @sessId OR SessionOdooId = @sessId)
+            WHERE (SessionId = @sessId OR SessionOdooId = @sessId OR (@shop IS NOT NULL AND PosConfigName = @shop))
               AND LOWER(State) IN ('draft', 'ongoing', 'new');
             """;
         cmd.Parameters.AddWithValue("@sessId", sessionId);
+        cmd.Parameters.AddWithValue("@shop", (object?)shopName ?? DBNull.Value);
         var res = await cmd.ExecuteScalarAsync();
         return res is long l ? (int)l : 0;
     }
 
-    public async Task CancelAllSessionDraftOrdersAsync(int sessionId)
+    public async Task CancelAllSessionDraftOrdersAsync(int sessionId, string? shopName = null)
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
@@ -3716,14 +3808,15 @@ public class SqliteDatabaseService
             DELETE FROM PosOrderLines
             WHERE OrderId IN (
                 SELECT Id FROM PosOrders
-                WHERE (SessionId = @sessId OR SessionOdooId = @sessId)
+                WHERE (SessionId = @sessId OR SessionOdooId = @sessId OR (@shop IS NOT NULL AND PosConfigName = @shop))
                   AND LOWER(State) IN ('draft', 'ongoing', 'new')
             );
             DELETE FROM PosOrders
-            WHERE (SessionId = @sessId OR SessionOdooId = @sessId)
+            WHERE (SessionId = @sessId OR SessionOdooId = @sessId OR (@shop IS NOT NULL AND PosConfigName = @shop))
               AND LOWER(State) IN ('draft', 'ongoing', 'new');
             """;
         cmd.Parameters.AddWithValue("@sessId", sessionId);
+        cmd.Parameters.AddWithValue("@shop", (object?)shopName ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync();
     }
 

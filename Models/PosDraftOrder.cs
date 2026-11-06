@@ -10,8 +10,11 @@ public class PosDraftOrder : INotifyPropertyChanged
     private string _uuid = Guid.NewGuid().ToString();
     private long? _databaseOrderId;
     private int? _odooOrderId;
-    private string _orderNumber; // e.g. "1002", "2001"
-    private string _orderRef;    // e.g. "261-3-000002"
+    private int _configOdooId = 1;
+    private int _sequenceNumber = 1;
+    private int _deviceDigit = 2;
+    private string _orderNumber; // e.g. "2001", "2002"
+    private string _orderRef;    // e.g. "262-1-000001"
     private DateTime _createdAt = DateTime.Now;
     private string _note = string.Empty;
     private int? _partnerId;
@@ -19,11 +22,60 @@ public class PosDraftOrder : INotifyPropertyChanged
     private bool _isToInvoice;
     private bool _isActive;
 
-    public PosDraftOrder(string orderNumber, int sessionId = 3, int sequenceNumber = 2)
+    public PosDraftOrder(string orderNumber, int configOdooId = 1, int sequenceNumber = 1, int deviceDigit = 2)
     {
-        _orderNumber = orderNumber;
-        _orderRef = $"261-{sessionId}-{sequenceNumber:D6}";
+        _configOdooId = Math.Max(1, configOdooId);
+        _sequenceNumber = Math.Max(1, sequenceNumber);
+        _deviceDigit = Math.Clamp(deviceDigit, 1, 9);
+
+        int yearTwoDigits = DateTime.Now.Year % 100;
+        _orderNumber = !string.IsNullOrWhiteSpace(orderNumber)
+            ? orderNumber
+            : $"{_deviceDigit}{_sequenceNumber % 1000:D3}";
+        _orderRef = $"{yearTwoDigits:D2}{_deviceDigit}-{_configOdooId}-{_sequenceNumber:D6}";
+
         CartItems.CollectionChanged += (_, _) => NotifyTotalsChanged();
+    }
+
+    public static PosDraftOrder CreateForShop(int configOdooId, int sequenceNumber, int deviceDigit = 2)
+    {
+        int cleanCfg = Math.Max(1, configOdooId);
+        int cleanSeq = Math.Max(1, sequenceNumber);
+        int cleanDev = Math.Clamp(deviceDigit, 1, 9);
+        string trackingNum = $"{cleanDev}{cleanSeq % 1000:D3}";
+        return new PosDraftOrder(trackingNum, cleanCfg, cleanSeq, cleanDev);
+    }
+
+    public void ApplyOdooSequence(int configOdooId, int sequenceNumber, int deviceDigit = 2)
+    {
+        _configOdooId = Math.Max(1, configOdooId);
+        _sequenceNumber = Math.Max(1, sequenceNumber);
+        _deviceDigit = Math.Clamp(deviceDigit, 1, 9);
+
+        int yearTwoDigits = DateTime.Now.Year % 100;
+        OrderNumber = $"{_deviceDigit}{_sequenceNumber % 1000:D3}";
+        OrderRef = $"{yearTwoDigits:D2}{_deviceDigit}-{_configOdooId}-{_sequenceNumber:D6}";
+    }
+
+    public string FormatOdooOrderName(string shopName) =>
+        $"{(string.IsNullOrWhiteSpace(shopName) ? "Point of Sale" : shopName.Trim())} - {_sequenceNumber:D6}";
+
+    public int SequenceNumber
+    {
+        get => _sequenceNumber;
+        set { if (_sequenceNumber != value) { _sequenceNumber = value; OnPropertyChanged(); } }
+    }
+
+    public int DeviceDigit
+    {
+        get => _deviceDigit;
+        set { if (_deviceDigit != value) { _deviceDigit = value; OnPropertyChanged(); } }
+    }
+
+    public int ConfigOdooId
+    {
+        get => _configOdooId;
+        set { if (_configOdooId != value) { _configOdooId = value; OnPropertyChanged(); } }
     }
 
     public string Uuid

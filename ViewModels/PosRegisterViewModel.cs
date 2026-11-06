@@ -49,6 +49,13 @@ public partial class PosRegisterViewModel : ViewModelBase
 
     public bool HasCompanyLogo => CompanyLogoBitmap != null;
 
+    // ==================== PENDING SYNC QUEUE STATUS ====================
+    [ObservableProperty]
+    private int _pendingSyncCount;
+
+    public bool HasPendingSync => PendingSyncCount > 0;
+    public string PendingSyncBadgeText => PendingSyncCount == 1 ? "1 Unsynced" : $"{PendingSyncCount} Unsynced";
+
     // ==================== LANDING SCREEN (Screenshot 6) ====================
     [ObservableProperty]
     private bool _isPosLandingScreenOpen;
@@ -84,8 +91,8 @@ public partial class PosRegisterViewModel : ViewModelBase
     public bool HasCurrentOrderItems => CurrentOrder != null && CurrentOrder.HasItems;
     public bool ShowExpandedNumpad => HasCurrentOrderItems && IsCartNumpadVisible && !IsClosingRegisterModalOpen;
 
-    private int _orderCounter = 1002;
-    private int _receiptSeqCounter = 1;
+    private int _nextOrderSeq = 1;
+    private int _deviceDigit = 2;
 
     // ==================== CART LINES & TOTALS ====================
     [ObservableProperty]
@@ -279,8 +286,9 @@ public partial class PosRegisterViewModel : ViewModelBase
 
     private readonly DispatcherTimer _toastTimer;
     private readonly DispatcherTimer _landingClockTimer;
+    private readonly DispatcherTimer _draftSaveDebounceTimer;
+    private PosDraftOrder? _pendingDraftToSave;
 
-    // Navigation event back to MainShell / Dashboard
     public event Action? ReturnToDashboardRequested;
     public event Action<string>? PosMessageRequested;
 
@@ -298,6 +306,31 @@ public partial class PosRegisterViewModel : ViewModelBase
         _landingClockTimer.Tick += (_, _) => UpdateLandingClock();
         _landingClockTimer.Start();
 
+        _draftSaveDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+        _draftSaveDebounceTimer.Tick += async (_, _) =>
+        {
+            _draftSaveDebounceTimer.Stop();
+            var draft = _pendingDraftToSave;
+            _pendingDraftToSave = null;
+            if (draft != null)
+            {
+                await PersistDraftOrderToDatabaseAsync(draft);
+            }
+        };
+
+        OdooSyncService.Instance.QueueUpdated += () =>
+        {
+            Application.Current?.Dispatcher?.InvokeAsync(RefreshPendingSyncCountAsync);
+        };
+        OdooSyncService.Instance.PendingQueueFlushed += _ =>
+        {
+            Application.Current?.Dispatcher?.InvokeAsync(async () =>
+            {
+                await RefreshPendingSyncCountAsync();
+                await RefreshBoundConfigSessionAsync();
+            });
+        };
+
         CreateNewDraftOrderInternal(persistPrevious: false);
     }
 
@@ -307,6 +340,12 @@ public partial class PosRegisterViewModel : ViewModelBase
         LandingClockText = now.ToString("hh:mm:ss tt", CultureInfo.InvariantCulture);
         LandingDayNameText = now.ToString("dddd", CultureInfo.InvariantCulture);
         LandingFullDateText = now.ToString("MMMM, dd, yyyy", CultureInfo.InvariantCulture);
+    }
+
+    partial void OnPendingSyncCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasPendingSync));
+        OnPropertyChanged(nameof(PendingSyncBadgeText));
     }
 
     partial void OnCashierNameChanged(string value) => OnPropertyChanged(nameof(CashierInitials));
@@ -369,6 +408,54 @@ public partial class PosRegisterViewModel : ViewModelBase
         OnPropertyChanged(nameof(ShowExpandedNumpad));
     }
 
+    private void ScheduleDraftPersistence(PosDraftOrder? draft)
+    {
+        if (draft == null) return;
+        _pendingDraftToSave = draft;
+        _draftSaveDebounceTimer.Stop();
+        _draftSaveDebounceTimer.Start();
+    }
+
+    public async Task RefreshPendingSyncCountAsync()
+    {
+        try
+        {
+            PendingSyncCount = await SqliteDatabaseService.Instance.GetPendingSyncCountAsync();
+        }
+        catch { }
+    }
+
+    private async Task RefreshBoundConfigSessionAsync()
+    {
+        if (CurrentConfig == null) return;
+        try
+        {
+            var configs = await SqliteDatabaseService.Instance.LoadAllPosConfigsAsync();
+            var updated = configs.FirstOrDefault(c => c.OdooId == CurrentConfig.OdooId);
+            if (updated != null)
+            {
+                if (updated.CurrentSessionId.HasValue)
+                    CurrentConfig.CurrentSessionId = updated.CurrentSessionId;
+                if (!string.IsNullOrWhiteSpace(updated.CurrentSessionName))
+                    CurrentConfig.CurrentSessionName = updated.CurrentSessionName;
+            }
+        }
+        catch { }
+    }
+
+    [RelayCommand]
+    public void OpenPendingSyncWindow()
+    {
+        IsHamburgerMenuOpen = false;
+        var win = new PendingSyncWindow();
+        if (Application.Current?.MainWindow != null && Application.Current.MainWindow.IsVisible)
+        {
+            win.Owner = Application.Current.MainWindow;
+        }
+        win.ShowDialog();
+        _ = RefreshPendingSyncCountAsync();
+    }
+
     // =========================================================================
     // INITIALIZATION & CONTEXT LOADING
     // =========================================================================
@@ -379,7 +466,6 @@ public partial class PosRegisterViewModel : ViewModelBase
         CashierName = !string.IsNullOrWhiteSpace(config.ActiveUserName) ? config.ActiveUserName! : "Mitchell Admin";
         CashierAvatarBitmap = config.ActiveUserAvatarBitmap;
 
-        // Load company logo and cashier avatar if available
         try
         {
             var companies = await SqliteDatabaseService.Instance.LoadAllCompaniesAsync();
@@ -410,15 +496,22 @@ public partial class PosRegisterViewModel : ViewModelBase
         OpeningNote = string.Empty;
         ClosingNote = string.Empty;
 
-        // Reset draft orders for this shop session
-        _orderCounter = 1002;
-        _receiptSeqCounter = 1;
+        // Detect Odoo 20 order sequence and device digit for this shop
+        var (nextSeq, deviceDigit) = await SqliteDatabaseService.Instance.GetNextOrderSequenceForShopAsync(
+            config.Name,
+            config.OdooId,
+            config.CurrentSessionId
+        );
+        _nextOrderSeq = nextSeq;
+        _deviceDigit = deviceDigit;
+
         DraftOrders.Clear();
         CreateNewDraftOrderInternal(persistPrevious: false);
 
         await ReloadCatalogAsync();
         await ReloadPaymentMethodsForShopAsync();
         await ReloadInPosOrdersAsync();
+        await RefreshPendingSyncCountAsync();
 
         ActivePosView = "Register";
         IsPaymentViewOpen = false;
@@ -428,8 +521,6 @@ public partial class PosRegisterViewModel : ViewModelBase
         IsDraftOrdersWarningModalOpen = false;
         IsNoteModalOpen = false;
 
-        // Determine whether to show the Landing Screen ("Open Register" card - Screenshot 6)
-        // or the Opening Control modal (Screenshot 5) or enter the active Register directly
         if (config.IsClosed)
         {
             IsPosLandingScreenOpen = true;
@@ -471,7 +562,6 @@ public partial class PosRegisterViewModel : ViewModelBase
 
             if (shopMethods.Count == 0)
             {
-                // Default Odoo 20 payment methods matching Screenshot 4
                 AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 1, Name = "Cash", MethodType = "cash" });
                 AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 2, Name = "Card", MethodType = "bank" });
                 AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 3, Name = "Customer Account", MethodType = "pay_later" });
@@ -557,12 +647,6 @@ public partial class PosRegisterViewModel : ViewModelBase
             await PersistDraftOrderToDatabaseAsync(CurrentOrder);
         }
 
-        // If the second tab should be "2001" as in Screenshot 1 & 5 when 1002 already exists:
-        if (DraftOrders.Count == 1 && DraftOrders[0].OrderNumber == "1002")
-        {
-            _orderCounter = 2001;
-        }
-
         CreateNewDraftOrderInternal(persistPrevious: false);
     }
 
@@ -573,13 +657,10 @@ public partial class PosRegisterViewModel : ViewModelBase
             _ = PersistDraftOrderToDatabaseAsync(CurrentOrder);
         }
 
-        string num = _orderCounter.ToString(CultureInfo.InvariantCulture);
-        _orderCounter++;
+        int cfgOdooId = CurrentConfig?.OdooId ?? 1;
+        int seqNum = _nextOrderSeq++;
 
-        int sessNum = CurrentConfig?.CurrentSessionId ?? 3;
-        int seqNum = _receiptSeqCounter++;
-
-        var order = new PosDraftOrder(num, sessNum, seqNum);
+        var order = PosDraftOrder.CreateForShop(cfgOdooId, seqNum, _deviceDigit);
         DraftOrders.Add(order);
         SelectDraftOrder(order);
     }
@@ -638,75 +719,84 @@ public partial class PosRegisterViewModel : ViewModelBase
 
     private async Task PersistDraftOrderToDatabaseAsync(PosDraftOrder draft)
     {
-        if (!draft.HasItems)
+        try
         {
-            if (draft.DatabaseOrderId.HasValue)
+            if (!draft.HasItems)
             {
-                await SqliteDatabaseService.Instance.DeleteDraftOrderAsync(draft.DatabaseOrderId.Value);
-                draft.DatabaseOrderId = null;
+                if (draft.DatabaseOrderId.HasValue)
+                {
+                    await SqliteDatabaseService.Instance.DeleteDraftOrderAsync(draft.DatabaseOrderId.Value);
+                    draft.DatabaseOrderId = null;
+                }
+                return;
             }
-            return;
+
+            int sessId = CurrentConfig?.CurrentSessionId ?? 1;
+            string sessName = CurrentConfig?.CurrentSessionName ?? $"{ActiveShopName}/00001";
+            string shopName = CurrentConfig?.Name ?? ActiveShopName;
+
+            var record = new PosOrderRecord
+            {
+                Id = draft.DatabaseOrderId ?? 0,
+                Uuid = draft.Uuid,
+                Name = draft.FormatOdooOrderName(shopName),
+                PosReference = draft.OrderRef,
+                TrackingNumber = draft.OrderNumber,
+                SessionId = sessId,
+                SessionOdooId = CurrentConfig?.CurrentSessionId,
+                SessionName = sessName,
+                PosConfigName = shopName,
+                DateOrder = draft.CreatedAt,
+                CashierName = CashierName,
+                CustomerName = draft.CustomerName,
+                AmountTotal = draft.TotalAmount,
+                AmountTax = draft.Taxes,
+                AmountPaid = 0.00m,
+                State = "draft",
+                Note = draft.Note,
+                IsSynced = false
+            };
+
+            var lines = draft.CartItems.Select(i => new PosOrderLineRecord
+            {
+                ProductId = i.ProductOdooId,
+                ProductName = i.ProductName,
+                Qty = i.Quantity,
+                PriceUnit = i.UnitPrice,
+                Discount = i.Discount,
+                Taxes = $"{i.TaxRate:0.#}%",
+                PriceSubtotal = i.PriceSubtotal,
+                PriceSubtotalIncl = i.LineTotal
+            }).ToList();
+
+            long savedId = await SqliteDatabaseService.Instance.SavePosOrderAsync(
+                record,
+                lines,
+                [],
+                CurrentConfig?.OdooId ?? 1,
+                draft.IsToInvoice,
+                draft.PartnerId,
+                enqueueForOdooSync: false
+            );
+
+            draft.DatabaseOrderId = savedId;
         }
-
-        int sessId = CurrentConfig?.CurrentSessionId ?? 3;
-        string sessName = CurrentConfig?.CurrentSessionName ?? $"{ActiveShopName}/00003";
-
-        var record = new PosOrderRecord
-        {
-            Id = draft.DatabaseOrderId ?? 0,
-            Uuid = draft.Uuid,
-            Name = draft.OrderNumber,
-            PosReference = draft.OrderRef,
-            TrackingNumber = draft.OrderNumber,
-            SessionId = sessId,
-            SessionOdooId = CurrentConfig?.CurrentSessionId,
-            SessionName = sessName,
-            PosConfigName = ActiveShopName,
-            DateOrder = draft.CreatedAt,
-            CashierName = CashierName,
-            CustomerName = draft.CustomerName,
-            AmountTotal = draft.TotalAmount,
-            AmountTax = draft.Taxes,
-            AmountPaid = 0.00m,
-            State = "draft",
-            Note = draft.Note,
-            IsSynced = false
-        };
-
-        var lines = draft.CartItems.Select(i => new PosOrderLineRecord
-        {
-            ProductId = i.ProductOdooId,
-            ProductName = i.ProductName,
-            Qty = i.Quantity,
-            PriceUnit = i.UnitPrice,
-            Discount = i.Discount,
-            Taxes = $"{i.TaxRate:0.#}%",
-            PriceSubtotal = i.PriceSubtotal,
-            PriceSubtotalIncl = i.LineTotal
-        }).ToList();
-
-        long savedId = await SqliteDatabaseService.Instance.SavePosOrderAsync(
-            record,
-            lines,
-            [],
-            CurrentConfig?.OdooId ?? 1,
-            draft.IsToInvoice,
-            draft.PartnerId,
-            enqueueForOdooSync: false
-        );
-
-        draft.DatabaseOrderId = savedId;
+        catch { }
     }
 
     // =========================================================================
-    // CART & LINE INTERACTIONS
+    // CART & LINE INTERACTIONS (SYNCHRONOUS FOR ZERO-LATENCY RAPID TAPPING)
     // =========================================================================
     [RelayCommand]
-    public async Task AddProductAsync(ProductRecord? product)
+    public void AddProduct(ProductRecord? product)
     {
         if (product == null || CurrentOrder == null) return;
 
-        var existing = CurrentOrder.CartItems.FirstOrDefault(i => i.Product.Id == product.Id && Math.Abs(i.UnitPrice - product.ListPrice) < 0.001m && i.Discount == 0m);
+        var existing = CurrentOrder.CartItems.FirstOrDefault(i =>
+            i.Product.Id == product.Id &&
+            Math.Abs(i.UnitPrice - product.ListPrice) < 0.001m &&
+            i.Discount == 0m);
+
         if (existing != null)
         {
             existing.Quantity += 1m;
@@ -725,7 +815,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         UpdateProductCartQuantities();
         NotifyViewStatesChanged();
 
-        await PersistDraftOrderToDatabaseAsync(CurrentOrder);
+        ScheduleDraftPersistence(CurrentOrder);
     }
 
     [RelayCommand]
@@ -755,7 +845,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public async Task NumpadKeyAsync(string key)
+    public void NumpadKey(string key)
     {
         if (SelectedCartLine == null || CurrentOrder == null) return;
 
@@ -775,7 +865,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 CurrentOrder.NotifyTotalsChanged();
                 UpdateProductCartQuantities();
                 NotifyViewStatesChanged();
-                await PersistDraftOrderToDatabaseAsync(CurrentOrder);
+                ScheduleDraftPersistence(CurrentOrder);
                 return;
             }
         }
@@ -790,7 +880,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 SelectedCartLine.Quantity = -SelectedCartLine.Quantity;
                 CurrentOrder.NotifyTotalsChanged();
                 UpdateProductCartQuantities();
-                await PersistDraftOrderToDatabaseAsync(CurrentOrder);
+                ScheduleDraftPersistence(CurrentOrder);
                 return;
             }
         }
@@ -832,7 +922,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         CurrentOrder.NotifyTotalsChanged();
         UpdateProductCartQuantities();
         NotifyViewStatesChanged();
-        await PersistDraftOrderToDatabaseAsync(CurrentOrder);
+        ScheduleDraftPersistence(CurrentOrder);
     }
 
     private void UpdateProductCartQuantities()
@@ -1069,11 +1159,12 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         if (existing == null)
         {
-            existing = new PosDraftOrder(tabNum)
+            int cfgId = CurrentConfig?.OdooId ?? 1;
+            existing = new PosDraftOrder(tabNum, cfgId, _nextOrderSeq++, _deviceDigit)
             {
                 DatabaseOrderId = target.IsDraft ? target.Id : null,
                 Uuid = target.IsDraft ? target.Uuid : Guid.NewGuid().ToString(),
-                OrderRef = target.PosReference,
+                OrderRef = !string.IsNullOrWhiteSpace(target.PosReference) ? target.PosReference : $"{DateTime.Now.Year % 100:D2}{_deviceDigit}-{cfgId}-{_nextOrderSeq:D6}",
                 CustomerName = target.CustomerName,
                 Note = target.Note
             };
@@ -1185,9 +1276,15 @@ public partial class PosRegisterViewModel : ViewModelBase
 
             IsOpeningControlModalOpen = false;
             IsPosLandingScreenOpen = false;
+            OdooSyncService.Instance.NotifyQueueUpdated();
 
-            // Push session open to Odoo immediately if online (or keep queued if offline)
-            _ = Task.Run(() => OdooSyncService.Instance.ProcessPendingQueueAsync());
+            // Push session open to Odoo immediately
+            _ = Task.Run(async () =>
+            {
+                await OdooSyncService.Instance.ProcessPendingQueueAsync();
+                await RefreshBoundConfigSessionAsync();
+                await RefreshPendingSyncCountAsync();
+            });
         }
         catch (Exception ex)
         {
@@ -1323,6 +1420,11 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         try
         {
+            _draftSaveDebounceTimer.Stop();
+            _pendingDraftToSave = null;
+
+            await RefreshBoundConfigSessionAsync();
+
             decimal total = CurrentOrder.TotalAmount;
             decimal tax = CurrentOrder.Taxes;
             int cfgId = CurrentConfig?.OdooId ?? 1;
@@ -1330,11 +1432,14 @@ public partial class PosRegisterViewModel : ViewModelBase
             string sessName = CurrentConfig?.CurrentSessionName ?? $"{ActiveShopName}/00001";
             string shopName = CurrentConfig?.Name ?? ActiveShopName;
 
+            // Ensure canonical Odoo 20 receipt & order numbering using config.OdooId
+            CurrentOrder.ApplyOdooSequence(cfgId, CurrentOrder.SequenceNumber, _deviceDigit);
+
             var order = new PosOrderRecord
             {
                 Id = CurrentOrder.DatabaseOrderId ?? 0,
                 Uuid = CurrentOrder.Uuid,
-                Name = $"{shopName} - {CurrentOrder.OrderNumber}",
+                Name = CurrentOrder.FormatOdooOrderName(shopName),
                 PosReference = CurrentOrder.OrderRef,
                 TrackingNumber = CurrentOrder.OrderNumber,
                 SessionId = sessId,
@@ -1398,11 +1503,17 @@ public partial class PosRegisterViewModel : ViewModelBase
             ConfirmedPaidAmount = total;
             IsPaymentViewOpen = false;
             IsPaymentConfirmationOpen = true;
+            OdooSyncService.Instance.NotifyQueueUpdated();
 
             await ReloadInPosOrdersAsync();
+            await RefreshPendingSyncCountAsync();
 
-            // Push the order to Odoo immediately if online, or keep in sequential queue if offline
-            _ = Task.Run(() => OdooSyncService.Instance.ProcessPendingQueueAsync());
+            // Immediately push the order to Odoo (guaranteed not to be dropped by _queueLock)
+            _ = Task.Run(async () =>
+            {
+                await OdooSyncService.Instance.ProcessPendingQueueAsync();
+                await RefreshPendingSyncCountAsync();
+            });
         }
         catch (Exception ex)
         {
@@ -1457,6 +1568,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public void OpenHamburgerMenu()
     {
+        _ = RefreshPendingSyncCountAsync();
         IsHamburgerMenuOpen = true;
     }
 
@@ -1487,6 +1599,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         await ReloadCatalogAsync();
         await ReloadPaymentMethodsForShopAsync();
         await ReloadInPosOrdersAsync();
+        await RefreshPendingSyncCountAsync();
         ShowPosToast("POS data reloaded.");
     }
 
@@ -1526,7 +1639,6 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         IsHamburgerMenuOpen = false;
 
-        // First persist any current cart with items so SQLite & in-memory draft counts match
         if (CurrentOrder != null && CurrentOrder.HasItems)
         {
             await PersistDraftOrderToDatabaseAsync(CurrentOrder);
@@ -1534,8 +1646,9 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         await UpdateSessionBreakdownAsync();
 
-        int sessId = CurrentConfig?.CurrentSessionId ?? 3;
-        int dbDraftCount = await SqliteDatabaseService.Instance.GetSessionDraftOrdersCountAsync(sessId);
+        int sessId = CurrentConfig?.CurrentSessionId ?? 1;
+        string? shopName = CurrentConfig?.Name;
+        int dbDraftCount = await SqliteDatabaseService.Instance.GetSessionDraftOrdersCountAsync(sessId, shopName);
         int localDraftCount = DraftOrders.Count(d => d.HasItems);
 
         IsClosingRegisterModalOpen = true;
@@ -1544,7 +1657,7 @@ public partial class PosRegisterViewModel : ViewModelBase
 
     private async Task UpdateSessionBreakdownAsync()
     {
-        int sessId = CurrentConfig?.CurrentSessionId ?? 3;
+        int sessId = CurrentConfig?.CurrentSessionId ?? 1;
         string shopName = CurrentConfig?.Name ?? ActiveShopName;
 
         var sessOrders = _allInPosOrders.Where(o =>
@@ -1620,19 +1733,18 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public async Task CancelDraftOrdersAndCloseAsync()
     {
-        int sessId = CurrentConfig?.CurrentSessionId ?? 3;
+        int sessId = CurrentConfig?.CurrentSessionId ?? 1;
+        string? shopName = CurrentConfig?.Name;
 
         try
         {
-            await SqliteDatabaseService.Instance.CancelAllSessionDraftOrdersAsync(sessId);
+            await SqliteDatabaseService.Instance.CancelAllSessionDraftOrdersAsync(sessId, shopName);
 
             DraftOrders.Clear();
-            _orderCounter = 1002;
             CreateNewDraftOrderInternal(persistPrevious: false);
 
             await ReloadInPosOrdersAsync();
 
-            // Dismiss "Oh snap !" warning and leave Closing Register open (matching Screenshot 1 -> Screenshot 2)
             IsDraftOrdersWarningModalOpen = false;
         }
         catch (Exception ex)
@@ -1651,8 +1763,9 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public async Task SubmitCloseRegisterAsync()
     {
-        int sessId = CurrentConfig?.CurrentSessionId ?? 3;
-        int dbDraftCount = await SqliteDatabaseService.Instance.GetSessionDraftOrdersCountAsync(sessId);
+        int sessId = CurrentConfig?.CurrentSessionId ?? 1;
+        string? shopName = CurrentConfig?.Name;
+        int dbDraftCount = await SqliteDatabaseService.Instance.GetSessionDraftOrdersCountAsync(sessId, shopName);
         int localDraftCount = DraftOrders.Count(d => d.HasItems);
 
         if (dbDraftCount > 0 || localDraftCount > 0)
@@ -1670,6 +1783,9 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         try
         {
+            await RefreshBoundConfigSessionAsync();
+            sessId = CurrentConfig?.CurrentSessionId ?? sessId;
+
             await SqliteDatabaseService.Instance.CloseSessionAsync(
                 cfgId,
                 sessId,
@@ -1687,9 +1803,11 @@ public partial class PosRegisterViewModel : ViewModelBase
 
             IsClosingRegisterModalOpen = false;
             IsDraftOrdersWarningModalOpen = false;
+            OdooSyncService.Instance.NotifyQueueUpdated();
 
-            // Push session close to Odoo immediately if online, or keep queued if offline
-            _ = Task.Run(() => OdooSyncService.Instance.ProcessPendingQueueAsync());
+            // Flush all pending orders and the close-session operation to Odoo in sequential order
+            await OdooSyncService.Instance.ProcessPendingQueueAsync();
+            await RefreshPendingSyncCountAsync();
 
             ReturnToDashboardRequested?.Invoke();
         }

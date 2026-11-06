@@ -223,7 +223,7 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER: PILL SEARCH BAR WITH "Internal Users" CHIP -->
+                <!-- CENTER: PILL SEARCH BAR -->
                 <Border Grid.Column="1"
                         MaxWidth="480"
                         Width="420"
@@ -234,10 +234,9 @@
                         BorderBrush="#8583A8"
                         BorderThickness="1"
                         CornerRadius="18"
-                        Padding="12,0">
+                        Padding="14,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -250,14 +249,7 @@
                             </Canvas>
                         </Viewbox>
 
-                        <Border Grid.Column="1" Background="#E6E4F0" CornerRadius="10" Padding="8,2" Margin="0,0,8,0" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="▼ " FontSize="9" Foreground="#714B67" VerticalAlignment="Center"/>
-                                <TextBlock Text="Internal Users" FontSize="11.5" FontWeight="Medium" Foreground="#111827"/>
-                            </StackPanel>
-                        </Border>
-
-                        <TextBlock Grid.Column="2"
+                        <TextBlock Grid.Column="1"
                                    Text="Search..."
                                    Foreground="{StaticResource PlaceholderTextBrush}"
                                    FontSize="13"
@@ -265,7 +257,7 @@
                                    IsHitTestVisible="False"
                                    Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
 
-                        <TextBox Grid.Column="2"
+                        <TextBox Grid.Column="1"
                                  Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                  Background="Transparent"
                                  BorderThickness="0"
@@ -273,7 +265,7 @@
                                  Foreground="{StaticResource PrimaryTextBrush}"
                                  VerticalAlignment="Center"/>
 
-                        <Button Grid.Column="3"
+                        <Button Grid.Column="2"
                                 Command="{Binding ClearSearchCommand}"
                                 Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
                                 Background="Transparent"

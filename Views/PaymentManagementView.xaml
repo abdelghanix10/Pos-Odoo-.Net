@@ -198,16 +198,25 @@
                     </Button>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Background="Transparent"
-                                BorderThickness="0"
-                                Padding="0"
+                        <Button Command="{Binding CloseDetailCommand}"
                                 Cursor="Hand"
-                                Command="{Binding CloseDetailCommand}">
-                            <TextBlock Text="Payments"
-                                       FontSize="17"
-                                       FontWeight="SemiBold"
-                                       Foreground="{StaticResource PrimaryTextBrush}"
-                                       VerticalAlignment="Center"/>
+                                Background="Transparent"
+                                BorderThickness="0"
+                                VerticalAlignment="Center">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <TextBlock x:Name="CrumbRootText"
+                                               Text="Payments"
+                                               Foreground="{StaticResource PrimaryTextBrush}"
+                                               FontSize="17"
+                                               FontWeight="SemiBold"/>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="CrumbRootText" Property="Foreground" Value="{StaticResource OdooPurpleBrush}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
                         </Button>
 
                         <StackPanel Orientation="Horizontal"
@@ -229,14 +238,14 @@
                             VerticalAlignment="Center">
 
                     <!-- Search Pill -->
-                    <Border Width="260"
-                            Height="34"
+                    <Border Width="220"
+                            Height="32"
                             Background="#FFFFFF"
                             BorderBrush="{StaticResource InputBorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="17"
-                            Padding="12,0"
-                            Margin="0,0,10,0">
+                            CornerRadius="16"
+                            Padding="10,0"
+                            Margin="0,0,8,0">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -254,7 +263,7 @@
                             <TextBlock Grid.Column="1"
                                        Text="Search payments..."
                                        Foreground="{StaticResource PlaceholderTextBrush}"
-                                       FontSize="13"
+                                       FontSize="12.5"
                                        VerticalAlignment="Center"
                                        IsHitTestVisible="False"
                                        Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
@@ -263,7 +272,7 @@
                                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                      Background="Transparent"
                                      BorderThickness="0"
-                                     FontSize="13"
+                                     FontSize="12.5"
                                      Foreground="{StaticResource PrimaryTextBrush}"
                                      VerticalAlignment="Center"/>
 
@@ -281,34 +290,52 @@
                     <!-- Filter by Point of Sale Shop -->
                     <ComboBox ItemsSource="{Binding AvailableShops}"
                               SelectedItem="{Binding SelectedShopFilter, Mode=TwoWay}"
-                              Width="165"
-                              Height="34"
-                              FontSize="12.5"
-                              VerticalContentAlignment="Center"
+                              Style="{StaticResource OdooFilterComboBoxStyle}"
+                              Width="150"
+                              Height="32"
                               Margin="0,0,8,0"
                               ToolTip="Filter Payments by Point of Sale Shop"/>
 
                     <!-- Filter by Session -->
                     <ComboBox ItemsSource="{Binding AvailableSessions}"
                               SelectedItem="{Binding SelectedSessionFilter, Mode=TwoWay}"
-                              Width="185"
-                              Height="34"
-                              FontSize="12.5"
-                              VerticalContentAlignment="Center"
+                              Style="{StaticResource OdooFilterComboBoxStyle}"
+                              Width="160"
+                              Height="32"
+                              Margin="0,0,8,0"
                               ToolTip="Filter Payments by POS Session"/>
 
+                    <!-- Filter by Date Preset -->
+                    <ComboBox ItemsSource="{Binding DatePresets}"
+                              SelectedItem="{Binding SelectedDatePreset, Mode=TwoWay}"
+                              Style="{StaticResource OdooFilterComboBoxStyle}"
+                              Width="120"
+                              Height="32"
+                              Margin="0,0,8,0"
+                              ToolTip="Filter Payments by Date"/>
+
+                    <!-- Custom Date Range (shown when Custom Range selected) -->
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding IsCustomDateRange, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0">
+                        <TextBlock Text="From:" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <DatePicker SelectedDate="{Binding StartDate, Mode=TwoWay}"
+                                    Style="{StaticResource OdooFilterDatePickerStyle}"
+                                    Width="110"
+                                    Margin="0,0,6,0"/>
+                        <TextBlock Text="To:" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <DatePicker SelectedDate="{Binding EndDate, Mode=TwoWay}"
+                                    Style="{StaticResource OdooFilterDatePickerStyle}"
+                                    Width="110"/>
+                    </StackPanel>
+
                     <!-- Clear Filters Button -->
-                    <Button Command="{Binding ClearSessionFilterCommand}"
+                    <Button Command="{Binding ClearFiltersCommand}"
                             Visibility="{Binding HasActiveFilter, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
-                            Background="{StaticResource OdooPurpleSoftBrush}"
-                            BorderBrush="{StaticResource OdooPurpleBrush}"
-                            BorderThickness="1"
-                            Cursor="Hand"
-                            Height="30"
-                            Padding="10,0"
-                            Margin="8,0,0,0"
-                            ToolTip="Reset Shop &amp; Session Filters">
-                        <TextBlock Text="✕ Reset" FontSize="11.5" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}" VerticalAlignment="Center"/>
+                            Style="{StaticResource OdooResetFilterButtonStyle}"
+                            ToolTip="Reset All Filters">
+                        <TextBlock Text="✕ Reset" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
                     </Button>
                 </StackPanel>
 

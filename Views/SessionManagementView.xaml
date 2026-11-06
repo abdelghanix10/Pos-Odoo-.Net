@@ -198,16 +198,25 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Background="Transparent"
-                            BorderThickness="0"
-                            Padding="0"
+                    <Button Command="{Binding CloseDetailCommand}"
                             Cursor="Hand"
-                            Command="{Binding CloseDetailCommand}"
+                            Background="Transparent"
+                            BorderThickness="0"
                             VerticalAlignment="Center">
-                        <TextBlock Text="Sessions"
-                                   FontSize="17"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource PrimaryTextBrush}"/>
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <TextBlock x:Name="CrumbRootText"
+                                           Text="Sessions"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           FontSize="17"
+                                           FontWeight="SemiBold"/>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="CrumbRootText" Property="Foreground" Value="{StaticResource OdooPurpleBrush}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
                     </Button>
 
                     <StackPanel Orientation="Horizontal"
@@ -221,58 +230,104 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER: PILL SEARCH BAR -->
-                <Border Grid.Column="1"
-                        MaxWidth="480"
-                        Width="420"
-                        Height="36"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Background="#FFFFFF"
-                        BorderBrush="#8583A8"
-                        BorderThickness="1"
-                        CornerRadius="18"
-                        Padding="14,0">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                <!-- CENTER: SEARCH BAR + POS SHOP FILTER + DATE FILTER -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
 
-                        <Viewbox Grid.Column="0" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center">
-                            <Canvas Width="24" Height="24">
-                                <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2"/>
-                                <Path Data="M 14,14 L 20,20" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
-                            </Canvas>
-                        </Viewbox>
+                    <!-- Search Pill -->
+                    <Border Width="220"
+                            Height="32"
+                            Background="#FFFFFF"
+                            BorderBrush="{StaticResource InputBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="16"
+                            Padding="10,0"
+                            Margin="0,0,8,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="1"
-                                   Text="Search..."
-                                   Foreground="{StaticResource PlaceholderTextBrush}"
-                                   FontSize="13.5"
-                                   VerticalAlignment="Center"
-                                   IsHitTestVisible="False"
-                                   Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
+                            <Viewbox Grid.Column="0" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2"/>
+                                    <Path Data="M 14,14 L 20,20" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                                </Canvas>
+                            </Viewbox>
 
-                        <TextBox Grid.Column="1"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 FontSize="13.5"
-                                 Foreground="{StaticResource PrimaryTextBrush}"
-                                 VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="Search sessions..."
+                                       Foreground="{StaticResource PlaceholderTextBrush}"
+                                       FontSize="12.5"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
 
-                        <Button Grid.Column="2"
-                                Command="{Binding ClearSearchCommand}"
-                                Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand">
-                            <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
-                        </Button>
-                    </Grid>
-                </Border>
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     FontSize="12.5"
+                                     Foreground="{StaticResource PrimaryTextBrush}"
+                                     VerticalAlignment="Center"/>
+
+                            <Button Grid.Column="2"
+                                    Command="{Binding ClearSearchCommand}"
+                                    Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand">
+                                <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- Filter by Point of Sale Shop -->
+                    <ComboBox ItemsSource="{Binding AvailableShops}"
+                              SelectedItem="{Binding SelectedShopFilter, Mode=TwoWay}"
+                              Style="{StaticResource OdooFilterComboBoxStyle}"
+                              Width="150"
+                              Height="32"
+                              Margin="0,0,8,0"
+                              ToolTip="Filter Sessions by Point of Sale Shop"/>
+
+                    <!-- Filter by Date Preset -->
+                    <ComboBox ItemsSource="{Binding DatePresets}"
+                              SelectedItem="{Binding SelectedDatePreset, Mode=TwoWay}"
+                              Style="{StaticResource OdooFilterComboBoxStyle}"
+                              Width="120"
+                              Height="32"
+                              Margin="0,0,8,0"
+                              ToolTip="Filter Sessions by Date"/>
+
+                    <!-- Custom Date Range (shown when Custom Range selected) -->
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding IsCustomDateRange, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
+                                VerticalAlignment="Center"
+                                Margin="0,0,8,0">
+                        <TextBlock Text="From:" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <DatePicker SelectedDate="{Binding StartDate, Mode=TwoWay}"
+                                    Style="{StaticResource OdooFilterDatePickerStyle}"
+                                    Width="110"
+                                    Margin="0,0,6,0"/>
+                        <TextBlock Text="To:" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <DatePicker SelectedDate="{Binding EndDate, Mode=TwoWay}"
+                                    Style="{StaticResource OdooFilterDatePickerStyle}"
+                                    Width="110"/>
+                    </StackPanel>
+
+                    <!-- Clear Filters Button -->
+                    <Button Command="{Binding ClearFiltersCommand}"
+                            Visibility="{Binding HasActiveFilter, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
+                            Style="{StaticResource OdooResetFilterButtonStyle}"
+                            ToolTip="Reset All Filters">
+                        <TextBlock Text="✕ Reset" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </Button>
+                </StackPanel>
 
                 <!-- RIGHT: PAGER (< >) + LIST/KANBAN SWITCHER -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">

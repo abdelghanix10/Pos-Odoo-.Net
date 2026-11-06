@@ -7,10 +7,50 @@ namespace OdooPosLogin.ViewModels;
 
 public partial class SessionsViewModel : ViewModelBase
 {
+    public const string AllShopsOption = "All Point of Sale";
+    public const string AllDatesOption = "All Dates";
+    public const string DatePresetToday = "Today";
+    public const string DatePresetYesterday = "Yesterday";
+    public const string DatePresetLast7Days = "Last 7 Days";
+    public const string DatePresetThisMonth = "This Month";
+    public const string DatePresetCustom = "Custom Range";
+
     private readonly List<PosSessionRecord> _allSessions = [];
+    private bool _suppressFilterRefresh;
 
     [ObservableProperty]
     private ObservableCollection<PosSessionRecord> _filteredSessions = [];
+
+    [ObservableProperty]
+    private ObservableCollection<string> _availableShops = [AllShopsOption];
+
+    [ObservableProperty]
+    private ObservableCollection<string> _datePresets = [
+        AllDatesOption,
+        DatePresetToday,
+        DatePresetYesterday,
+        DatePresetLast7Days,
+        DatePresetThisMonth,
+        DatePresetCustom
+    ];
+
+    [ObservableProperty]
+    private string _selectedShopFilter = AllShopsOption;
+
+    [ObservableProperty]
+    private string _selectedDatePreset = AllDatesOption;
+
+    [ObservableProperty]
+    private DateTime? _startDate;
+
+    [ObservableProperty]
+    private DateTime? _endDate;
+
+    [ObservableProperty]
+    private bool _isCustomDateRange;
+
+    [ObservableProperty]
+    private bool _hasActiveFilter;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -82,7 +122,73 @@ public partial class SessionsViewModel : ViewModelBase
         _ = ReloadSessionsAsync();
     }
 
-    partial void OnSearchTextChanged(string value) => RefreshFilter();
+    partial void OnSearchTextChanged(string value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
+
+    partial void OnSelectedShopFilterChanged(string value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
+
+    partial void OnSelectedDatePresetChanged(string value)
+    {
+        if (_suppressFilterRefresh) return;
+        _suppressFilterRefresh = true;
+        try
+        {
+            var today = DateTime.Today;
+            switch (value)
+            {
+                case DatePresetToday:
+                    StartDate = today;
+                    EndDate = today;
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetYesterday:
+                    StartDate = today.AddDays(-1);
+                    EndDate = today.AddDays(-1);
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetLast7Days:
+                    StartDate = today.AddDays(-7);
+                    EndDate = today;
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetThisMonth:
+                    StartDate = new DateTime(today.Year, today.Month, 1);
+                    EndDate = today;
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetCustom:
+                    IsCustomDateRange = true;
+                    StartDate ??= today;
+                    EndDate ??= today;
+                    break;
+                default: // All Dates
+                    StartDate = null;
+                    EndDate = null;
+                    IsCustomDateRange = false;
+                    break;
+            }
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+        RefreshFilter();
+    }
+
+    partial void OnStartDateChanged(DateTime? value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
+
+    partial void OnEndDateChanged(DateTime? value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
 
     public void ResetToMainList()
     {
@@ -102,6 +208,7 @@ public partial class SessionsViewModel : ViewModelBase
             var sessions = await SqliteDatabaseService.Instance.LoadAllSessionsAsync();
             _allSessions.Clear();
             _allSessions.AddRange(sessions);
+            RebuildShopFilterOptions();
             RefreshFilter();
         }
         catch (Exception ex)
@@ -110,12 +217,81 @@ public partial class SessionsViewModel : ViewModelBase
         }
     }
 
+    private void RebuildShopFilterOptions()
+    {
+        _suppressFilterRefresh = true;
+        try
+        {
+            string prev = SelectedShopFilter;
+            var set = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var s in _allSessions)
+            {
+                if (!string.IsNullOrWhiteSpace(s.PosConfigName)) set.Add(s.PosConfigName.Trim());
+            }
+
+            AvailableShops.Clear();
+            AvailableShops.Add(AllShopsOption);
+            foreach (var shop in set)
+            {
+                AvailableShops.Add(shop);
+            }
+
+            SelectedShopFilter = AvailableShops.Contains(prev) ? prev : AllShopsOption;
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+    }
+
+    [RelayCommand]
+    public void ClearFilters()
+    {
+        _suppressFilterRefresh = true;
+        try
+        {
+            SelectedShopFilter = AllShopsOption;
+            SelectedDatePreset = AllDatesOption;
+            StartDate = null;
+            EndDate = null;
+            IsCustomDateRange = false;
+            SearchText = string.Empty;
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+        RefreshFilter();
+    }
+
     private void RefreshFilter()
     {
         string query = SearchText.Trim();
         FilteredSessions.Clear();
 
         IEnumerable<PosSessionRecord> source = _allSessions;
+
+        bool hasShop = !string.IsNullOrWhiteSpace(SelectedShopFilter) && SelectedShopFilter != AllShopsOption;
+        bool hasDate = SelectedDatePreset != AllDatesOption || StartDate.HasValue || EndDate.HasValue;
+        HasActiveFilter = hasShop || hasDate || !string.IsNullOrWhiteSpace(query);
+
+        if (hasShop)
+        {
+            source = source.Where(s => string.Equals(s.PosConfigName, SelectedShopFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (StartDate.HasValue || EndDate.HasValue)
+        {
+            source = source.Where(s =>
+            {
+                if (!s.StartAt.HasValue) return false;
+                var dt = s.StartAt.Value.Date;
+                if (StartDate.HasValue && dt < StartDate.Value.Date) return false;
+                if (EndDate.HasValue && dt > EndDate.Value.Date) return false;
+                return true;
+            });
+        }
+
         if (!string.IsNullOrWhiteSpace(query))
         {
             source = source.Where(s =>

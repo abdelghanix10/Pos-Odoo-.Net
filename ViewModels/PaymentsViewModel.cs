@@ -10,6 +10,12 @@ public partial class PaymentsViewModel : ViewModelBase
 {
     public const string AllShopsOption = "All Point of Sale";
     public const string AllSessionsOption = "All Sessions";
+    public const string AllDatesOption = "All Dates";
+    public const string DatePresetToday = "Today";
+    public const string DatePresetYesterday = "Yesterday";
+    public const string DatePresetLast7Days = "Last 7 Days";
+    public const string DatePresetThisMonth = "This Month";
+    public const string DatePresetCustom = "Custom Range";
 
     private readonly List<PosPaymentRecord> _allPayments = [];
     private readonly List<PosConfigRecord> _allConfigs = [];
@@ -29,10 +35,32 @@ public partial class PaymentsViewModel : ViewModelBase
     private ObservableCollection<string> _availableSessions = [AllSessionsOption];
 
     [ObservableProperty]
+    private ObservableCollection<string> _datePresets = [
+        AllDatesOption,
+        DatePresetToday,
+        DatePresetYesterday,
+        DatePresetLast7Days,
+        DatePresetThisMonth,
+        DatePresetCustom
+    ];
+
+    [ObservableProperty]
     private string _selectedShopFilter = AllShopsOption;
 
     [ObservableProperty]
     private string _selectedSessionFilter = AllSessionsOption;
+
+    [ObservableProperty]
+    private string _selectedDatePreset = AllDatesOption;
+
+    [ObservableProperty]
+    private DateTime? _startDate;
+
+    [ObservableProperty]
+    private DateTime? _endDate;
+
+    [ObservableProperty]
+    private bool _isCustomDateRange;
 
     [ObservableProperty]
     private bool _hasActiveFilter;
@@ -121,6 +149,64 @@ public partial class PaymentsViewModel : ViewModelBase
     {
         if (_suppressFilterRefresh) return;
         RefreshFilter();
+    }
+
+    partial void OnSelectedDatePresetChanged(string value)
+    {
+        if (_suppressFilterRefresh) return;
+        _suppressFilterRefresh = true;
+        try
+        {
+            var today = DateTime.Today;
+            switch (value)
+            {
+                case DatePresetToday:
+                    StartDate = today;
+                    EndDate = today;
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetYesterday:
+                    StartDate = today.AddDays(-1);
+                    EndDate = today.AddDays(-1);
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetLast7Days:
+                    StartDate = today.AddDays(-7);
+                    EndDate = today;
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetThisMonth:
+                    StartDate = new DateTime(today.Year, today.Month, 1);
+                    EndDate = today;
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetCustom:
+                    IsCustomDateRange = true;
+                    StartDate ??= today;
+                    EndDate ??= today;
+                    break;
+                default: // All Dates
+                    StartDate = null;
+                    EndDate = null;
+                    IsCustomDateRange = false;
+                    break;
+            }
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+        RefreshFilter();
+    }
+
+    partial void OnStartDateChanged(DateTime? value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
+
+    partial void OnEndDateChanged(DateTime? value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
     }
 
     public void ResetToMainList()
@@ -316,12 +402,23 @@ public partial class PaymentsViewModel : ViewModelBase
     [RelayCommand]
     public void ClearSessionFilter()
     {
+        ClearFilters();
+    }
+
+    [RelayCommand]
+    public void ClearFilters()
+    {
         _suppressFilterRefresh = true;
         try
         {
             SessionFilter = null;
             SelectedShopFilter = AllShopsOption;
             RebuildAvailableSessions(AllSessionsOption);
+            SelectedDatePreset = AllDatesOption;
+            StartDate = null;
+            EndDate = null;
+            IsCustomDateRange = false;
+            SearchText = string.Empty;
         }
         finally
         {
@@ -346,7 +443,8 @@ public partial class PaymentsViewModel : ViewModelBase
 
         bool hasShop = !string.IsNullOrWhiteSpace(SelectedShopFilter) && SelectedShopFilter != AllShopsOption;
         bool hasSess = !string.IsNullOrWhiteSpace(SelectedSessionFilter) && SelectedSessionFilter != AllSessionsOption;
-        HasActiveFilter = hasShop || hasSess;
+        bool hasDate = SelectedDatePreset != AllDatesOption || StartDate.HasValue || EndDate.HasValue;
+        HasActiveFilter = hasShop || hasSess || hasDate || !string.IsNullOrWhiteSpace(query);
 
         if (hasShop)
         {
@@ -357,6 +455,18 @@ public partial class PaymentsViewModel : ViewModelBase
         {
             source = source.Where(p =>
                 string.Equals(p.SessionName, SelectedSessionFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (StartDate.HasValue || EndDate.HasValue)
+        {
+            source = source.Where(p =>
+            {
+                if (!p.PaymentDate.HasValue) return false;
+                var dt = p.PaymentDate.Value.Date;
+                if (StartDate.HasValue && dt < StartDate.Value.Date) return false;
+                if (EndDate.HasValue && dt > EndDate.Value.Date) return false;
+                return true;
+            });
         }
 
         if (!string.IsNullOrWhiteSpace(query))

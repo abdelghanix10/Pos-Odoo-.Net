@@ -75,7 +75,9 @@ public partial class UserManagementViewModel : ViewModelBase
     private bool _isEmptyStateVisible;
 
     public event Action? UsersUpdated;
+#pragma warning disable CS0067
     public event EventHandler? RequestCloseToPos;
+#pragma warning restore CS0067
 
     private readonly DispatcherTimer _toastTimer;
 
@@ -302,10 +304,6 @@ public partial class UserManagementViewModel : ViewModelBase
         {
             IsDetailViewVisible = false;
             UpdatePager();
-        }
-        else
-        {
-            RequestCloseToPos?.Invoke(this, EventArgs.Empty);
         }
     }
 

@@ -8,10 +8,57 @@ namespace OdooPosLogin.ViewModels;
 
 public partial class OrdersViewModel : ViewModelBase
 {
+    public const string AllShopsOption = "All Point of Sale";
+    public const string AllSessionsOption = "All Sessions";
+    public const string AllDatesOption = "All Dates";
+    public const string DatePresetToday = "Today";
+    public const string DatePresetYesterday = "Yesterday";
+    public const string DatePresetLast7Days = "Last 7 Days";
+    public const string DatePresetThisMonth = "This Month";
+    public const string DatePresetCustom = "Custom Range";
+
     private readonly List<PosOrderRecord> _allOrders = [];
+    private bool _suppressFilterRefresh;
 
     [ObservableProperty]
     private ObservableCollection<PosOrderRecord> _filteredOrders = [];
+
+    [ObservableProperty]
+    private ObservableCollection<string> _availableShops = [AllShopsOption];
+
+    [ObservableProperty]
+    private ObservableCollection<string> _availableSessions = [AllSessionsOption];
+
+    [ObservableProperty]
+    private ObservableCollection<string> _datePresets = [
+        AllDatesOption,
+        DatePresetToday,
+        DatePresetYesterday,
+        DatePresetLast7Days,
+        DatePresetThisMonth,
+        DatePresetCustom
+    ];
+
+    [ObservableProperty]
+    private string _selectedShopFilter = AllShopsOption;
+
+    [ObservableProperty]
+    private string _selectedSessionFilter = AllSessionsOption;
+
+    [ObservableProperty]
+    private string _selectedDatePreset = AllDatesOption;
+
+    [ObservableProperty]
+    private DateTime? _startDate;
+
+    [ObservableProperty]
+    private DateTime? _endDate;
+
+    [ObservableProperty]
+    private bool _isCustomDateRange;
+
+    [ObservableProperty]
+    private bool _hasActiveFilter;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -99,8 +146,86 @@ public partial class OrdersViewModel : ViewModelBase
         _ = ReloadOrdersAsync();
     }
 
-    partial void OnSearchTextChanged(string value) => RefreshFilter();
-    partial void OnSessionFilterChanged(string? value) => RefreshFilter();
+    partial void OnSearchTextChanged(string value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
+
+    partial void OnSessionFilterChanged(string? value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
+
+    partial void OnSelectedShopFilterChanged(string value)
+    {
+        if (_suppressFilterRefresh) return;
+        RebuildAvailableSessions();
+        RefreshFilter();
+    }
+
+    partial void OnSelectedSessionFilterChanged(string value)
+    {
+        if (_suppressFilterRefresh) return;
+        RefreshFilter();
+    }
+
+    partial void OnSelectedDatePresetChanged(string value)
+    {
+        if (_suppressFilterRefresh) return;
+        _suppressFilterRefresh = true;
+        try
+        {
+            var today = DateTime.Today;
+            switch (value)
+            {
+                case DatePresetToday:
+                    StartDate = today;
+                    EndDate = today;
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetYesterday:
+                    StartDate = today.AddDays(-1);
+                    EndDate = today.AddDays(-1);
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetLast7Days:
+                    StartDate = today.AddDays(-7);
+                    EndDate = today;
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetThisMonth:
+                    StartDate = new DateTime(today.Year, today.Month, 1);
+                    EndDate = today;
+                    IsCustomDateRange = false;
+                    break;
+                case DatePresetCustom:
+                    IsCustomDateRange = true;
+                    StartDate ??= today;
+                    EndDate ??= today;
+                    break;
+                default: // All Dates
+                    StartDate = null;
+                    EndDate = null;
+                    IsCustomDateRange = false;
+                    break;
+            }
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+        RefreshFilter();
+    }
+
+    partial void OnStartDateChanged(DateTime? value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
+
+    partial void OnEndDateChanged(DateTime? value)
+    {
+        if (!_suppressFilterRefresh) RefreshFilter();
+    }
 
     public void ResetToMainList()
     {
@@ -120,6 +245,7 @@ public partial class OrdersViewModel : ViewModelBase
             var orders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync();
             _allOrders.Clear();
             _allOrders.AddRange(orders);
+            RebuildFilterOptions();
             RefreshFilter();
         }
         catch (Exception ex)
@@ -128,16 +254,133 @@ public partial class OrdersViewModel : ViewModelBase
         }
     }
 
+    private void RebuildFilterOptions()
+    {
+        _suppressFilterRefresh = true;
+        try
+        {
+            string prevShop = SelectedShopFilter;
+            string prevSession = SelectedSessionFilter;
+
+            var shopNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var o in _allOrders)
+            {
+                if (!string.IsNullOrWhiteSpace(o.PosConfigName)) shopNames.Add(o.PosConfigName.Trim());
+            }
+
+            AvailableShops.Clear();
+            AvailableShops.Add(AllShopsOption);
+            foreach (var shop in shopNames)
+            {
+                AvailableShops.Add(shop);
+            }
+
+            SelectedShopFilter = AvailableShops.Contains(prevShop) ? prevShop : AllShopsOption;
+            RebuildAvailableSessions(prevSession);
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+    }
+
+    private void RebuildAvailableSessions(string? preferredSession = null)
+    {
+        string targetSession = preferredSession ?? SelectedSessionFilter;
+        string activeShop = SelectedShopFilter;
+        bool filterByShop = !string.IsNullOrWhiteSpace(activeShop) && activeShop != AllShopsOption;
+
+        var sessionNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var o in _allOrders)
+        {
+            if (string.IsNullOrWhiteSpace(o.SessionName) || o.SessionName == "/") continue;
+            if (!filterByShop || string.Equals(o.PosConfigName, activeShop, StringComparison.OrdinalIgnoreCase) ||
+                o.SessionName.StartsWith(activeShop + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                sessionNames.Add(o.SessionName.Trim());
+            }
+        }
+
+        _suppressFilterRefresh = true;
+        try
+        {
+            AvailableSessions.Clear();
+            AvailableSessions.Add(AllSessionsOption);
+            foreach (var sess in sessionNames)
+            {
+                AvailableSessions.Add(sess);
+            }
+
+            SelectedSessionFilter = AvailableSessions.Contains(targetSession) ? targetSession : AllSessionsOption;
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+    }
+
     public void SetSessionFilter(string? sessionName)
     {
-        SessionFilter = sessionName;
+        _suppressFilterRefresh = true;
+        try
+        {
+            SessionFilter = sessionName;
+            if (string.IsNullOrWhiteSpace(sessionName))
+            {
+                SelectedShopFilter = AllShopsOption;
+                RebuildAvailableSessions(AllSessionsOption);
+            }
+            else
+            {
+                if (AvailableShops.Any(s => string.Equals(s, sessionName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    SelectedShopFilter = AvailableShops.First(s => string.Equals(s, sessionName, StringComparison.OrdinalIgnoreCase));
+                    RebuildAvailableSessions(AllSessionsOption);
+                }
+                else
+                {
+                    SelectedShopFilter = AllShopsOption;
+                    RebuildAvailableSessions(sessionName);
+                    if (!AvailableSessions.Contains(sessionName))
+                    {
+                        AvailableSessions.Add(sessionName);
+                    }
+                    SelectedSessionFilter = sessionName;
+                }
+            }
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
         RefreshFilter();
     }
 
     [RelayCommand]
     public void ClearSessionFilter()
     {
-        SessionFilter = null;
+        ClearFilters();
+    }
+
+    [RelayCommand]
+    public void ClearFilters()
+    {
+        _suppressFilterRefresh = true;
+        try
+        {
+            SessionFilter = null;
+            SelectedShopFilter = AllShopsOption;
+            RebuildAvailableSessions(AllSessionsOption);
+            SelectedDatePreset = AllDatesOption;
+            StartDate = null;
+            EndDate = null;
+            IsCustomDateRange = false;
+            SearchText = string.Empty;
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
         RefreshFilter();
     }
 
@@ -148,11 +391,38 @@ public partial class OrdersViewModel : ViewModelBase
 
         IEnumerable<PosOrderRecord> source = _allOrders;
 
+        bool hasShop = !string.IsNullOrWhiteSpace(SelectedShopFilter) && SelectedShopFilter != AllShopsOption;
+        bool hasSess = !string.IsNullOrWhiteSpace(SelectedSessionFilter) && SelectedSessionFilter != AllSessionsOption;
+        bool hasDate = SelectedDatePreset != AllDatesOption || StartDate.HasValue || EndDate.HasValue;
+        HasActiveFilter = hasShop || hasSess || hasDate || !string.IsNullOrWhiteSpace(SessionFilter) || !string.IsNullOrWhiteSpace(query);
+
         if (!string.IsNullOrWhiteSpace(SessionFilter))
         {
             source = source.Where(o =>
                 string.Equals(o.SessionName, SessionFilter, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(o.PosConfigName, SessionFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (hasShop)
+        {
+            source = source.Where(o => string.Equals(o.PosConfigName, SelectedShopFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (hasSess)
+        {
+            source = source.Where(o => string.Equals(o.SessionName, SelectedSessionFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (StartDate.HasValue || EndDate.HasValue)
+        {
+            source = source.Where(o =>
+            {
+                if (!o.DateOrder.HasValue) return false;
+                var dt = o.DateOrder.Value.Date;
+                if (StartDate.HasValue && dt < StartDate.Value.Date) return false;
+                if (EndDate.HasValue && dt > EndDate.Value.Date) return false;
+                return true;
+            });
         }
 
         if (!string.IsNullOrWhiteSpace(query))

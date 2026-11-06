@@ -813,7 +813,8 @@ public class OdooSyncService
     private async Task<Dictionary<int, (int VariantId, List<int> TaxIds)>> ResolveProductVariantsAndTaxesAsync(
         OdooConfigRecord config,
         int uid,
-        IEnumerable<int> templateIds)
+        IEnumerable<int> templateIds,
+        int? targetCompanyId = null)
     {
         var map = new Dictionary<int, (int VariantId, List<int> TaxIds)>();
         var distinctIds = templateIds.Where(id => id > 0).Distinct().ToArray();
@@ -826,20 +827,74 @@ public class OdooSyncService
                 config,
                 uid,
                 "product.product",
-                [new object[] { "product_tmpl_id", "in", distinctIds }],
+                [
+                    "|",
+                    new object[] { "product_tmpl_id", "in", distinctIds },
+                    new object[] { "id", "in", distinctIds }
+                ],
                 fields
             );
 
             if (doc.RootElement.TryGetProperty("result", out var arr) && arr.ValueKind == JsonValueKind.Array)
             {
+                var allTaxIds = new HashSet<int>();
+                var rawItems = new List<(int ProdVariantId, int? TmplId, List<int> TaxIds)>();
+
                 foreach (var el in arr.EnumerateArray())
                 {
                     int prodVariantId = GetIntOrDefault(el, "id");
                     var (tmplId, _) = GetMany2One(el, "product_tmpl_id");
                     var taxIds = GetIdArray(el, "taxes_id");
-                    if (prodVariantId > 0 && tmplId.HasValue && !map.ContainsKey(tmplId.Value))
+                    foreach (var tid in taxIds) allTaxIds.Add(tid);
+                    rawItems.Add((prodVariantId, tmplId, taxIds));
+                }
+
+                // If targetCompanyId is known, filter out taxes belonging to other companies to prevent crossover errors
+                var validTaxIds = new HashSet<int>();
+                if (targetCompanyId.HasValue && targetCompanyId.Value > 0 && allTaxIds.Count > 0)
+                {
+                    try
                     {
-                        map[tmplId.Value] = (prodVariantId, taxIds);
+                        using var taxDoc = await SearchReadAsync(
+                            config,
+                            uid,
+                            "account.tax",
+                            [new object[] { "id", "in", allTaxIds.ToArray() }],
+                            ["id", "company_id"]
+                        );
+
+                        if (taxDoc.RootElement.TryGetProperty("result", out var tArr) && tArr.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var tEl in tArr.EnumerateArray())
+                            {
+                                int tid = GetIntOrDefault(tEl, "id");
+                                var (tCompId, _) = GetMany2One(tEl, "company_id");
+                                if (tCompId == null || tCompId.Value == targetCompanyId.Value)
+                                {
+                                    validTaxIds.Add(tid);
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                foreach (var item in rawItems)
+                {
+                    var filteredTaxes = (targetCompanyId.HasValue && targetCompanyId.Value > 0 && validTaxIds.Count > 0)
+                        ? item.TaxIds.Where(validTaxIds.Contains).ToList()
+                        : item.TaxIds;
+
+                    if (item.ProdVariantId > 0)
+                    {
+                        if (item.TmplId.HasValue && !map.ContainsKey(item.TmplId.Value))
+                        {
+                            map[item.TmplId.Value] = (item.ProdVariantId, filteredTaxes);
+                        }
+                        if (!map.ContainsKey(item.ProdVariantId))
+                        {
+                            map[item.ProdVariantId] = (item.ProdVariantId, filteredTaxes);
+                        }
                     }
                 }
             }
@@ -944,11 +999,32 @@ public class OdooSyncService
         }
         catch { }
 
+        // 2b. Determine active session's company ID to avoid multi-company tax discrepancies
+        int? sessionCompanyId = null;
+        try
+        {
+            using var sessCompDoc = await SearchReadAsync(
+                config,
+                uid,
+                "pos.session",
+                [new object[] { "id", "=", activeSessionId }],
+                ["id", "company_id"]
+            );
+            if (sessCompDoc.RootElement.TryGetProperty("result", out var scArr) &&
+                scArr.ValueKind == JsonValueKind.Array &&
+                scArr.GetArrayLength() > 0)
+            {
+                var (cid, _) = GetMany2One(scArr[0], "company_id");
+                sessionCompanyId = cid;
+            }
+        }
+        catch { }
+
         // 3. Resolve product.template IDs -> product.product variant IDs + taxes
         var tmplIds = payload.Lines
             .Where(l => l.ProductOdooId.HasValue)
             .Select(l => l.ProductOdooId!.Value);
-        var variantMap = await ResolveProductVariantsAndTaxesAsync(config, uid, tmplIds);
+        var variantMap = await ResolveProductVariantsAndTaxesAsync(config, uid, tmplIds, sessionCompanyId);
 
         int fallbackProductId = variantMap.Values.Select(v => v.VariantId).FirstOrDefault();
         if (fallbackProductId == 0)
@@ -1287,12 +1363,30 @@ public class OdooSyncService
                 uid,
                 "pos.session",
                 "close_session_from_ui",
-                [new[] { targetSessionId }, Array.Empty<object>()]
+                [new[] { targetSessionId }]
             );
         }
-        catch (Exception ex)
+        catch (Exception ex1)
         {
-            lastCloseError = ex.Message;
+            lastCloseError = ex1.Message;
+            try
+            {
+                // In modern Odoo (17/18/20), payment_method_closing is a dict (not a list)
+                using var _ = await ExecuteKwAsync(
+                    config,
+                    uid,
+                    "pos.session",
+                    "close_session_from_ui",
+                    [new[] { targetSessionId }, new Dictionary<string, object>()]
+                );
+            }
+            catch (Exception ex2)
+            {
+                if (!ex2.Message.Contains("has no attribute 'get'", StringComparison.OrdinalIgnoreCase))
+                {
+                    lastCloseError = ex2.Message;
+                }
+            }
         }
 
         // 6. Verify session state; if Odoo stopped in 'closing_control' or 'opened', force-validate and close
@@ -1302,8 +1396,7 @@ public class OdooSyncService
             string[] fallbackCloseMethods =
             [
                 "action_pos_session_closing_control",
-                "action_pos_session_validate",
-                "action_pos_session_close"
+                "action_pos_session_validate"
             ];
 
             foreach (string method in fallbackCloseMethods)
@@ -1320,7 +1413,10 @@ public class OdooSyncService
                 }
                 catch (Exception ex)
                 {
-                    lastCloseError = ex.Message;
+                    if (!ex.Message.Contains("does not exist", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(lastCloseError))
+                    {
+                        lastCloseError = ex.Message;
+                    }
                 }
 
                 currentState = await GetOdooSessionStateAsync(config, uid, targetSessionId);

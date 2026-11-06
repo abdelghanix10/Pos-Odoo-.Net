@@ -37,6 +37,13 @@ public partial class PosCategoriesViewModel : ViewModelBase
     [ObservableProperty]
     private PosCategoryRecord? _selectedCategory;
 
+    public const int PageSize = 80;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    private readonly List<PosCategoryRecord> _matchingCategories = [];
+
     [ObservableProperty]
     private string _pagerText = "0 / 0";
 
@@ -131,22 +138,22 @@ public partial class PosCategoriesViewModel : ViewModelBase
                 (!string.IsNullOrEmpty(c.LinkedPosConfigs) && c.LinkedPosConfigs.Contains(query, StringComparison.OrdinalIgnoreCase)));
         }
 
+        _matchingCategories.Clear();
         foreach (var c in source)
         {
-            FilteredCategories.Add(c);
+            _matchingCategories.Add(c);
         }
 
-        IsEmptyStateVisible = FilteredCategories.Count == 0;
-        ListCounterText = FilteredCategories.Count > 0
-            ? $"1-{FilteredCategories.Count} / {FilteredCategories.Count}"
-            : "0-0 / 0";
+        IsEmptyStateVisible = _matchingCategories.Count == 0;
+        CurrentPage = 1;
+        ApplyPaging();
 
         if (IsDetailViewVisible)
         {
             if (SelectedCategory != null)
             {
-                var match = FilteredCategories.FirstOrDefault(c => c.OdooId == SelectedCategory.OdooId && c.Name == SelectedCategory.Name);
-                SelectedCategory = match ?? FilteredCategories.FirstOrDefault();
+                var match = _matchingCategories.FirstOrDefault(c => c.OdooId == SelectedCategory.OdooId && c.Name == SelectedCategory.Name);
+                SelectedCategory = match ?? _matchingCategories.FirstOrDefault();
                 if (SelectedCategory == null)
                 {
                     IsDetailViewVisible = false;
@@ -156,6 +163,19 @@ public partial class PosCategoriesViewModel : ViewModelBase
 
         UpdatePager();
         UpdateAssociatedProducts();
+    }
+
+    private void ApplyPaging()
+    {
+        FilteredCategories.Clear();
+        var pageItems = _matchingCategories
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize);
+        foreach (var c in pageItems)
+        {
+            FilteredCategories.Add(c);
+        }
+        UpdatePager();
     }
 
     private void UpdateAssociatedProducts()
@@ -183,24 +203,49 @@ public partial class PosCategoriesViewModel : ViewModelBase
 
     private void UpdatePager()
     {
-        if (FilteredCategories.Count == 0 || SelectedCategory == null)
+        if (IsDetailViewVisible)
         {
-            PagerText = "0 / 0";
-            HasPreviousRecord = false;
-            HasNextRecord = false;
-            return;
-        }
+            if (_matchingCategories.Count == 0 || SelectedCategory == null)
+            {
+                PagerText = "0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+                return;
+            }
 
-        int index = FilteredCategories.IndexOf(SelectedCategory);
-        if (index < 0)
+            int index = _matchingCategories.IndexOf(SelectedCategory);
+            if (index < 0)
+            {
+                index = 0;
+                SelectedCategory = _matchingCategories[0];
+            }
+
+            PagerText = $"{index + 1} / {_matchingCategories.Count}";
+            HasPreviousRecord = index > 0;
+            HasNextRecord = index < _matchingCategories.Count - 1;
+        }
+        else
         {
-            index = 0;
-            SelectedCategory = FilteredCategories[0];
-        }
+            int total = _matchingCategories.Count;
+            int maxPage = total > 0 ? (int)Math.Ceiling((double)total / PageSize) : 1;
+            if (CurrentPage > maxPage) CurrentPage = maxPage;
+            if (CurrentPage < 1) CurrentPage = 1;
 
-        PagerText = $"{index + 1} / {FilteredCategories.Count}";
-        HasPreviousRecord = index > 0;
-        HasNextRecord = index < FilteredCategories.Count - 1;
+            if (total == 0)
+            {
+                ListCounterText = "0-0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+            }
+            else
+            {
+                int start = (CurrentPage - 1) * PageSize + 1;
+                int end = Math.Min(CurrentPage * PageSize, total);
+                ListCounterText = $"{start}-{end} / {total}";
+                HasPreviousRecord = CurrentPage > 1;
+                HasNextRecord = CurrentPage < maxPage;
+            }
+        }
     }
 
     [RelayCommand]
@@ -209,6 +254,7 @@ public partial class PosCategoriesViewModel : ViewModelBase
         IsListView = true;
         IsKanbanView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -217,6 +263,7 @@ public partial class PosCategoriesViewModel : ViewModelBase
         IsKanbanView = true;
         IsListView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -241,31 +288,55 @@ public partial class PosCategoriesViewModel : ViewModelBase
     private void BackToList()
     {
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
     private void PreviousRecord()
     {
-        if (SelectedCategory == null || FilteredCategories.Count == 0) return;
-        int index = FilteredCategories.IndexOf(SelectedCategory);
-        if (index > 0)
+        if (IsDetailViewVisible)
         {
-            SelectedCategory = FilteredCategories[index - 1];
-            UpdatePager();
-            UpdateAssociatedProducts();
+            if (SelectedCategory == null || _matchingCategories.Count == 0) return;
+            int index = _matchingCategories.IndexOf(SelectedCategory);
+            if (index > 0)
+            {
+                SelectedCategory = _matchingCategories[index - 1];
+                UpdatePager();
+                UpdateAssociatedProducts();
+            }
+        }
+        else
+        {
+            if (CurrentPage > 1)
+            {
+                CurrentPage--;
+                ApplyPaging();
+            }
         }
     }
 
     [RelayCommand]
     private void NextRecord()
     {
-        if (SelectedCategory == null || FilteredCategories.Count == 0) return;
-        int index = FilteredCategories.IndexOf(SelectedCategory);
-        if (index >= 0 && index < FilteredCategories.Count - 1)
+        if (IsDetailViewVisible)
         {
-            SelectedCategory = FilteredCategories[index + 1];
-            UpdatePager();
-            UpdateAssociatedProducts();
+            if (SelectedCategory == null || _matchingCategories.Count == 0) return;
+            int index = _matchingCategories.IndexOf(SelectedCategory);
+            if (index >= 0 && index < _matchingCategories.Count - 1)
+            {
+                SelectedCategory = _matchingCategories[index + 1];
+                UpdatePager();
+                UpdateAssociatedProducts();
+            }
+        }
+        else
+        {
+            int maxPage = (int)Math.Ceiling((double)_matchingCategories.Count / PageSize);
+            if (CurrentPage < maxPage)
+            {
+                CurrentPage++;
+                ApplyPaging();
+            }
         }
     }
 

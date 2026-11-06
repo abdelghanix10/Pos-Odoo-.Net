@@ -27,6 +27,13 @@ public partial class PaymentMethodsViewModel : ViewModelBase
     [ObservableProperty]
     private PosPaymentMethodRecord? _selectedMethod;
 
+    public const int PageSize = 80;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    private readonly List<PosPaymentMethodRecord> _matchingMethods = [];
+
     [ObservableProperty]
     private string _pagerText = "0 / 0";
 
@@ -117,21 +124,21 @@ public partial class PaymentMethodsViewModel : ViewModelBase
                 m.MethodTypeDisplay.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
+        _matchingMethods.Clear();
         foreach (var m in source)
         {
-            FilteredMethods.Add(m);
+            _matchingMethods.Add(m);
         }
 
-        IsEmptyStateVisible = FilteredMethods.Count == 0;
-        ListCounterText = FilteredMethods.Count > 0
-            ? $"1-{FilteredMethods.Count} / {FilteredMethods.Count}"
-            : "0-0 / 0";
+        IsEmptyStateVisible = _matchingMethods.Count == 0;
+        CurrentPage = 1;
+        ApplyPaging();
 
         if (IsDetailViewVisible)
         {
-            if (SelectedMethod != null && !FilteredMethods.Contains(SelectedMethod))
+            if (SelectedMethod != null && !_matchingMethods.Contains(SelectedMethod))
             {
-                SelectedMethod = FilteredMethods.FirstOrDefault();
+                SelectedMethod = _matchingMethods.FirstOrDefault();
                 if (SelectedMethod == null)
                 {
                     IsDetailViewVisible = false;
@@ -142,26 +149,64 @@ public partial class PaymentMethodsViewModel : ViewModelBase
         UpdatePager();
     }
 
+    private void ApplyPaging()
+    {
+        FilteredMethods.Clear();
+        var pageItems = _matchingMethods
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize);
+        foreach (var m in pageItems)
+        {
+            FilteredMethods.Add(m);
+        }
+        UpdatePager();
+    }
+
     private void UpdatePager()
     {
-        if (FilteredMethods.Count == 0 || SelectedMethod == null)
+        if (IsDetailViewVisible)
         {
-            PagerText = "0 / 0";
-            HasPreviousRecord = false;
-            HasNextRecord = false;
-            return;
-        }
+            if (_matchingMethods.Count == 0 || SelectedMethod == null)
+            {
+                PagerText = "0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+                return;
+            }
 
-        int index = FilteredMethods.IndexOf(SelectedMethod);
-        if (index < 0)
+            int index = _matchingMethods.IndexOf(SelectedMethod);
+            if (index < 0)
+            {
+                index = 0;
+                SelectedMethod = _matchingMethods[0];
+            }
+
+            PagerText = $"{index + 1} / {_matchingMethods.Count}";
+            HasPreviousRecord = index > 0;
+            HasNextRecord = index < _matchingMethods.Count - 1;
+        }
+        else
         {
-            index = 0;
-            SelectedMethod = FilteredMethods[0];
-        }
+            int total = _matchingMethods.Count;
+            int maxPage = total > 0 ? (int)Math.Ceiling((double)total / PageSize) : 1;
+            if (CurrentPage > maxPage) CurrentPage = maxPage;
+            if (CurrentPage < 1) CurrentPage = 1;
 
-        PagerText = $"{index + 1} / {FilteredMethods.Count}";
-        HasPreviousRecord = index > 0;
-        HasNextRecord = index < FilteredMethods.Count - 1;
+            if (total == 0)
+            {
+                ListCounterText = "0-0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+            }
+            else
+            {
+                int start = (CurrentPage - 1) * PageSize + 1;
+                int end = Math.Min(CurrentPage * PageSize, total);
+                ListCounterText = $"{start}-{end} / {total}";
+                HasPreviousRecord = CurrentPage > 1;
+                HasNextRecord = CurrentPage < maxPage;
+            }
+        }
     }
 
     [RelayCommand]
@@ -170,6 +215,7 @@ public partial class PaymentMethodsViewModel : ViewModelBase
         IsListView = true;
         IsKanbanView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -178,6 +224,7 @@ public partial class PaymentMethodsViewModel : ViewModelBase
         IsKanbanView = true;
         IsListView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -193,29 +240,53 @@ public partial class PaymentMethodsViewModel : ViewModelBase
     private void BackToList()
     {
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
     private void PreviousRecord()
     {
-        if (SelectedMethod == null || FilteredMethods.Count == 0) return;
-        int index = FilteredMethods.IndexOf(SelectedMethod);
-        if (index > 0)
+        if (IsDetailViewVisible)
         {
-            SelectedMethod = FilteredMethods[index - 1];
-            UpdatePager();
+            if (SelectedMethod == null || _matchingMethods.Count == 0) return;
+            int index = _matchingMethods.IndexOf(SelectedMethod);
+            if (index > 0)
+            {
+                SelectedMethod = _matchingMethods[index - 1];
+                UpdatePager();
+            }
+        }
+        else
+        {
+            if (CurrentPage > 1)
+            {
+                CurrentPage--;
+                ApplyPaging();
+            }
         }
     }
 
     [RelayCommand]
     private void NextRecord()
     {
-        if (SelectedMethod == null || FilteredMethods.Count == 0) return;
-        int index = FilteredMethods.IndexOf(SelectedMethod);
-        if (index >= 0 && index < FilteredMethods.Count - 1)
+        if (IsDetailViewVisible)
         {
-            SelectedMethod = FilteredMethods[index + 1];
-            UpdatePager();
+            if (SelectedMethod == null || _matchingMethods.Count == 0) return;
+            int index = _matchingMethods.IndexOf(SelectedMethod);
+            if (index >= 0 && index < _matchingMethods.Count - 1)
+            {
+                SelectedMethod = _matchingMethods[index + 1];
+                UpdatePager();
+            }
+        }
+        else
+        {
+            int maxPage = (int)Math.Ceiling((double)_matchingMethods.Count / PageSize);
+            if (CurrentPage < maxPage)
+            {
+                CurrentPage++;
+                ApplyPaging();
+            }
         }
     }
 

@@ -73,8 +73,8 @@
         </Style>
 
         <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="Height" Value="32"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="28"/>
             <Setter Property="Background" Value="#F3F4F6"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -94,7 +94,7 @@
                                 <Setter TargetName="Border" Property="Background" Value="#E5E7EB"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Border" Property="Opacity" Value="0.45"/>
+                                <Setter TargetName="Border" Property="Opacity" Value="0.35"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -250,7 +250,14 @@
                             IsEnabled="{Binding HasPreviousRecord}"
                             Margin="0,0,2,0"
                             ToolTip="Previous Category">
-                        <Path Data="M 15,7 L 10,12 L 15,17" Stroke="{StaticResource SecondaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 7,1 L 1.5,6.5 L 7,12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"/>
+                        </Viewbox>
                     </Button>
 
                     <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
@@ -258,7 +265,14 @@
                             IsEnabled="{Binding HasNextRecord}"
                             Margin="0,0,10,0"
                             ToolTip="Next Category">
-                        <Path Data="M 10,7 L 15,12 L 10,17" Stroke="{StaticResource SecondaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 1.5,1 L 7,6.5 L 1.5,12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"/>
+                        </Viewbox>
                     </Button>
 
                     <StackPanel Orientation="Horizontal"
@@ -340,13 +354,12 @@
                         <Border Grid.Row="0" Background="#F9FAFB" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="52"/>
+                                    <ColumnDefinition Width="28"/>
                                     <ColumnDefinition Width="2.5*"/>
                                     <ColumnDefinition Width="2*"/>
                                     <ColumnDefinition Width="3*"/>
                                     <ColumnDefinition Width="80"/>
                                 </Grid.ColumnDefinitions>
-                                <CheckBox Grid.Column="0" IsEnabled="False" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1" Text="PoS Product Category" FontSize="13" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="Parent Category" FontSize="13" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="3" Text="Linked PoS Configurations" FontSize="13" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
@@ -369,17 +382,15 @@
                                                     <Border x:Name="RowBorder" Background="#FFFFFF" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,10" MinHeight="44">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="52"/>
+                                                                <ColumnDefinition Width="28"/>
                                                                 <ColumnDefinition Width="2.5*"/>
                                                                 <ColumnDefinition Width="2*"/>
                                                                 <ColumnDefinition Width="3*"/>
                                                                 <ColumnDefinition Width="80"/>
                                                             </Grid.ColumnDefinitions>
 
-                                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                                                <CheckBox IsEnabled="False" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                                                <TextBlock Text="⋮⋮" FontSize="13" Foreground="#9CA3AF" VerticalAlignment="Center"/>
-                                                            </StackPanel>
+                                                            <!-- Drag Handle ⋮⋮ -->
+                                                            <TextBlock Grid.Column="0" Text="⋮⋮" FontSize="13" Foreground="#9CA3AF" VerticalAlignment="Center"/>
 
                                                             <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                                             <TextBlock Grid.Column="2" Text="{Binding ParentCategoryName}" FontSize="13.5" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>

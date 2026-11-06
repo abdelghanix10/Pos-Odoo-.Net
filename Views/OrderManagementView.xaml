@@ -105,23 +105,27 @@
             </Setter>
         </Style>
 
-        <Style x:Key="OdooTabButtonStyle" TargetType="Button">
+        <!-- Odoo 20 Boxed Notebook Tab Style (Matching Product Detail) -->
+        <Style x:Key="OdooNotebookTabStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="{StaticResource SecondaryTextBrush}"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#5C5B70"/>
+            <Setter Property="FontSize" Value="13.5"/>
             <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Height" Value="42"/>
+            <Setter Property="Height" Value="40"/>
             <Setter Property="Padding" Value="18,0"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1,1,1,0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="TabBorder"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="Transparent"
-                                BorderThickness="0,0,0,2.5"
-                                Padding="{TemplateBinding Padding}">
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4,4,0,0"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="0,0,2,-1">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -134,33 +138,17 @@
             </Setter>
         </Style>
 
-        <Style x:Key="OdooActiveTabButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="{StaticResource OdooPurpleBrush}"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Height" Value="42"/>
-            <Setter Property="Padding" Value="18,0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="TabBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{StaticResource OdooPurpleBrush}"
-                                BorderThickness="0,0,0,2.5"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+        <Style x:Key="OdooTabButtonStyle" TargetType="Button" BasedOn="{StaticResource OdooNotebookTabStyle}"/>
+        <Style x:Key="OdooActiveTabButtonStyle" TargetType="Button" BasedOn="{StaticResource OdooNotebookTabStyle}">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
         </Style>
 
         <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="Height" Value="32"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="28"/>
             <Setter Property="Background" Value="#F3F4F6"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -180,7 +168,7 @@
                                 <Setter TargetName="Border" Property="Background" Value="#E5E7EB"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Border" Property="Opacity" Value="0.45"/>
+                                <Setter TargetName="Border" Property="Opacity" Value="0.35"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -340,7 +328,14 @@
                             IsEnabled="{Binding HasPreviousRecord}"
                             Margin="0,0,2,0"
                             ToolTip="Previous Order">
-                        <Path Data="M 15,7 L 10,12 L 15,17" Stroke="{StaticResource SecondaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 7,1 L 1.5,6.5 L 7,12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"/>
+                        </Viewbox>
                     </Button>
 
                     <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
@@ -348,7 +343,14 @@
                             IsEnabled="{Binding HasNextRecord}"
                             Margin="0,0,10,0"
                             ToolTip="Next Order">
-                        <Path Data="M 10,7 L 15,12 L 10,17" Stroke="{StaticResource SecondaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 1.5,1 L 7,6.5 L 1.5,12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"/>
+                        </Viewbox>
                     </Button>
 
                     <StackPanel Orientation="Horizontal"
@@ -432,7 +434,7 @@
                         <Border Grid.Row="0" Background="#F9FAFB" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="32"/>
+                                    <ColumnDefinition Width="28"/>
                                     <ColumnDefinition Width="2.1*"/>
                                     <ColumnDefinition Width="1.8*"/>
                                     <ColumnDefinition Width="1.5*"/>
@@ -444,7 +446,6 @@
                                     <ColumnDefinition Width="1.2*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <CheckBox Grid.Column="0" IsEnabled="False" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1" Text="Order Ref" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="Session" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="3" Text="Date" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
@@ -473,7 +474,7 @@
                                                     <Border x:Name="RowBdr" Background="#FFFFFF" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,9" MinHeight="42">
                                                         <Grid Opacity="{Binding IsCancelled, Converter={x:Static local:CancelledOpacityConverter.Instance}}">
                                                             <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="32"/>
+                                                                <ColumnDefinition Width="28"/>
                                                                 <ColumnDefinition Width="2.1*"/>
                                                                 <ColumnDefinition Width="1.8*"/>
                                                                 <ColumnDefinition Width="1.5*"/>
@@ -485,7 +486,8 @@
                                                                 <ColumnDefinition Width="1.2*"/>
                                                             </Grid.ColumnDefinitions>
 
-                                                            <CheckBox Grid.Column="0" IsEnabled="False" VerticalAlignment="Center"/>
+                                                            <!-- Drag Handle ⋮⋮ -->
+                                                            <TextBlock Grid.Column="0" Text="⋮⋮" FontSize="13" Foreground="#9CA3AF" VerticalAlignment="Center"/>
                                                             <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                                             <TextBlock Grid.Column="2" Text="{Binding SessionName}" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                                             <TextBlock Grid.Column="3" Text="{Binding DateShortDisplay}" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
@@ -655,52 +657,46 @@
                             Effect="{StaticResource SubtleCardShadow}">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Style="{StaticResource OdooSecondaryButtonStyle}"
-                                        Command="{Binding DownloadReceiptCommand}"
-                                        Margin="0,0,10,0">
-                                    <TextBlock Text="Download Receipt"/>
-                                </Button>
-
-                                <Button Style="{StaticResource OdooSecondaryButtonStyle}"
-                                        Command="{Binding ReturnProductsCommand}">
-                                    <TextBlock Text="Return Products"/>
-                                </Button>
-                            </StackPanel>
-
                             <!-- A. NORMAL PIPELINE: New > Paid > Posted -->
-                            <StackPanel Grid.Column="2"
-                                        Orientation="Horizontal"
-                                        VerticalAlignment="Center"
-                                        Visibility="{Binding SelectedOrder.NormalPipelineVisibility}">
-                                <Border Background="{Binding SelectedOrder.IsStageNew, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
-                                        Padding="14,5" CornerRadius="4,0,0,4">
-                                    <TextBlock Text="New" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{Binding SelectedOrder.IsStageNew, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
-                                </Border>
-                                <TextBlock Text=" > " Foreground="{StaticResource PlaceholderTextBrush}" VerticalAlignment="Center" Margin="2,0"/>
+                            <Border Grid.Column="1"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="2"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding SelectedOrder.NormalPipelineVisibility}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Background="{Binding SelectedOrder.IsStageNew, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
+                                            Padding="14,5" CornerRadius="4">
+                                        <TextBlock Text="New" FontSize="13"
+                                                   FontWeight="{Binding SelectedOrder.IsStageNew, Converter={x:Static local:ActiveStageFontWeightConverter.Instance}}"
+                                                   Foreground="{Binding SelectedOrder.IsStageNew, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
+                                    </Border>
+                                    <TextBlock Text="›" FontSize="16" Foreground="#D1D5DB" VerticalAlignment="Center" Margin="2,-2,2,0"/>
 
-                                <Border Background="{Binding SelectedOrder.IsStagePaid, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
-                                        Padding="14,5">
-                                    <TextBlock Text="Paid" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{Binding SelectedOrder.IsStagePaid, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
-                                </Border>
-                                <TextBlock Text=" > " Foreground="{StaticResource PlaceholderTextBrush}" VerticalAlignment="Center" Margin="2,0"/>
+                                    <Border Background="{Binding SelectedOrder.IsStagePaid, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
+                                            Padding="14,5" CornerRadius="4">
+                                        <TextBlock Text="Paid" FontSize="13"
+                                                   FontWeight="{Binding SelectedOrder.IsStagePaid, Converter={x:Static local:ActiveStageFontWeightConverter.Instance}}"
+                                                   Foreground="{Binding SelectedOrder.IsStagePaid, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
+                                    </Border>
+                                    <TextBlock Text="›" FontSize="16" Foreground="#D1D5DB" VerticalAlignment="Center" Margin="2,-2,2,0"/>
 
-                                <Border Background="{Binding SelectedOrder.IsStagePosted, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
-                                        Padding="14,5" CornerRadius="0,4,4,0">
-                                    <TextBlock Text="Posted" FontSize="13" FontWeight="SemiBold"
-                                               Foreground="{Binding SelectedOrder.IsStagePosted, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
-                                </Border>
-                            </StackPanel>
+                                    <Border Background="{Binding SelectedOrder.IsStagePosted, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
+                                            Padding="14,5" CornerRadius="4">
+                                        <TextBlock Text="Posted" FontSize="13"
+                                                   FontWeight="{Binding SelectedOrder.IsStagePosted, Converter={x:Static local:ActiveStageFontWeightConverter.Instance}}"
+                                                   Foreground="{Binding SelectedOrder.IsStagePosted, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
 
                             <!-- B. CANCELLED PIPELINE: New > Cancelled (Matching Screenshot 15) -->
-                            <Border Grid.Column="2"
+                            <Border Grid.Column="1"
                                     BorderBrush="{StaticResource SubtleBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="6"
@@ -708,7 +704,7 @@
                                     VerticalAlignment="Center"
                                     Visibility="{Binding SelectedOrder.CancelledPipelineVisibility}">
                                 <StackPanel Orientation="Horizontal">
-                                    <Border Background="#FFFFFF" Padding="14,5" CornerRadius="4,0,0,4">
+                                    <Border Background="#FFFFFF" Padding="14,5" CornerRadius="4">
                                         <TextBlock Text="New" FontSize="13" FontWeight="Medium" Foreground="#6B7280"/>
                                     </Border>
                                     <TextBlock Text="›" FontSize="16" Foreground="#D1D5DB" VerticalAlignment="Center" Margin="2,-2,2,0"/>
@@ -890,21 +886,59 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!-- TABS STRIP -->
-                            <Border BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Margin="0,0,0,16">
+                            <!-- BOXED NOTEBOOK TAB BAR (Products | Payments | Extra Info - Matching Product Detail) -->
+                            <Border BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Margin="-32,0,-32,24" Padding="32,0">
                                 <StackPanel Orientation="Horizontal">
                                     <Button Content="Products"
                                             Command="{Binding SelectTabCommand}"
-                                            CommandParameter="Products"
-                                            Style="{Binding IsProductsTab, Converter={x:Static local:TabStyleConverter.Instance}}"/>
+                                            CommandParameter="Products">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource OdooNotebookTabStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsProductsTab}" Value="True">
+                                                        <Setter Property="Background" Value="#FFFFFF"/>
+                                                        <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+
                                     <Button Content="Payments"
                                             Command="{Binding SelectTabCommand}"
-                                            CommandParameter="Payments"
-                                            Style="{Binding IsPaymentsTab, Converter={x:Static local:TabStyleConverter.Instance}}"/>
+                                            CommandParameter="Payments">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource OdooNotebookTabStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPaymentsTab}" Value="True">
+                                                        <Setter Property="Background" Value="#FFFFFF"/>
+                                                        <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+
                                     <Button Content="Extra Info"
                                             Command="{Binding SelectTabCommand}"
-                                            CommandParameter="ExtraInfo"
-                                            Style="{Binding IsExtraInfoTab, Converter={x:Static local:TabStyleConverter.Instance}}"/>
+                                            CommandParameter="ExtraInfo">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource OdooNotebookTabStyle}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsExtraInfoTab}" Value="True">
+                                                        <Setter Property="Background" Value="#FFFFFF"/>
+                                                        <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
                                 </StackPanel>
                             </Border>
 

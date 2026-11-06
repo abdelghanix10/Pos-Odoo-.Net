@@ -27,6 +27,13 @@ public partial class SessionsViewModel : ViewModelBase
     [ObservableProperty]
     private PosSessionRecord? _selectedSession;
 
+    public const int PageSize = 80;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    private readonly List<PosSessionRecord> _matchingSessions = [];
+
     [ObservableProperty]
     private string _pagerText = "0 / 0";
 
@@ -118,22 +125,22 @@ public partial class SessionsViewModel : ViewModelBase
                 s.StateDisplay.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
+        _matchingSessions.Clear();
         foreach (var s in source)
         {
-            FilteredSessions.Add(s);
+            _matchingSessions.Add(s);
         }
 
-        IsEmptyStateVisible = FilteredSessions.Count == 0;
-        ListCounterText = FilteredSessions.Count > 0
-            ? $"1-{FilteredSessions.Count} / {FilteredSessions.Count}"
-            : "0-0 / 0";
+        IsEmptyStateVisible = _matchingSessions.Count == 0;
+        CurrentPage = 1;
+        ApplyPaging();
 
         if (IsDetailViewVisible)
         {
             if (SelectedSession != null)
             {
-                var match = FilteredSessions.FirstOrDefault(s => s.OdooId == SelectedSession.OdooId && s.Name == SelectedSession.Name);
-                SelectedSession = match ?? FilteredSessions.FirstOrDefault();
+                var match = _matchingSessions.FirstOrDefault(s => s.OdooId == SelectedSession.OdooId && s.Name == SelectedSession.Name);
+                SelectedSession = match ?? _matchingSessions.FirstOrDefault();
                 if (SelectedSession == null)
                 {
                     IsDetailViewVisible = false;
@@ -144,12 +151,26 @@ public partial class SessionsViewModel : ViewModelBase
         UpdatePager();
     }
 
+    private void ApplyPaging()
+    {
+        FilteredSessions.Clear();
+        var pageItems = _matchingSessions
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize);
+        foreach (var s in pageItems)
+        {
+            FilteredSessions.Add(s);
+        }
+        UpdatePager();
+    }
+
     [RelayCommand]
     private void SwitchToList()
     {
         IsListView = true;
         IsKanbanView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -158,6 +179,7 @@ public partial class SessionsViewModel : ViewModelBase
         IsKanbanView = true;
         IsListView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -174,51 +196,100 @@ public partial class SessionsViewModel : ViewModelBase
     {
         IsDetailViewVisible = false;
         SelectedSession = null;
+        UpdatePager();
     }
 
     private void UpdatePager()
     {
-        if (SelectedSession == null || FilteredSessions.Count == 0)
+        if (IsDetailViewVisible)
         {
-            PagerText = "0 / 0";
-            HasPreviousRecord = false;
-            HasNextRecord = false;
-            return;
-        }
+            if (SelectedSession == null || _matchingSessions.Count == 0)
+            {
+                PagerText = "0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+                return;
+            }
 
-        int index = FilteredSessions.IndexOf(SelectedSession);
-        if (index < 0)
+            int index = _matchingSessions.IndexOf(SelectedSession);
+            if (index < 0)
+            {
+                index = 0;
+                SelectedSession = _matchingSessions[0];
+            }
+
+            PagerText = $"{index + 1} / {_matchingSessions.Count}";
+            HasPreviousRecord = index > 0;
+            HasNextRecord = index < _matchingSessions.Count - 1;
+        }
+        else
         {
-            index = 0;
-            SelectedSession = FilteredSessions[0];
-        }
+            int total = _matchingSessions.Count;
+            int maxPage = total > 0 ? (int)Math.Ceiling((double)total / PageSize) : 1;
+            if (CurrentPage > maxPage) CurrentPage = maxPage;
+            if (CurrentPage < 1) CurrentPage = 1;
 
-        PagerText = $"{index + 1} / {FilteredSessions.Count}";
-        HasPreviousRecord = index > 0;
-        HasNextRecord = index < FilteredSessions.Count - 1;
+            if (total == 0)
+            {
+                ListCounterText = "0-0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+            }
+            else
+            {
+                int start = (CurrentPage - 1) * PageSize + 1;
+                int end = Math.Min(CurrentPage * PageSize, total);
+                ListCounterText = $"{start}-{end} / {total}";
+                HasPreviousRecord = CurrentPage > 1;
+                HasNextRecord = CurrentPage < maxPage;
+            }
+        }
     }
 
     [RelayCommand]
     public void PreviousRecord()
     {
-        if (SelectedSession == null || FilteredSessions.Count == 0) return;
-        int index = FilteredSessions.IndexOf(SelectedSession);
-        if (index > 0)
+        if (IsDetailViewVisible)
         {
-            SelectedSession = FilteredSessions[index - 1];
-            UpdatePager();
+            if (SelectedSession == null || _matchingSessions.Count == 0) return;
+            int index = _matchingSessions.IndexOf(SelectedSession);
+            if (index > 0)
+            {
+                SelectedSession = _matchingSessions[index - 1];
+                UpdatePager();
+            }
+        }
+        else
+        {
+            if (CurrentPage > 1)
+            {
+                CurrentPage--;
+                ApplyPaging();
+            }
         }
     }
 
     [RelayCommand]
     public void NextRecord()
     {
-        if (SelectedSession == null || FilteredSessions.Count == 0) return;
-        int index = FilteredSessions.IndexOf(SelectedSession);
-        if (index >= 0 && index < FilteredSessions.Count - 1)
+        if (IsDetailViewVisible)
         {
-            SelectedSession = FilteredSessions[index + 1];
-            UpdatePager();
+            if (SelectedSession == null || _matchingSessions.Count == 0) return;
+            int index = _matchingSessions.IndexOf(SelectedSession);
+            if (index >= 0 && index < _matchingSessions.Count - 1)
+            {
+                SelectedSession = _matchingSessions[index + 1];
+                UpdatePager();
+            }
+        }
+        else
+        {
+            int maxPage = (int)Math.Ceiling((double)_matchingSessions.Count / PageSize);
+            if (CurrentPage < maxPage)
+            {
+                CurrentPage++;
+                ApplyPaging();
+            }
         }
     }
 

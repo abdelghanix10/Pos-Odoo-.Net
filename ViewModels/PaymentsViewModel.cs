@@ -46,6 +46,13 @@ public partial class PaymentsViewModel : ViewModelBase
     [ObservableProperty]
     private PosPaymentRecord? _selectedPayment;
 
+    public const int PageSize = 80;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    private readonly List<PosPaymentRecord> _matchingPayments = [];
+
     [ObservableProperty]
     private string _pagerText = "0 / 0";
 
@@ -363,21 +370,50 @@ public partial class PaymentsViewModel : ViewModelBase
         }
 
         decimal grandTotal = 0.00m;
-        var list = source.ToList();
-        foreach (var p in list)
+        _matchingPayments.Clear();
+        foreach (var p in source)
         {
-            FlatPayments.Add(p);
+            _matchingPayments.Add(p);
             grandTotal += p.Amount;
         }
 
         GrandTotalText = $"$ {grandTotal.ToString("N2", CultureInfo.InvariantCulture)}";
-        IsEmptyStateVisible = FlatPayments.Count == 0;
-        ListCounterText = FlatPayments.Count > 0
-            ? $"1-{FlatPayments.Count} / {FlatPayments.Count}"
-            : "0-0 / 0";
+        IsEmptyStateVisible = _matchingPayments.Count == 0;
+        CurrentPage = 1;
+        ApplyPaging();
+
+        if (IsDetailViewVisible)
+        {
+            if (SelectedPayment != null && !_matchingPayments.Contains(SelectedPayment))
+            {
+                SelectedPayment = _matchingPayments.FirstOrDefault();
+                if (SelectedPayment == null)
+                {
+                    IsDetailViewVisible = false;
+                }
+            }
+        }
+
+        UpdatePager();
+    }
+
+    private void ApplyPaging()
+    {
+        FlatPayments.Clear();
+        GroupedPayments.Clear();
+
+        var pageItems = _matchingPayments
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize)
+            .ToList();
+
+        foreach (var p in pageItems)
+        {
+            FlatPayments.Add(p);
+        }
 
         // Group by Payment Method + Shop/PaymentMethodId (matching Screenshot 8 where each Shop's Cash journal has its own Cash group)
-        var groups = list
+        var groups = pageItems
             .GroupBy(p => new
             {
                 Method = string.IsNullOrWhiteSpace(p.PaymentMethodName) ? "Cash" : p.PaymentMethodName,
@@ -397,18 +433,6 @@ public partial class PaymentsViewModel : ViewModelBase
                 groupRecord.Payments.Add(item);
             }
             GroupedPayments.Add(groupRecord);
-        }
-
-        if (IsDetailViewVisible)
-        {
-            if (SelectedPayment != null && !FlatPayments.Contains(SelectedPayment))
-            {
-                SelectedPayment = FlatPayments.FirstOrDefault();
-                if (SelectedPayment == null)
-                {
-                    IsDetailViewVisible = false;
-                }
-            }
         }
 
         UpdatePager();
@@ -435,51 +459,100 @@ public partial class PaymentsViewModel : ViewModelBase
     {
         IsDetailViewVisible = false;
         SelectedPayment = null;
+        UpdatePager();
     }
 
     private void UpdatePager()
     {
-        if (SelectedPayment == null || FlatPayments.Count == 0)
+        if (IsDetailViewVisible)
         {
-            PagerText = "0 / 0";
-            HasPreviousRecord = false;
-            HasNextRecord = false;
-            return;
-        }
+            if (SelectedPayment == null || _matchingPayments.Count == 0)
+            {
+                PagerText = "0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+                return;
+            }
 
-        int index = FlatPayments.IndexOf(SelectedPayment);
-        if (index < 0)
+            int index = _matchingPayments.IndexOf(SelectedPayment);
+            if (index < 0)
+            {
+                index = 0;
+                SelectedPayment = _matchingPayments[0];
+            }
+
+            PagerText = $"{index + 1} / {_matchingPayments.Count}";
+            HasPreviousRecord = index > 0;
+            HasNextRecord = index < _matchingPayments.Count - 1;
+        }
+        else
         {
-            index = 0;
-            SelectedPayment = FlatPayments[0];
-        }
+            int total = _matchingPayments.Count;
+            int maxPage = total > 0 ? (int)Math.Ceiling((double)total / PageSize) : 1;
+            if (CurrentPage > maxPage) CurrentPage = maxPage;
+            if (CurrentPage < 1) CurrentPage = 1;
 
-        PagerText = $"{index + 1} / {FlatPayments.Count}";
-        HasPreviousRecord = index > 0;
-        HasNextRecord = index < FlatPayments.Count - 1;
+            if (total == 0)
+            {
+                ListCounterText = "0-0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+            }
+            else
+            {
+                int start = (CurrentPage - 1) * PageSize + 1;
+                int end = Math.Min(CurrentPage * PageSize, total);
+                ListCounterText = $"{start}-{end} / {total}";
+                HasPreviousRecord = CurrentPage > 1;
+                HasNextRecord = CurrentPage < maxPage;
+            }
+        }
     }
 
     [RelayCommand]
     public void PreviousRecord()
     {
-        if (SelectedPayment == null || FlatPayments.Count == 0) return;
-        int index = FlatPayments.IndexOf(SelectedPayment);
-        if (index > 0)
+        if (IsDetailViewVisible)
         {
-            SelectedPayment = FlatPayments[index - 1];
-            UpdatePager();
+            if (SelectedPayment == null || _matchingPayments.Count == 0) return;
+            int index = _matchingPayments.IndexOf(SelectedPayment);
+            if (index > 0)
+            {
+                SelectedPayment = _matchingPayments[index - 1];
+                UpdatePager();
+            }
+        }
+        else
+        {
+            if (CurrentPage > 1)
+            {
+                CurrentPage--;
+                ApplyPaging();
+            }
         }
     }
 
     [RelayCommand]
     public void NextRecord()
     {
-        if (SelectedPayment == null || FlatPayments.Count == 0) return;
-        int index = FlatPayments.IndexOf(SelectedPayment);
-        if (index >= 0 && index < FlatPayments.Count - 1)
+        if (IsDetailViewVisible)
         {
-            SelectedPayment = FlatPayments[index + 1];
-            UpdatePager();
+            if (SelectedPayment == null || _matchingPayments.Count == 0) return;
+            int index = _matchingPayments.IndexOf(SelectedPayment);
+            if (index >= 0 && index < _matchingPayments.Count - 1)
+            {
+                SelectedPayment = _matchingPayments[index + 1];
+                UpdatePager();
+            }
+        }
+        else
+        {
+            int maxPage = (int)Math.Ceiling((double)_matchingPayments.Count / PageSize);
+            if (CurrentPage < maxPage)
+            {
+                CurrentPage++;
+                ApplyPaging();
+            }
         }
     }
 

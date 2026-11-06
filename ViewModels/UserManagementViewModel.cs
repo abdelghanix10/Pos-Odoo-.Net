@@ -37,6 +37,13 @@ public partial class UserManagementViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isVisibleInPos = true;
 
+    public const int PageSize = 80;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    private readonly List<PosUserRecord> _matchingUsers = [];
+
     [ObservableProperty]
     private string _pagerText = "0 / 0";
 
@@ -127,22 +134,22 @@ public partial class UserManagementViewModel : ViewModelBase
                 u.Role.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
+        _matchingUsers.Clear();
         foreach (var u in source)
         {
-            FilteredUsers.Add(u);
+            _matchingUsers.Add(u);
         }
 
-        IsEmptyStateVisible = FilteredUsers.Count == 0;
-        ListCounterText = FilteredUsers.Count > 0
-            ? $"1-{FilteredUsers.Count} / {FilteredUsers.Count}"
-            : "0-0 / 0";
+        IsEmptyStateVisible = _matchingUsers.Count == 0;
+        CurrentPage = 1;
+        ApplyPaging();
 
         if (IsDetailViewVisible)
         {
             if (SelectedUser != null)
             {
-                var match = FilteredUsers.FirstOrDefault(u => u.Login == SelectedUser.Login);
-                SelectedUser = match ?? FilteredUsers.FirstOrDefault();
+                var match = _matchingUsers.FirstOrDefault(u => u.Login == SelectedUser.Login);
+                SelectedUser = match ?? _matchingUsers.FirstOrDefault();
                 if (SelectedUser == null)
                 {
                     IsDetailViewVisible = false;
@@ -153,26 +160,64 @@ public partial class UserManagementViewModel : ViewModelBase
         UpdatePager();
     }
 
+    private void ApplyPaging()
+    {
+        FilteredUsers.Clear();
+        var pageItems = _matchingUsers
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize);
+        foreach (var u in pageItems)
+        {
+            FilteredUsers.Add(u);
+        }
+        UpdatePager();
+    }
+
     private void UpdatePager()
     {
-        if (FilteredUsers.Count == 0 || SelectedUser == null)
+        if (IsDetailViewVisible)
         {
-            PagerText = "0 / 0";
-            HasPreviousRecord = false;
-            HasNextRecord = false;
-            return;
-        }
+            if (_matchingUsers.Count == 0 || SelectedUser == null)
+            {
+                PagerText = "0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+                return;
+            }
 
-        int index = FilteredUsers.IndexOf(SelectedUser);
-        if (index < 0)
+            int index = _matchingUsers.IndexOf(SelectedUser);
+            if (index < 0)
+            {
+                index = 0;
+                SelectedUser = _matchingUsers[0];
+            }
+
+            PagerText = $"{index + 1} / {_matchingUsers.Count}";
+            HasPreviousRecord = index > 0;
+            HasNextRecord = index < _matchingUsers.Count - 1;
+        }
+        else
         {
-            index = 0;
-            SelectedUser = FilteredUsers[0];
-        }
+            int total = _matchingUsers.Count;
+            int maxPage = total > 0 ? (int)Math.Ceiling((double)total / PageSize) : 1;
+            if (CurrentPage > maxPage) CurrentPage = maxPage;
+            if (CurrentPage < 1) CurrentPage = 1;
 
-        PagerText = $"{index + 1} / {FilteredUsers.Count}";
-        HasPreviousRecord = index > 0;
-        HasNextRecord = index < FilteredUsers.Count - 1;
+            if (total == 0)
+            {
+                ListCounterText = "0-0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+            }
+            else
+            {
+                int start = (CurrentPage - 1) * PageSize + 1;
+                int end = Math.Min(CurrentPage * PageSize, total);
+                ListCounterText = $"{start}-{end} / {total}";
+                HasPreviousRecord = CurrentPage > 1;
+                HasNextRecord = CurrentPage < maxPage;
+            }
+        }
     }
 
     [RelayCommand]
@@ -181,6 +226,7 @@ public partial class UserManagementViewModel : ViewModelBase
         IsKanbanView = true;
         IsListView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -189,6 +235,7 @@ public partial class UserManagementViewModel : ViewModelBase
         IsListView = true;
         IsKanbanView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -206,22 +253,45 @@ public partial class UserManagementViewModel : ViewModelBase
     [RelayCommand]
     private void PreviousRecord()
     {
-        if (SelectedUser == null || FilteredUsers.Count == 0) return;
-        int index = FilteredUsers.IndexOf(SelectedUser);
-        if (index > 0)
+        if (IsDetailViewVisible)
         {
-            SelectUser(FilteredUsers[index - 1]);
+            if (SelectedUser == null || _matchingUsers.Count == 0) return;
+            int index = _matchingUsers.IndexOf(SelectedUser);
+            if (index > 0)
+            {
+                SelectUser(_matchingUsers[index - 1]);
+            }
+        }
+        else
+        {
+            if (CurrentPage > 1)
+            {
+                CurrentPage--;
+                ApplyPaging();
+            }
         }
     }
 
     [RelayCommand]
     private void NextRecord()
     {
-        if (SelectedUser == null || FilteredUsers.Count == 0) return;
-        int index = FilteredUsers.IndexOf(SelectedUser);
-        if (index >= 0 && index < FilteredUsers.Count - 1)
+        if (IsDetailViewVisible)
         {
-            SelectUser(FilteredUsers[index + 1]);
+            if (SelectedUser == null || _matchingUsers.Count == 0) return;
+            int index = _matchingUsers.IndexOf(SelectedUser);
+            if (index >= 0 && index < _matchingUsers.Count - 1)
+            {
+                SelectUser(_matchingUsers[index + 1]);
+            }
+        }
+        else
+        {
+            int maxPage = (int)Math.Ceiling((double)_matchingUsers.Count / PageSize);
+            if (CurrentPage < maxPage)
+            {
+                CurrentPage++;
+                ApplyPaging();
+            }
         }
     }
 
@@ -231,6 +301,7 @@ public partial class UserManagementViewModel : ViewModelBase
         if (IsDetailViewVisible)
         {
             IsDetailViewVisible = false;
+            UpdatePager();
         }
         else
         {

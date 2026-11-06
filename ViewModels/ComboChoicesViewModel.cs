@@ -27,6 +27,13 @@ public partial class ComboChoicesViewModel : ViewModelBase
     [ObservableProperty]
     private ComboChoiceRecord? _selectedCombo;
 
+    public const int PageSize = 80;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    private readonly List<ComboChoiceRecord> _matchingCombos = [];
+
     [ObservableProperty]
     private string _pagerText = "0 / 0";
 
@@ -114,22 +121,22 @@ public partial class ComboChoicesViewModel : ViewModelBase
                 c.IncludedProductNames.Any(p => p.Contains(query, StringComparison.OrdinalIgnoreCase)));
         }
 
+        _matchingCombos.Clear();
         foreach (var c in source)
         {
-            FilteredCombos.Add(c);
+            _matchingCombos.Add(c);
         }
 
-        IsEmptyStateVisible = FilteredCombos.Count == 0;
-        ListCounterText = FilteredCombos.Count > 0
-            ? $"1-{FilteredCombos.Count} / {FilteredCombos.Count}"
-            : "0-0 / 0";
+        IsEmptyStateVisible = _matchingCombos.Count == 0;
+        CurrentPage = 1;
+        ApplyPaging();
 
         if (IsDetailViewVisible)
         {
             if (SelectedCombo != null)
             {
-                var match = FilteredCombos.FirstOrDefault(c => c.OdooId == SelectedCombo.OdooId && c.Name == SelectedCombo.Name);
-                SelectedCombo = match ?? FilteredCombos.FirstOrDefault();
+                var match = _matchingCombos.FirstOrDefault(c => c.OdooId == SelectedCombo.OdooId && c.Name == SelectedCombo.Name);
+                SelectedCombo = match ?? _matchingCombos.FirstOrDefault();
                 if (SelectedCombo == null)
                 {
                     IsDetailViewVisible = false;
@@ -140,26 +147,64 @@ public partial class ComboChoicesViewModel : ViewModelBase
         UpdatePager();
     }
 
+    private void ApplyPaging()
+    {
+        FilteredCombos.Clear();
+        var pageItems = _matchingCombos
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize);
+        foreach (var c in pageItems)
+        {
+            FilteredCombos.Add(c);
+        }
+        UpdatePager();
+    }
+
     private void UpdatePager()
     {
-        if (FilteredCombos.Count == 0 || SelectedCombo == null)
+        if (IsDetailViewVisible)
         {
-            PagerText = "0 / 0";
-            HasPreviousRecord = false;
-            HasNextRecord = false;
-            return;
-        }
+            if (_matchingCombos.Count == 0 || SelectedCombo == null)
+            {
+                PagerText = "0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+                return;
+            }
 
-        int index = FilteredCombos.IndexOf(SelectedCombo);
-        if (index < 0)
+            int index = _matchingCombos.IndexOf(SelectedCombo);
+            if (index < 0)
+            {
+                index = 0;
+                SelectedCombo = _matchingCombos[0];
+            }
+
+            PagerText = $"{index + 1} / {_matchingCombos.Count}";
+            HasPreviousRecord = index > 0;
+            HasNextRecord = index < _matchingCombos.Count - 1;
+        }
+        else
         {
-            index = 0;
-            SelectedCombo = FilteredCombos[0];
-        }
+            int total = _matchingCombos.Count;
+            int maxPage = total > 0 ? (int)Math.Ceiling((double)total / PageSize) : 1;
+            if (CurrentPage > maxPage) CurrentPage = maxPage;
+            if (CurrentPage < 1) CurrentPage = 1;
 
-        PagerText = $"{index + 1} / {FilteredCombos.Count}";
-        HasPreviousRecord = index > 0;
-        HasNextRecord = index < FilteredCombos.Count - 1;
+            if (total == 0)
+            {
+                ListCounterText = "0-0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+            }
+            else
+            {
+                int start = (CurrentPage - 1) * PageSize + 1;
+                int end = Math.Min(CurrentPage * PageSize, total);
+                ListCounterText = $"{start}-{end} / {total}";
+                HasPreviousRecord = CurrentPage > 1;
+                HasNextRecord = CurrentPage < maxPage;
+            }
+        }
     }
 
     [RelayCommand]
@@ -168,6 +213,7 @@ public partial class ComboChoicesViewModel : ViewModelBase
         IsListView = true;
         IsKanbanView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -176,6 +222,7 @@ public partial class ComboChoicesViewModel : ViewModelBase
         IsKanbanView = true;
         IsListView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -191,27 +238,51 @@ public partial class ComboChoicesViewModel : ViewModelBase
     private void BackToList()
     {
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
     private void PreviousRecord()
     {
-        if (SelectedCombo == null || FilteredCombos.Count == 0) return;
-        int index = FilteredCombos.IndexOf(SelectedCombo);
-        if (index > 0)
+        if (IsDetailViewVisible)
         {
-            SelectCombo(FilteredCombos[index - 1]);
+            if (SelectedCombo == null || _matchingCombos.Count == 0) return;
+            int index = _matchingCombos.IndexOf(SelectedCombo);
+            if (index > 0)
+            {
+                SelectCombo(_matchingCombos[index - 1]);
+            }
+        }
+        else
+        {
+            if (CurrentPage > 1)
+            {
+                CurrentPage--;
+                ApplyPaging();
+            }
         }
     }
 
     [RelayCommand]
     private void NextRecord()
     {
-        if (SelectedCombo == null || FilteredCombos.Count == 0) return;
-        int index = FilteredCombos.IndexOf(SelectedCombo);
-        if (index >= 0 && index < FilteredCombos.Count - 1)
+        if (IsDetailViewVisible)
         {
-            SelectCombo(FilteredCombos[index + 1]);
+            if (SelectedCombo == null || _matchingCombos.Count == 0) return;
+            int index = _matchingCombos.IndexOf(SelectedCombo);
+            if (index >= 0 && index < _matchingCombos.Count - 1)
+            {
+                SelectCombo(_matchingCombos[index + 1]);
+            }
+        }
+        else
+        {
+            int maxPage = (int)Math.Ceiling((double)_matchingCombos.Count / PageSize);
+            if (CurrentPage < maxPage)
+            {
+                CurrentPage++;
+                ApplyPaging();
+            }
         }
     }
 

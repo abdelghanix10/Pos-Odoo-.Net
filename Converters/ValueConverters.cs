@@ -98,8 +98,8 @@ namespace OdooPosLogin
     public class ActiveStageBackgroundConverter : IValueConverter
     {
         public static readonly ActiveStageBackgroundConverter Instance = new();
-        private static readonly SolidColorBrush ActiveBg = new((Color)ColorConverter.ConvertFromString("#F3ECF1"));
-        private static readonly SolidColorBrush InactiveBg = new((Color)ColorConverter.ConvertFromString("#F3F4F6"));
+        private static readonly SolidColorBrush ActiveBg = new((Color)ColorConverter.ConvertFromString("#E6E4F0"));
+        private static readonly SolidColorBrush InactiveBg = new((Color)ColorConverter.ConvertFromString("#FFFFFF"));
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
@@ -112,12 +112,24 @@ namespace OdooPosLogin
     public class ActiveStageForegroundConverter : IValueConverter
     {
         public static readonly ActiveStageForegroundConverter Instance = new();
-        private static readonly SolidColorBrush ActiveFg = new((Color)ColorConverter.ConvertFromString("#714B67"));
+        private static readonly SolidColorBrush ActiveFg = new((Color)ColorConverter.ConvertFromString("#111827"));
         private static readonly SolidColorBrush InactiveFg = new((Color)ColorConverter.ConvertFromString("#6B7280"));
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             return value is true ? ActiveFg : InactiveFg;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class ActiveStageFontWeightConverter : IValueConverter
+    {
+        public static readonly ActiveStageFontWeightConverter Instance = new();
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return value is true ? FontWeights.Bold : FontWeights.Medium;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotImplementedException();

@@ -110,8 +110,8 @@
             <Setter Property="Background" Value="#F3F4F6"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="Height" Value="32"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="28"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -128,7 +128,7 @@
                                 <Setter TargetName="ChevBorder" Property="Background" Value="#E5E7EB"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="ChevBorder" Property="Opacity" Value="0.45"/>
+                                <Setter TargetName="ChevBorder" Property="Opacity" Value="0.35"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -284,7 +284,14 @@
                             IsEnabled="{Binding HasPreviousRecord}"
                             Margin="0,0,2,0"
                             ToolTip="Previous Product">
-                        <Path Data="M 15,7 L 10,12 L 15,17" Stroke="{StaticResource SecondaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 7,1 L 1.5,6.5 L 7,12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"/>
+                        </Viewbox>
                     </Button>
 
                     <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
@@ -292,7 +299,14 @@
                             IsEnabled="{Binding HasNextRecord}"
                             Margin="0,0,10,0"
                             ToolTip="Next Product">
-                        <Path Data="M 10,7 L 15,12 L 10,17" Stroke="{StaticResource SecondaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 1.5,1 L 7,6.5 L 1.5,12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"/>
+                        </Viewbox>
                     </Button>
 
                     <StackPanel Orientation="Horizontal"

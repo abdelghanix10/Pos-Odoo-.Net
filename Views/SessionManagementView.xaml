@@ -101,8 +101,8 @@
         </Style>
 
         <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="Height" Value="32"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="28"/>
             <Setter Property="Background" Value="#F3F4F6"/>
             <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -122,7 +122,7 @@
                                 <Setter TargetName="Border" Property="Background" Value="#E5E7EB"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Border" Property="Opacity" Value="0.45"/>
+                                <Setter TargetName="Border" Property="Opacity" Value="0.35"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -296,7 +296,14 @@
                             IsEnabled="{Binding HasPreviousRecord}"
                             Margin="0,0,2,0"
                             ToolTip="Previous Session">
-                        <Path Data="M 15,7 L 10,12 L 15,17" Stroke="{StaticResource SecondaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 7,1 L 1.5,6.5 L 7,12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"/>
+                        </Viewbox>
                     </Button>
 
                     <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
@@ -304,7 +311,14 @@
                             IsEnabled="{Binding HasNextRecord}"
                             Margin="0,0,10,0"
                             ToolTip="Next Session">
-                        <Path Data="M 10,7 L 15,12 L 10,17" Stroke="{StaticResource SecondaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 1.5,1 L 7,6.5 L 1.5,12"
+                                  Stroke="{StaticResource PrimaryTextBrush}"
+                                  StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"/>
+                        </Viewbox>
                     </Button>
 
                     <StackPanel Orientation="Horizontal"
@@ -386,7 +400,7 @@
                         <Border Grid.Row="0" Background="#F9FAFB" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="32"/>
+                                    <ColumnDefinition Width="28"/>
                                     <ColumnDefinition Width="2.2*"/>
                                     <ColumnDefinition Width="1.8*"/>
                                     <ColumnDefinition Width="2*"/>
@@ -394,7 +408,6 @@
                                     <ColumnDefinition Width="1.8*"/>
                                     <ColumnDefinition Width="1.4*"/>
                                 </Grid.ColumnDefinitions>
-                                <CheckBox Grid.Column="0" IsEnabled="False" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1" Text="Session ID" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="Point of Sale" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="3" Text="Opened By" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
@@ -419,7 +432,7 @@
                                                     <Border x:Name="RowBdr" Background="#FFFFFF" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,8" MinHeight="42">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="32"/>
+                                                                <ColumnDefinition Width="28"/>
                                                                 <ColumnDefinition Width="2.2*"/>
                                                                 <ColumnDefinition Width="1.8*"/>
                                                                 <ColumnDefinition Width="2*"/>
@@ -428,7 +441,8 @@
                                                                 <ColumnDefinition Width="1.4*"/>
                                                             </Grid.ColumnDefinitions>
 
-                                                            <CheckBox Grid.Column="0" IsEnabled="False" VerticalAlignment="Center"/>
+                                                            <!-- Drag Handle ⋮⋮ -->
+                                                            <TextBlock Grid.Column="0" Text="⋮⋮" FontSize="13" Foreground="#9CA3AF" VerticalAlignment="Center"/>
                                                             <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                                             <TextBlock Grid.Column="2" Text="{Binding PosConfigName}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
 
@@ -597,53 +611,50 @@
                             Effect="{StaticResource SubtleCardShadow}">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <Button Grid.Column="0"
-                                    Style="{StaticResource OdooTealButtonStyle}"
-                                    Command="{Binding ContinueSellingCommand}"
-                                    Visibility="{Binding SelectedSession.CanContinueSelling, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Viewbox Width="15" Height="15" Margin="0,0,8,0">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="M 8,5 L 19,12 L 8,19 Z" Fill="#FFFFFF"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock Text="Continue Selling" VerticalAlignment="Center"/>
+                            <!-- SESSION STATUS PIPELINE -->
+                            <Border Grid.Column="1"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="2"
+                                    VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Background="{Binding SelectedSession.IsStageOpeningControl, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
+                                            Padding="14,5" CornerRadius="4">
+                                        <TextBlock Text="Opening Control" FontSize="13"
+                                                   FontWeight="{Binding SelectedSession.IsStageOpeningControl, Converter={x:Static local:ActiveStageFontWeightConverter.Instance}}"
+                                                   Foreground="{Binding SelectedSession.IsStageOpeningControl, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
+                                    </Border>
+                                    <TextBlock Text="›" FontSize="16" Foreground="#D1D5DB" VerticalAlignment="Center" Margin="2,-2,2,0"/>
+
+                                    <Border Background="{Binding SelectedSession.IsStageInProgress, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
+                                            Padding="14,5" CornerRadius="4">
+                                        <TextBlock Text="In Progress" FontSize="13"
+                                                   FontWeight="{Binding SelectedSession.IsStageInProgress, Converter={x:Static local:ActiveStageFontWeightConverter.Instance}}"
+                                                   Foreground="{Binding SelectedSession.IsStageInProgress, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
+                                    </Border>
+                                    <TextBlock Text="›" FontSize="16" Foreground="#D1D5DB" VerticalAlignment="Center" Margin="2,-2,2,0"/>
+
+                                    <Border Background="{Binding SelectedSession.IsStageClosingControl, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
+                                            Padding="14,5" CornerRadius="4">
+                                        <TextBlock Text="Closing Control" FontSize="13"
+                                                   FontWeight="{Binding SelectedSession.IsStageClosingControl, Converter={x:Static local:ActiveStageFontWeightConverter.Instance}}"
+                                                   Foreground="{Binding SelectedSession.IsStageClosingControl, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
+                                    </Border>
+                                    <TextBlock Text="›" FontSize="16" Foreground="#D1D5DB" VerticalAlignment="Center" Margin="2,-2,2,0"/>
+
+                                    <Border Background="{Binding SelectedSession.IsStageClosed, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
+                                            Padding="14,5" CornerRadius="4">
+                                        <TextBlock Text="Closed &amp; Posted" FontSize="13"
+                                                   FontWeight="{Binding SelectedSession.IsStageClosed, Converter={x:Static local:ActiveStageFontWeightConverter.Instance}}"
+                                                   Foreground="{Binding SelectedSession.IsStageClosed, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
+                                    </Border>
                                 </StackPanel>
-                            </Button>
-
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Border Background="{Binding SelectedSession.IsStageOpeningControl, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
-                                        Padding="10,4" CornerRadius="4,0,0,4">
-                                    <TextBlock Text="Opening Control" FontSize="12.5" FontWeight="SemiBold"
-                                               Foreground="{Binding SelectedSession.IsStageOpeningControl, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
-                                </Border>
-                                <TextBlock Text=" > " Foreground="{StaticResource PlaceholderTextBrush}" VerticalAlignment="Center" Margin="2,0"/>
-
-                                <Border Background="{Binding SelectedSession.IsStageInProgress, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
-                                        Padding="10,4">
-                                    <TextBlock Text="In Progress" FontSize="12.5" FontWeight="SemiBold"
-                                               Foreground="{Binding SelectedSession.IsStageInProgress, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
-                                </Border>
-                                <TextBlock Text=" > " Foreground="{StaticResource PlaceholderTextBrush}" VerticalAlignment="Center" Margin="2,0"/>
-
-                                <Border Background="{Binding SelectedSession.IsStageClosingControl, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
-                                        Padding="10,4">
-                                    <TextBlock Text="Closing Control" FontSize="12.5" FontWeight="SemiBold"
-                                               Foreground="{Binding SelectedSession.IsStageClosingControl, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
-                                </Border>
-                                <TextBlock Text=" > " Foreground="{StaticResource PlaceholderTextBrush}" VerticalAlignment="Center" Margin="2,0"/>
-
-                                <Border Background="{Binding SelectedSession.IsStageClosed, Converter={x:Static local:ActiveStageBackgroundConverter.Instance}}"
-                                        Padding="10,4" CornerRadius="0,4,4,0">
-                                    <TextBlock Text="Closed &amp; Posted" FontSize="12.5" FontWeight="SemiBold"
-                                               Foreground="{Binding SelectedSession.IsStageClosed, Converter={x:Static local:ActiveStageForegroundConverter.Instance}}"/>
-                                </Border>
-                            </StackPanel>
+                            </Border>
                         </Grid>
                     </Border>
 

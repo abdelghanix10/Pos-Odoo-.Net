@@ -31,6 +31,13 @@ public partial class ProductTagsViewModel : ViewModelBase
     [ObservableProperty]
     private ProductTagRecord? _selectedTag;
 
+    public const int PageSize = 80;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    private readonly List<ProductTagRecord> _matchingTags = [];
+
     [ObservableProperty]
     private string _pagerText = "0 / 0";
 
@@ -124,22 +131,22 @@ public partial class ProductTagsViewModel : ViewModelBase
                 t.ColorNameDisplay.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
+        _matchingTags.Clear();
         foreach (var t in source)
         {
-            FilteredTags.Add(t);
+            _matchingTags.Add(t);
         }
 
-        IsEmptyStateVisible = FilteredTags.Count == 0;
-        ListCounterText = FilteredTags.Count > 0
-            ? $"1-{FilteredTags.Count} / {FilteredTags.Count}"
-            : "0-0 / 0";
+        IsEmptyStateVisible = _matchingTags.Count == 0;
+        CurrentPage = 1;
+        ApplyPaging();
 
         if (IsDetailViewVisible)
         {
             if (SelectedTag != null)
             {
-                var match = FilteredTags.FirstOrDefault(t => t.OdooId == SelectedTag.OdooId);
-                SelectedTag = match ?? FilteredTags.FirstOrDefault();
+                var match = _matchingTags.FirstOrDefault(t => t.OdooId == SelectedTag.OdooId);
+                SelectedTag = match ?? _matchingTags.FirstOrDefault();
                 if (SelectedTag == null)
                 {
                     IsDetailViewVisible = false;
@@ -149,6 +156,19 @@ public partial class ProductTagsViewModel : ViewModelBase
 
         UpdatePager();
         UpdateAssociatedProducts();
+    }
+
+    private void ApplyPaging()
+    {
+        FilteredTags.Clear();
+        var pageItems = _matchingTags
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize);
+        foreach (var t in pageItems)
+        {
+            FilteredTags.Add(t);
+        }
+        UpdatePager();
     }
 
     private void UpdateAssociatedProducts()
@@ -182,24 +202,49 @@ public partial class ProductTagsViewModel : ViewModelBase
 
     private void UpdatePager()
     {
-        if (FilteredTags.Count == 0 || SelectedTag == null)
+        if (IsDetailViewVisible)
         {
-            PagerText = "0 / 0";
-            HasPreviousRecord = false;
-            HasNextRecord = false;
-            return;
-        }
+            if (_matchingTags.Count == 0 || SelectedTag == null)
+            {
+                PagerText = "0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+                return;
+            }
 
-        int index = FilteredTags.IndexOf(SelectedTag);
-        if (index < 0)
+            int index = _matchingTags.IndexOf(SelectedTag);
+            if (index < 0)
+            {
+                index = 0;
+                SelectedTag = _matchingTags[0];
+            }
+
+            PagerText = $"{index + 1} / {_matchingTags.Count}";
+            HasPreviousRecord = index > 0;
+            HasNextRecord = index < _matchingTags.Count - 1;
+        }
+        else
         {
-            index = 0;
-            SelectedTag = FilteredTags[0];
-        }
+            int total = _matchingTags.Count;
+            int maxPage = total > 0 ? (int)Math.Ceiling((double)total / PageSize) : 1;
+            if (CurrentPage > maxPage) CurrentPage = maxPage;
+            if (CurrentPage < 1) CurrentPage = 1;
 
-        PagerText = $"{index + 1} / {FilteredTags.Count}";
-        HasPreviousRecord = index > 0;
-        HasNextRecord = index < FilteredTags.Count - 1;
+            if (total == 0)
+            {
+                ListCounterText = "0-0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+            }
+            else
+            {
+                int start = (CurrentPage - 1) * PageSize + 1;
+                int end = Math.Min(CurrentPage * PageSize, total);
+                ListCounterText = $"{start}-{end} / {total}";
+                HasPreviousRecord = CurrentPage > 1;
+                HasNextRecord = CurrentPage < maxPage;
+            }
+        }
     }
 
     [RelayCommand]
@@ -224,31 +269,55 @@ public partial class ProductTagsViewModel : ViewModelBase
     private void BackToList()
     {
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
     private void PreviousRecord()
     {
-        if (SelectedTag == null || FilteredTags.Count == 0) return;
-        int index = FilteredTags.IndexOf(SelectedTag);
-        if (index > 0)
+        if (IsDetailViewVisible)
         {
-            SelectedTag = FilteredTags[index - 1];
-            UpdatePager();
-            UpdateAssociatedProducts();
+            if (SelectedTag == null || _matchingTags.Count == 0) return;
+            int index = _matchingTags.IndexOf(SelectedTag);
+            if (index > 0)
+            {
+                SelectedTag = _matchingTags[index - 1];
+                UpdatePager();
+                UpdateAssociatedProducts();
+            }
+        }
+        else
+        {
+            if (CurrentPage > 1)
+            {
+                CurrentPage--;
+                ApplyPaging();
+            }
         }
     }
 
     [RelayCommand]
     private void NextRecord()
     {
-        if (SelectedTag == null || FilteredTags.Count == 0) return;
-        int index = FilteredTags.IndexOf(SelectedTag);
-        if (index >= 0 && index < FilteredTags.Count - 1)
+        if (IsDetailViewVisible)
         {
-            SelectedTag = FilteredTags[index + 1];
-            UpdatePager();
-            UpdateAssociatedProducts();
+            if (SelectedTag == null || _matchingTags.Count == 0) return;
+            int index = _matchingTags.IndexOf(SelectedTag);
+            if (index >= 0 && index < _matchingTags.Count - 1)
+            {
+                SelectedTag = _matchingTags[index + 1];
+                UpdatePager();
+                UpdateAssociatedProducts();
+            }
+        }
+        else
+        {
+            int maxPage = (int)Math.Ceiling((double)_matchingTags.Count / PageSize);
+            if (CurrentPage < maxPage)
+            {
+                CurrentPage++;
+                ApplyPaging();
+            }
         }
     }
 

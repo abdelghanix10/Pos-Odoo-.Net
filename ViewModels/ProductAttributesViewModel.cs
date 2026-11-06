@@ -31,6 +31,13 @@ public partial class ProductAttributesViewModel : ViewModelBase
     [ObservableProperty]
     private ProductAttributeRecord? _selectedAttribute;
 
+    public const int PageSize = 80;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    private readonly List<ProductAttributeRecord> _matchingAttributes = [];
+
     [ObservableProperty]
     private string _pagerText = "0 / 0";
 
@@ -125,22 +132,22 @@ public partial class ProductAttributesViewModel : ViewModelBase
                 a.CreateVariantFormatted.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
+        _matchingAttributes.Clear();
         foreach (var a in source)
         {
-            FilteredAttributes.Add(a);
+            _matchingAttributes.Add(a);
         }
 
-        IsEmptyStateVisible = FilteredAttributes.Count == 0;
-        ListCounterText = FilteredAttributes.Count > 0
-            ? $"1-{FilteredAttributes.Count} / {FilteredAttributes.Count}"
-            : "0-0 / 0";
+        IsEmptyStateVisible = _matchingAttributes.Count == 0;
+        CurrentPage = 1;
+        ApplyPaging();
 
         if (IsDetailViewVisible)
         {
             if (SelectedAttribute != null)
             {
-                var match = FilteredAttributes.FirstOrDefault(a => a.OdooId == SelectedAttribute.OdooId);
-                SelectedAttribute = match ?? FilteredAttributes.FirstOrDefault();
+                var match = _matchingAttributes.FirstOrDefault(a => a.OdooId == SelectedAttribute.OdooId);
+                SelectedAttribute = match ?? _matchingAttributes.FirstOrDefault();
                 if (SelectedAttribute == null)
                 {
                     IsDetailViewVisible = false;
@@ -150,6 +157,19 @@ public partial class ProductAttributesViewModel : ViewModelBase
 
         UpdatePager();
         UpdateAssociatedProducts();
+    }
+
+    private void ApplyPaging()
+    {
+        FilteredAttributes.Clear();
+        var pageItems = _matchingAttributes
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize);
+        foreach (var a in pageItems)
+        {
+            FilteredAttributes.Add(a);
+        }
+        UpdatePager();
     }
 
     private void UpdateAssociatedProducts()
@@ -183,24 +203,49 @@ public partial class ProductAttributesViewModel : ViewModelBase
 
     private void UpdatePager()
     {
-        if (FilteredAttributes.Count == 0 || SelectedAttribute == null)
+        if (IsDetailViewVisible)
         {
-            PagerText = "0 / 0";
-            HasPreviousRecord = false;
-            HasNextRecord = false;
-            return;
-        }
+            if (_matchingAttributes.Count == 0 || SelectedAttribute == null)
+            {
+                PagerText = "0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+                return;
+            }
 
-        int index = FilteredAttributes.IndexOf(SelectedAttribute);
-        if (index < 0)
+            int index = _matchingAttributes.IndexOf(SelectedAttribute);
+            if (index < 0)
+            {
+                index = 0;
+                SelectedAttribute = _matchingAttributes[0];
+            }
+
+            PagerText = $"{index + 1} / {_matchingAttributes.Count}";
+            HasPreviousRecord = index > 0;
+            HasNextRecord = index < _matchingAttributes.Count - 1;
+        }
+        else
         {
-            index = 0;
-            SelectedAttribute = FilteredAttributes[0];
-        }
+            int total = _matchingAttributes.Count;
+            int maxPage = total > 0 ? (int)Math.Ceiling((double)total / PageSize) : 1;
+            if (CurrentPage > maxPage) CurrentPage = maxPage;
+            if (CurrentPage < 1) CurrentPage = 1;
 
-        PagerText = $"{index + 1} / {FilteredAttributes.Count}";
-        HasPreviousRecord = index > 0;
-        HasNextRecord = index < FilteredAttributes.Count - 1;
+            if (total == 0)
+            {
+                ListCounterText = "0-0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+            }
+            else
+            {
+                int start = (CurrentPage - 1) * PageSize + 1;
+                int end = Math.Min(CurrentPage * PageSize, total);
+                ListCounterText = $"{start}-{end} / {total}";
+                HasPreviousRecord = CurrentPage > 1;
+                HasNextRecord = CurrentPage < maxPage;
+            }
+        }
     }
 
     [RelayCommand]
@@ -225,31 +270,55 @@ public partial class ProductAttributesViewModel : ViewModelBase
     private void BackToList()
     {
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
     private void PreviousRecord()
     {
-        if (SelectedAttribute == null || FilteredAttributes.Count == 0) return;
-        int index = FilteredAttributes.IndexOf(SelectedAttribute);
-        if (index > 0)
+        if (IsDetailViewVisible)
         {
-            SelectedAttribute = FilteredAttributes[index - 1];
-            UpdatePager();
-            UpdateAssociatedProducts();
+            if (SelectedAttribute == null || _matchingAttributes.Count == 0) return;
+            int index = _matchingAttributes.IndexOf(SelectedAttribute);
+            if (index > 0)
+            {
+                SelectedAttribute = _matchingAttributes[index - 1];
+                UpdatePager();
+                UpdateAssociatedProducts();
+            }
+        }
+        else
+        {
+            if (CurrentPage > 1)
+            {
+                CurrentPage--;
+                ApplyPaging();
+            }
         }
     }
 
     [RelayCommand]
     private void NextRecord()
     {
-        if (SelectedAttribute == null || FilteredAttributes.Count == 0) return;
-        int index = FilteredAttributes.IndexOf(SelectedAttribute);
-        if (index >= 0 && index < FilteredAttributes.Count - 1)
+        if (IsDetailViewVisible)
         {
-            SelectedAttribute = FilteredAttributes[index + 1];
-            UpdatePager();
-            UpdateAssociatedProducts();
+            if (SelectedAttribute == null || _matchingAttributes.Count == 0) return;
+            int index = _matchingAttributes.IndexOf(SelectedAttribute);
+            if (index >= 0 && index < _matchingAttributes.Count - 1)
+            {
+                SelectedAttribute = _matchingAttributes[index + 1];
+                UpdatePager();
+                UpdateAssociatedProducts();
+            }
+        }
+        else
+        {
+            int maxPage = (int)Math.Ceiling((double)_matchingAttributes.Count / PageSize);
+            if (CurrentPage < maxPage)
+            {
+                CurrentPage++;
+                ApplyPaging();
+            }
         }
     }
 

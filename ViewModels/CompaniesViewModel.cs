@@ -30,6 +30,13 @@ public partial class CompaniesViewModel : ViewModelBase
     [ObservableProperty]
     private int _activeTabIndex = 1; // 1: General Information, 2: Branches
 
+    public const int PageSize = 80;
+
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    private readonly List<CompanyRecord> _matchingCompanies = [];
+
     [ObservableProperty]
     private string _pagerText = "0 / 0";
 
@@ -122,21 +129,21 @@ public partial class CompaniesViewModel : ViewModelBase
                 c.Ice.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
+        _matchingCompanies.Clear();
         foreach (var c in source)
         {
-            FilteredCompanies.Add(c);
+            _matchingCompanies.Add(c);
         }
 
-        IsEmptyStateVisible = FilteredCompanies.Count == 0;
-        ListCounterText = FilteredCompanies.Count > 0
-            ? $"1-{FilteredCompanies.Count} / {FilteredCompanies.Count}"
-            : "0-0 / 0";
+        IsEmptyStateVisible = _matchingCompanies.Count == 0;
+        CurrentPage = 1;
+        ApplyPaging();
 
         if (IsDetailViewVisible)
         {
-            if (SelectedCompany != null && !FilteredCompanies.Contains(SelectedCompany))
+            if (SelectedCompany != null && !_matchingCompanies.Contains(SelectedCompany))
             {
-                SelectedCompany = FilteredCompanies.FirstOrDefault();
+                SelectedCompany = _matchingCompanies.FirstOrDefault();
                 if (SelectedCompany == null)
                 {
                     IsDetailViewVisible = false;
@@ -147,26 +154,64 @@ public partial class CompaniesViewModel : ViewModelBase
         UpdatePager();
     }
 
+    private void ApplyPaging()
+    {
+        FilteredCompanies.Clear();
+        var pageItems = _matchingCompanies
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize);
+        foreach (var c in pageItems)
+        {
+            FilteredCompanies.Add(c);
+        }
+        UpdatePager();
+    }
+
     private void UpdatePager()
     {
-        if (FilteredCompanies.Count == 0 || SelectedCompany == null)
+        if (IsDetailViewVisible)
         {
-            PagerText = "0 / 0";
-            HasPreviousRecord = false;
-            HasNextRecord = false;
-            return;
-        }
+            if (_matchingCompanies.Count == 0 || SelectedCompany == null)
+            {
+                PagerText = "0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+                return;
+            }
 
-        int index = FilteredCompanies.IndexOf(SelectedCompany);
-        if (index < 0)
+            int index = _matchingCompanies.IndexOf(SelectedCompany);
+            if (index < 0)
+            {
+                index = 0;
+                SelectedCompany = _matchingCompanies[0];
+            }
+
+            PagerText = $"{index + 1} / {_matchingCompanies.Count}";
+            HasPreviousRecord = index > 0;
+            HasNextRecord = index < _matchingCompanies.Count - 1;
+        }
+        else
         {
-            index = 0;
-            SelectedCompany = FilteredCompanies[0];
-        }
+            int total = _matchingCompanies.Count;
+            int maxPage = total > 0 ? (int)Math.Ceiling((double)total / PageSize) : 1;
+            if (CurrentPage > maxPage) CurrentPage = maxPage;
+            if (CurrentPage < 1) CurrentPage = 1;
 
-        PagerText = $"{index + 1} / {FilteredCompanies.Count}";
-        HasPreviousRecord = index > 0;
-        HasNextRecord = index < FilteredCompanies.Count - 1;
+            if (total == 0)
+            {
+                ListCounterText = "0-0 / 0";
+                HasPreviousRecord = false;
+                HasNextRecord = false;
+            }
+            else
+            {
+                int start = (CurrentPage - 1) * PageSize + 1;
+                int end = Math.Min(CurrentPage * PageSize, total);
+                ListCounterText = $"{start}-{end} / {total}";
+                HasPreviousRecord = CurrentPage > 1;
+                HasNextRecord = CurrentPage < maxPage;
+            }
+        }
     }
 
     [RelayCommand]
@@ -175,6 +220,7 @@ public partial class CompaniesViewModel : ViewModelBase
         IsKanbanView = true;
         IsListView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -183,6 +229,7 @@ public partial class CompaniesViewModel : ViewModelBase
         IsListView = true;
         IsKanbanView = false;
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
@@ -199,29 +246,53 @@ public partial class CompaniesViewModel : ViewModelBase
     private void BackToList()
     {
         IsDetailViewVisible = false;
+        UpdatePager();
     }
 
     [RelayCommand]
     private void PreviousRecord()
     {
-        if (SelectedCompany == null || FilteredCompanies.Count == 0) return;
-        int index = FilteredCompanies.IndexOf(SelectedCompany);
-        if (index > 0)
+        if (IsDetailViewVisible)
         {
-            SelectedCompany = FilteredCompanies[index - 1];
-            UpdatePager();
+            if (SelectedCompany == null || _matchingCompanies.Count == 0) return;
+            int index = _matchingCompanies.IndexOf(SelectedCompany);
+            if (index > 0)
+            {
+                SelectedCompany = _matchingCompanies[index - 1];
+                UpdatePager();
+            }
+        }
+        else
+        {
+            if (CurrentPage > 1)
+            {
+                CurrentPage--;
+                ApplyPaging();
+            }
         }
     }
 
     [RelayCommand]
     private void NextRecord()
     {
-        if (SelectedCompany == null || FilteredCompanies.Count == 0) return;
-        int index = FilteredCompanies.IndexOf(SelectedCompany);
-        if (index >= 0 && index < FilteredCompanies.Count - 1)
+        if (IsDetailViewVisible)
         {
-            SelectedCompany = FilteredCompanies[index + 1];
-            UpdatePager();
+            if (SelectedCompany == null || _matchingCompanies.Count == 0) return;
+            int index = _matchingCompanies.IndexOf(SelectedCompany);
+            if (index >= 0 && index < _matchingCompanies.Count - 1)
+            {
+                SelectedCompany = _matchingCompanies[index + 1];
+                UpdatePager();
+            }
+        }
+        else
+        {
+            int maxPage = (int)Math.Ceiling((double)_matchingCompanies.Count / PageSize);
+            if (CurrentPage < maxPage)
+            {
+                CurrentPage++;
+                ApplyPaging();
+            }
         }
     }
 

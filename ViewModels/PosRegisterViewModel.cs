@@ -1023,6 +1023,11 @@ public partial class PosRegisterViewModel : ViewModelBase
         else
             SelectedCategory = category;
 
+        foreach (var c in Categories)
+        {
+            c.IsSelected = (c == SelectedCategory);
+        }
+
         FilterProducts();
     }
 

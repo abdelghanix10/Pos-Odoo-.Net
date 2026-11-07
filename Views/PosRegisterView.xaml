@@ -18,28 +18,28 @@
     </UserControl.DataContext>
 
     <UserControl.Resources>
-        <SolidColorBrush x:Key="AppBgBrush" Color="#EFF1F5"/>
+        <SolidColorBrush x:Key="AppBgBrush" Color="#F4F4F4"/>
         <SolidColorBrush x:Key="SurfaceWhiteBrush" Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="BorderLightBrush" Color="#E5E7EB"/>
-        <SolidColorBrush x:Key="BorderMidBrush" Color="#D1D5DB"/>
+        <SolidColorBrush x:Key="BorderLightBrush" Color="#DEE2E6"/>
+        <SolidColorBrush x:Key="BorderMidBrush" Color="#CCCCCC"/>
 
-        <SolidColorBrush x:Key="OdooPurpleBrush" Color="#68598A"/>
-        <SolidColorBrush x:Key="OdooPurpleHoverBrush" Color="#584878"/>
-        <SolidColorBrush x:Key="OdooPurpleSoftBrush" Color="#CFCBE2"/>
-        <SolidColorBrush x:Key="OdooPurpleRowBrush" Color="#DCD9E8"/>
+        <SolidColorBrush x:Key="OdooPurpleBrush" Color="#71639E"/>
+        <SolidColorBrush x:Key="OdooPurpleHoverBrush" Color="#5F5288"/>
+        <SolidColorBrush x:Key="OdooPurpleSoftBrush" Color="#DDDBE8"/>
+        <SolidColorBrush x:Key="OdooPurpleRowBrush" Color="#DDDBE8"/>
 
         <SolidColorBrush x:Key="OdooTealBrush" Color="#2A9D8F"/>
         <SolidColorBrush x:Key="ActiveGreenBrush" Color="#37A447"/>
         <SolidColorBrush x:Key="DangerRedBrush" Color="#D62849"/>
 
-        <SolidColorBrush x:Key="KeyAmberBrush" Color="#F3DC8B"/>
-        <SolidColorBrush x:Key="KeyPeachBrush" Color="#F4D3C4"/>
-        <SolidColorBrush x:Key="KeyCoralBrush" Color="#F29C9C"/>
+        <SolidColorBrush x:Key="KeyAmberBrush" Color="#F7E08E"/>
+        <SolidColorBrush x:Key="KeyPeachBrush" Color="#F5D7CB"/>
+        <SolidColorBrush x:Key="KeyCoralBrush" Color="#FAA0A0"/>
         <SolidColorBrush x:Key="KeyGreenBrush" Color="#BEE8C8"/>
 
-        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#111827"/>
-        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#6B7280"/>
-        <SolidColorBrush x:Key="TextPlaceholderBrush" Color="#9CA3AF"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#212529"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#6C757D"/>
+        <SolidColorBrush x:Key="TextPlaceholderBrush" Color="#6C757D"/>
 
         <DropShadowEffect x:Key="ModalShadow"
                           BlurRadius="24"
@@ -50,11 +50,11 @@
 
         <!-- Numpad Key Style -->
         <Style x:Key="NumpadButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#F9FAFB"/>
-            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+            <Setter Property="Background" Value="#F4F4F4"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderMidBrush}"/>
             <Setter Property="BorderThickness" Value="0.5"/>
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="18.2"/>
+            <Setter Property="FontWeight" Value="Medium"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -68,10 +68,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Opacity" Value="0.92"/>
+                                <Setter TargetName="Border" Property="Opacity" Value="0.90"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Border" Property="Opacity" Value="0.80"/>
+                                <Setter TargetName="Border" Property="Opacity" Value="0.75"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -83,9 +83,9 @@
         <Style x:Key="PosPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontSize" Value="16"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Height" Value="40"/>
+            <Setter Property="Height" Value="44"/>
             <Setter Property="Padding" Value="18,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -113,13 +113,13 @@
 
         <!-- Secondary Outlined Button -->
         <Style x:Key="PosSecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#F3F4F6"/>
+            <Setter Property="Background" Value="#F4F4F4"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderMidBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Height" Value="44"/>
             <Setter Property="Padding" Value="16,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -145,13 +145,13 @@
 
         <!-- Cart Action Strip Button ([Customer], [Note], [↑], [⋮]) -->
         <Style x:Key="CartActionButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#F3F4F6"/>
-            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="Background" Value="#F4F4F4"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderMidBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="FontSize" Value="13.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Height" Value="38"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Height" Value="49"/>
             <Setter Property="Padding" Value="14,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -182,7 +182,7 @@
         <!-- ======================================================================= -->
         <Grid Visibility="{Binding IsPaymentConfirmationOpen, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="54"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
@@ -190,10 +190,11 @@
             <!-- 1. TOP POS HEADER BAR (Screenshots 1, 2, 3, 4, 5, 7, 9)             -->
             <!-- =================================================================== -->
             <Border Grid.Row="0"
+                    Height="66"
                     Background="{StaticResource SurfaceWhiteBrush}"
                     BorderBrush="{StaticResource BorderLightBrush}"
                     BorderThickness="0,0,0,1"
-                    Padding="8,0">
+                    Padding="8">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -201,34 +202,35 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- LEFT: [Register | Orders] + [⊕] + | + [2001] [2002] -->
+                    <!-- LEFT: [Register | Orders] + [+] + | + [2001] [2002] -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- Register Button -->
                         <Button Content="Register"
                                 Command="{Binding SwitchToRegisterViewCommand}"
-                                Height="36"
+                                Height="48"
                                 Padding="14,0"
-                                FontSize="13.5"
+                                FontSize="16"
                                 Cursor="Hand">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Bdr"
-                                            Background="#FFFFFF"
-                                            BorderBrush="{StaticResource BorderMidBrush}"
+                                            Background="Transparent"
+                                            BorderBrush="{StaticResource BorderLightBrush}"
                                             BorderThickness="1"
                                             CornerRadius="4,0,0,4"
                                             Padding="{TemplateBinding Padding}">
                                         <TextBlock x:Name="Txt"
                                                    Text="{TemplateBinding Content}"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontWeight="SemiBold"
+                                                   FontWeight="Medium"
                                                    VerticalAlignment="Center"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <DataTrigger Binding="{Binding ActivePosView}" Value="Register">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#EBE4EC"/>
-                                            <Setter TargetName="Bdr" Property="BorderBrush" Value="{StaticResource BorderMidBrush}"/>
-                                            <Setter TargetName="Txt" Property="Foreground" Value="{StaticResource OdooPurpleBrush}"/>
+                                            <Setter TargetName="Bdr" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                                            <Setter TargetName="Bdr" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                                            <Setter TargetName="Txt" Property="Foreground" Value="#000000"/>
+                                            <Setter TargetName="Txt" Property="FontWeight" Value="SemiBold"/>
                                         </DataTrigger>
                                         <Trigger Property="IsMouseOver" Value="True">
                                             <Setter TargetName="Bdr" Property="Opacity" Value="0.9"/>
@@ -241,29 +243,31 @@
                         <!-- Orders Button -->
                         <Button Content="Orders"
                                 Command="{Binding SwitchToOrdersViewCommand}"
-                                Height="36"
+                                Height="48"
                                 Padding="14,0"
-                                FontSize="13.5"
+                                FontSize="16"
+                                Margin="-1,0,0,0"
                                 Cursor="Hand">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Bdr"
-                                            Background="#FFFFFF"
-                                            BorderBrush="{StaticResource BorderMidBrush}"
-                                            BorderThickness="0,1,1,1"
+                                            Background="Transparent"
+                                            BorderBrush="{StaticResource BorderLightBrush}"
+                                            BorderThickness="1"
                                             CornerRadius="0,4,4,0"
                                             Padding="{TemplateBinding Padding}">
                                         <TextBlock x:Name="Txt"
                                                    Text="{TemplateBinding Content}"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontWeight="SemiBold"
+                                                   FontWeight="Medium"
                                                    VerticalAlignment="Center"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <DataTrigger Binding="{Binding ActivePosView}" Value="Orders">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#EBE4EC"/>
-                                            <Setter TargetName="Bdr" Property="BorderBrush" Value="{StaticResource BorderMidBrush}"/>
-                                            <Setter TargetName="Txt" Property="Foreground" Value="{StaticResource OdooPurpleBrush}"/>
+                                            <Setter TargetName="Bdr" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                                            <Setter TargetName="Bdr" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                                            <Setter TargetName="Txt" Property="Foreground" Value="#000000"/>
+                                            <Setter TargetName="Txt" Property="FontWeight" Value="SemiBold"/>
                                         </DataTrigger>
                                         <Trigger Property="IsMouseOver" Value="True">
                                             <Setter TargetName="Bdr" Property="Opacity" Value="0.9"/>
@@ -273,27 +277,30 @@
                             </Button.Template>
                         </Button>
 
-                        <!-- [+] New Parallel Order Button Matching Image 4 -->
+                        <!-- [+] New Order Button (list-plus-btn: 48.5x49 bg #F4F4F4 border #CCCCCC) -->
                         <Button Command="{Binding CreateNewDraftOrderCommand}"
-                                Width="36" Height="36"
-                                Margin="8,0,8,0"
+                                Width="48" Height="48"
+                                Margin="8,0,4,0"
                                 Cursor="Hand"
                                 ToolTip="New Order">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr" Background="#FFFFFF" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1" CornerRadius="4">
-                                        <TextBlock Text="+" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                    <Border x:Name="Bdr" Background="#F4F4F4" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1" CornerRadius="4">
+                                        <TextBlock Text="+" FontSize="22" FontWeight="Normal" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-3,0,0"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#F3F4F6"/>
+                                            <Setter TargetName="Bdr" Property="Background" Value="#E9ECEF"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
 
-                        <!-- Draft Order Tabs Matching Image 4 (e.g. 1006 / 2004) -->
+                        <!-- Navbar Separator -->
+                        <Border Width="1" Height="48" Background="{StaticResource BorderLightBrush}" Margin="4,0,8,0"/>
+
+                        <!-- Draft Order Tabs (floating-order: height 49, min-width 64, active #DDDBE8) -->
                         <ItemsControl ItemsSource="{Binding DraftOrders}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -304,33 +311,33 @@
                                 <DataTemplate DataType="{x:Type local:PosDraftOrder}">
                                     <Button Command="{Binding DataContext.SelectDraftOrderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
-                                            Height="36"
-                                            MinWidth="52"
-                                            Padding="12,0"
+                                            Height="48"
+                                            MinWidth="64"
+                                            Padding="16,0"
                                             Margin="0,0,6,0"
                                             Cursor="Hand">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border x:Name="TabBdr"
-                                                        Background="#FFFFFF"
+                                                        Background="#F4F4F4"
                                                         BorderBrush="{StaticResource BorderMidBrush}"
                                                         BorderThickness="1"
                                                         CornerRadius="4"
                                                         Padding="{TemplateBinding Padding}">
                                                     <TextBlock x:Name="TabTxt"
                                                                Text="{Binding OrderNumber}"
-                                                               FontSize="13"
-                                                               FontWeight="SemiBold"
+                                                               FontSize="15.5"
+                                                               FontWeight="Medium"
                                                                Foreground="{StaticResource TextPrimaryBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"/>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                        <Setter TargetName="TabBdr" Property="Background" Value="#EBE4EC"/>
-                                                        <Setter TargetName="TabBdr" Property="BorderBrush" Value="{StaticResource BorderMidBrush}"/>
-                                                        <Setter TargetName="TabTxt" Property="Foreground" Value="{StaticResource OdooPurpleBrush}"/>
-                                                        <Setter TargetName="TabTxt" Property="FontWeight" Value="Bold"/>
+                                                        <Setter TargetName="TabBdr" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                                                        <Setter TargetName="TabBdr" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                                                        <Setter TargetName="TabTxt" Property="Foreground" Value="#000000"/>
+                                                        <Setter TargetName="TabTxt" Property="FontWeight" Value="SemiBold"/>
                                                     </DataTrigger>
                                                     <Trigger Property="IsMouseOver" Value="True">
                                                         <Setter TargetName="TabBdr" Property="Opacity" Value="0.9"/>
@@ -377,37 +384,37 @@
                             </Button.Template>
                         </Button>
 
-                        <!-- Search products... Matching Image 4 -->
-                        <Border Width="240"
-                                Height="36"
+                        <!-- Search products... (form-control form-control-lg input-container: height 44, rounded 6) -->
+                        <Border Width="260"
+                                Height="44"
                                 Background="#FFFFFF"
-                                BorderBrush="{StaticResource BorderMidBrush}"
+                                BorderBrush="{StaticResource BorderLightBrush}"
                                 BorderThickness="1"
-                                CornerRadius="4"
-                                Padding="10,0"
-                                Margin="0,0,14,0"
+                                CornerRadius="6"
+                                Padding="12,0"
+                                Margin="0,0,12,0"
                                 Visibility="{Binding IsProductSearchVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Viewbox Grid.Column="0" Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <Viewbox Grid.Column="0" Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center">
                                     <Canvas Width="24" Height="24">
-                                        <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="#6B7280" StrokeThickness="2"/>
-                                        <Path Data="M 14,14 L 20,20" Stroke="#6B7280" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                                        <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="#6C757D" StrokeThickness="2"/>
+                                        <Path Data="M 14,14 L 20,20" Stroke="#6C757D" StrokeThickness="2" StrokeStartLineCap="Round"/>
                                     </Canvas>
                                 </Viewbox>
                                 <TextBox Grid.Column="1"
                                          Text="{Binding ProductSearchText, UpdateSourceTrigger=PropertyChanged}"
                                          Background="Transparent"
                                          BorderThickness="0"
-                                         FontSize="13"
+                                         FontSize="14.5"
                                          Foreground="{StaticResource TextPrimaryBrush}"
                                          VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1"
                                            Text="Search products..."
-                                           FontSize="13"
+                                           FontSize="14.5"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            VerticalAlignment="Center"
                                            IsHitTestVisible="False"
@@ -415,24 +422,37 @@
                             </Grid>
                         </Border>
 
-                        <!-- Barcode Icon -->
-                        <Viewbox Width="20" Height="18" Margin="0,0,16,0" VerticalAlignment="Center"
-                                 Visibility="{Binding IsTopBarcodeVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                            <Canvas Width="24" Height="20">
-                                <Rectangle Canvas.Left="1" Canvas.Top="2" Width="2" Height="16" Fill="#111827"/>
-                                <Rectangle Canvas.Left="5" Canvas.Top="2" Width="1.5" Height="16" Fill="#111827"/>
-                                <Rectangle Canvas.Left="8" Canvas.Top="2" Width="3" Height="16" Fill="#111827"/>
-                                <Rectangle Canvas.Left="13" Canvas.Top="2" Width="1.5" Height="16" Fill="#111827"/>
-                                <Rectangle Canvas.Left="16" Canvas.Top="2" Width="2" Height="16" Fill="#111827"/>
-                                <Rectangle Canvas.Left="20" Canvas.Top="2" Width="3" Height="16" Fill="#111827"/>
-                            </Canvas>
-                        </Viewbox>
+                        <!-- Barcode Icon Button (height 44, width 44) -->
+                        <Button Width="44" Height="44"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Margin="0,0,10,0"
+                                Cursor="Hand"
+                                ToolTip="Barcode Scanner"
+                                Visibility="{Binding IsTopBarcodeVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="Transparent" CornerRadius="4">
+                                        <Viewbox Width="22" Height="18" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <Canvas Width="24" Height="20">
+                                                <Rectangle Canvas.Left="1" Canvas.Top="2" Width="2" Height="16" Fill="#212529"/>
+                                                <Rectangle Canvas.Left="5" Canvas.Top="2" Width="1.5" Height="16" Fill="#212529"/>
+                                                <Rectangle Canvas.Left="8" Canvas.Top="2" Width="3" Height="16" Fill="#212529"/>
+                                                <Rectangle Canvas.Left="13" Canvas.Top="2" Width="1.5" Height="16" Fill="#212529"/>
+                                                <Rectangle Canvas.Left="16" Canvas.Top="2" Width="2" Height="16" Fill="#212529"/>
+                                                <Rectangle Canvas.Left="20" Canvas.Top="2" Width="3" Height="16" Fill="#212529"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
 
-                        <!-- Cashier Avatar Square -->
-                        <Border Width="32" Height="32"
-                                CornerRadius="4"
+                        <!-- Cashier Avatar (34x34 rounded 6) -->
+                        <Border Width="34" Height="34"
+                                CornerRadius="6"
                                 Background="{StaticResource OdooPurpleSoftBrush}"
-                                Margin="0,0,12,0"
+                                Margin="0,0,10,0"
                                 ClipToBounds="True"
                                 ToolTip="{Binding CashierName}">
                             <Grid>
@@ -440,7 +460,7 @@
                                        Stretch="UniformToFill"
                                        Visibility="{Binding HasCashierAvatar, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
                                 <TextBlock Text="{Binding CashierInitials}"
-                                           FontSize="12"
+                                           FontSize="13"
                                            FontWeight="Bold"
                                            Foreground="{StaticResource OdooPurpleBrush}"
                                            HorizontalAlignment="Center"
@@ -449,9 +469,9 @@
                             </Grid>
                         </Border>
 
-                        <!-- Hamburger Menu Button (☰) Matching Image 4 -->
+                        <!-- Hamburger Menu Button (☰) (height 44, width 44) -->
                         <Button Command="{Binding OpenHamburgerMenuCommand}"
-                                Width="36" Height="36"
+                                Width="44" Height="44"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Cursor="Hand"
@@ -459,7 +479,7 @@
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Bdr" Background="Transparent" CornerRadius="4">
-                                        <Viewbox Width="18" Height="18">
+                                        <Viewbox Width="20" Height="20">
                                             <Canvas Width="24" Height="24">
                                                 <Path Data="M 4,6 H 20 M 4,12 H 20 M 4,18 H 20" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
                                             </Canvas>
@@ -483,13 +503,13 @@
             <Grid Grid.Row="1"
                   Visibility="{Binding IsRegisterViewActive, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="396"/>
+                    <ColumnDefinition Width="450" MaxWidth="450"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT CART & NUMPAD PANEL -->
+                <!-- LEFT CART & NUMPAD PANEL (.leftpane max-width: 450px, border-end #DEE2E6, bg #FFFFFF) -->
                 <Border Grid.Column="0"
-                        Background="#F8F9FA"
+                        Background="#FFFFFF"
                         BorderBrush="{StaticResource BorderLightBrush}"
                         BorderThickness="0,0,1,0">
                     <Grid>
@@ -501,7 +521,7 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <!-- ROW 0: CART ITEMS LIST (Button-based for instant click handling) -->
+                        <!-- ROW 0: CART ITEMS LIST (.orderlines .orderline) -->
                         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding CurrentOrder.CartItems}">
                                 <ItemsControl.ItemTemplate>
@@ -514,29 +534,29 @@
                                                 HorizontalContentAlignment="Stretch">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="LineBdr" Padding="10,7" Background="Transparent">
+                                                    <Border x:Name="LineBdr" Padding="12,8" Background="Transparent">
                                                         <StackPanel>
                                                             <Grid>
                                                                 <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="22"/>
+                                                                    <ColumnDefinition Width="26"/>
                                                                     <ColumnDefinition Width="*"/>
                                                                     <ColumnDefinition Width="Auto"/>
                                                                 </Grid.ColumnDefinitions>
-                                                                <TextBlock Grid.Column="0" Text="{Binding QuantityDisplay}" FontWeight="Bold" FontSize="13.5" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                                <TextBlock Grid.Column="1" Text="{Binding ProductName}" FontSize="13.5" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
-                                                                <TextBlock Grid.Column="2" Text="{Binding LineTotalDisplay}" FontWeight="Bold" FontSize="13.5" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                <TextBlock Grid.Column="0" Text="{Binding QuantityDisplay}" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                <TextBlock Grid.Column="1" Text="{Binding ProductName}" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Grid.Column="2" Text="{Binding LineTotalDisplay}" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
                                                             </Grid>
                                                             <TextBlock Text="{Binding CustomerNote}"
-                                                                       FontSize="11.5"
+                                                                       FontSize="12"
                                                                        FontStyle="Italic"
                                                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                                                       Margin="22,2,0,0"
+                                                                       Margin="26,2,0,0"
                                                                        Visibility="{Binding HasCustomerNote, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
                                                         </StackPanel>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                            <Setter TargetName="LineBdr" Property="Background" Value="{StaticResource OdooPurpleRowBrush}"/>
+                                                            <Setter TargetName="LineBdr" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
                                                         </DataTrigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
@@ -547,44 +567,46 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <!-- ROW 1: TAXES & TOTAL -->
+                        <!-- ROW 1: TAXES & TOTAL (.order-summary p-2 border-bottom) -->
                         <Border Grid.Row="1"
                                 BorderBrush="{StaticResource BorderLightBrush}"
-                                BorderThickness="0,1,0,0"
-                                Padding="8,8,8,6"
+                                BorderThickness="0,1,0,1"
+                                Padding="12,8"
                                 Visibility="{Binding HasCurrentOrderItems, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                             <StackPanel>
-                                <Grid Margin="0,0,0,2">
-                                    <TextBlock Text="Taxes" FontSize="12.5" Foreground="#4B5563"/>
-                                    <TextBlock Text="{Binding CurrentOrder.TaxesDisplay}" FontSize="12.5" Foreground="#4B5563" HorizontalAlignment="Right"/>
+                                <Grid Margin="0,0,0,4">
+                                    <TextBlock Text="Taxes" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    <TextBlock Text="{Binding CurrentOrder.TaxesDisplay}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                 </Grid>
                                 <Grid>
-                                    <TextBlock Text="Total" FontSize="16.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="{Binding CurrentOrder.TotalDisplay}" FontSize="16.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
+                                    <TextBlock Text="Total" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="{Binding CurrentOrder.TotalDisplay}" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
 
-                        <!-- ROW 2: ACTION BAR ([Customer] [Note] ... [↑] [⋮]) -->
-                        <Border Grid.Row="2" Padding="6,6">
+                        <!-- ROW 2: ACTION BAR (.control-buttons: Customer, Note, Park, More) -->
+                        <Border Grid.Row="2" Padding="8,8,8,6">
                             <Grid>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                                     <Button Style="{StaticResource CartActionButtonStyle}"
                                             Content="{Binding CurrentOrder.CustomerButtonDisplay, FallbackValue=Customer}"
                                             Command="{Binding OpenCustomerPromptCommand}"
-                                            Margin="0,0,5,0"/>
+                                            MinWidth="110"
+                                            Margin="0,0,8,0"/>
                                     <Button Style="{StaticResource CartActionButtonStyle}"
                                             Content="Note"
-                                            Command="{Binding OpenNotePromptCommand}"/>
+                                            Command="{Binding OpenNotePromptCommand}"
+                                            MinWidth="68"/>
                                 </StackPanel>
 
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <Button Style="{StaticResource CartActionButtonStyle}"
-                                            Width="38" Padding="0"
+                                            Width="49" Padding="0"
                                             Command="{Binding ParkOrderCommand}"
-                                            Margin="0,0,5,0"
+                                            Margin="0,0,8,0"
                                             ToolTip="Park Ongoing Order">
-                                        <Viewbox Width="14" Height="14">
+                                        <Viewbox Width="18" Height="18">
                                             <Canvas Width="24" Height="24">
                                                 <Path Data="M 12,15 V 4 M 8,8 L 12,4 L 16,8 M 5,19 H 19"
                                                       Stroke="{StaticResource TextPrimaryBrush}"
@@ -597,24 +619,24 @@
                                     </Button>
 
                                     <Button Style="{StaticResource CartActionButtonStyle}"
-                                            Width="38" Padding="0"
+                                            Width="49" Padding="0"
                                             Command="{Binding ClearCurrentOrderLinesCommand}"
                                             ToolTip="More Actions">
-                                        <TextBlock Text="⋮" FontSize="15" FontWeight="Bold"/>
+                                        <TextBlock Text="⋮" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                                     </Button>
                                 </StackPanel>
                             </Grid>
                         </Border>
 
-                        <!-- ROW 3: 4x4 TOUCH NUMPAD -->
+                        <!-- ROW 3: 4x4 TOUCH NUMPAD (.numpad .numpad-4-cols: 216px high) -->
                         <Border Grid.Row="3"
-                                Margin="6,0,6,6"
+                                Margin="8,0,8,6"
                                 BorderBrush="{StaticResource BorderMidBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 ClipToBounds="True"
                                 Visibility="{Binding ShowExpandedNumpad, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                            <UniformGrid Rows="4" Columns="4" Height="196">
+                            <UniformGrid Rows="4" Columns="4" Height="216">
                                 <Button Content="1" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="1"/>
                                 <Button Content="2" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="2"/>
                                 <Button Content="3" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="3"/>
@@ -625,7 +647,9 @@
                                                 <DataTrigger Binding="{Binding NumpadMode}" Value="Qty">
                                                     <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
                                                     <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
-                                                    <Setter Property="BorderThickness" Value="1"/>
+                                                    <Setter Property="BorderThickness" Value="1.5"/>
+                                                    <Setter Property="Foreground" Value="#000000"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -642,7 +666,9 @@
                                                 <DataTrigger Binding="{Binding NumpadMode}" Value="%">
                                                     <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
                                                     <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
-                                                    <Setter Property="BorderThickness" Value="1"/>
+                                                    <Setter Property="BorderThickness" Value="1.5"/>
+                                                    <Setter Property="Foreground" Value="#000000"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -659,7 +685,9 @@
                                                 <DataTrigger Binding="{Binding NumpadMode}" Value="Price">
                                                     <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
                                                     <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
-                                                    <Setter Property="BorderThickness" Value="1"/>
+                                                    <Setter Property="BorderThickness" Value="1.5"/>
+                                                    <Setter Property="Foreground" Value="#000000"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -670,11 +698,11 @@
                                 <Button Content="0" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="0"/>
                                 <Button Content="." Style="{StaticResource NumpadButtonStyle}" Background="{StaticResource KeyPeachBrush}" Command="{Binding NumpadKeyCommand}" CommandParameter="."/>
                                 <Button Style="{StaticResource NumpadButtonStyle}" Background="{StaticResource KeyCoralBrush}" Command="{Binding NumpadKeyCommand}" CommandParameter="⌫">
-                                    <Viewbox Width="18" Height="18">
+                                    <Viewbox Width="20" Height="20">
                                         <Canvas Width="24" Height="24">
                                             <Path Data="M 21,6 H 9 L 3,12 L 9,18 H 21 Z M 12,9 L 17,15 M 17,9 L 12,15"
                                                   Stroke="{StaticResource TextPrimaryBrush}"
-                                                  StrokeThickness="1.7"
+                                                  StrokeThickness="1.8"
                                                   StrokeLineJoin="Round"
                                                   Fill="Transparent"/>
                                         </Canvas>
@@ -683,30 +711,31 @@
                             </UniformGrid>
                         </Border>
 
-                        <!-- ROW 4: FULL-WIDTH PURPLE PAYMENT BUTTON -->
+                        <!-- ROW 4: FULL-WIDTH PURPLE PAYMENT BUTTON (.pay-order-button height: 68px) -->
                         <Button Grid.Row="4"
                                 Content="Payment"
                                 Command="{Binding OpenPaymentViewCommand}"
                                 Style="{StaticResource PosPrimaryButtonStyle}"
-                                Height="50"
-                                Margin="6,0,6,6"
-                                FontSize="15"
+                                Height="68"
+                                Margin="8,0,8,8"
+                                FontSize="17.5"
+                                FontWeight="Bold"
                                 Visibility="{Binding HasCurrentOrderItems, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
                     </Grid>
                 </Border>
 
-                <!-- RIGHT CATEGORIES & PRODUCT SELLING GRID Matching Image 4 -->
-                <Grid Grid.Column="1" Background="#FFFFFF">
+                <!-- RIGHT CATEGORIES & PRODUCT SELLING GRID (.rightpane bg-secondary #F4F4F4) -->
+                <Grid Grid.Column="1" Background="{StaticResource AppBgBrush}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Category Tiles (Odoo 20 Pastel Styling) -->
+                    <!-- Category Tiles (.category-list .category-button: 145x64, rounded-3) -->
                     <ScrollViewer Grid.Row="0"
                                   HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Disabled"
-                                  Padding="8,8,8,6">
+                                  Padding="8,8,8,4">
                         <ItemsControl ItemsSource="{Binding Categories}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -717,28 +746,34 @@
                                 <DataTemplate DataType="{x:Type local:PosCategoryRecord}">
                                     <Button Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
-                                            Width="140" Height="54"
+                                            Width="145" Height="64"
                                             Margin="0,0,8,0"
                                             Cursor="Hand">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
                                                 <Border x:Name="CatBdr"
                                                         Background="{Binding CategoryButtonBgBrush}"
-                                                        CornerRadius="8"
-                                                        Padding="8,4">
+                                                        CornerRadius="6"
+                                                        Padding="6,4"
+                                                        BorderThickness="0"
+                                                        Opacity="0.75">
                                                     <TextBlock Text="{Binding Name}"
-                                                               FontSize="13.5"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               FontSize="14.5"
+                                                               FontWeight="Bold"
+                                                               Foreground="{Binding CategoryButtonFgBrush}"
                                                                HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"/>
+                                                               VerticalAlignment="Center"
+                                                               TextAlignment="Center"
+                                                               TextWrapping="Wrap"/>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter TargetName="CatBdr" Property="BorderThickness" Value="2"/>
+                                                        <Setter TargetName="CatBdr" Property="BorderBrush" Value="{Binding CategoryActiveBorderBrush}"/>
+                                                        <Setter TargetName="CatBdr" Property="Opacity" Value="1.0"/>
+                                                    </DataTrigger>
                                                     <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="CatBdr" Property="Opacity" Value="0.88"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsPressed" Value="True">
-                                                        <Setter TargetName="CatBdr" Property="Opacity" Value="0.75"/>
+                                                        <Setter TargetName="CatBdr" Property="Opacity" Value="0.92"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -749,11 +784,11 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <!-- Product Cards Grid (Matching Image 4: Aspect Ratio ~1:1, Crisp White, 7-Column Density) -->
+                    <!-- Product Cards Grid (Matching Odoo 20: 163x171, 6px bottom category accent bar, 4:3 photo ratio) -->
                     <ScrollViewer Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
-                                  Padding="8,4,8,14">
+                                  Padding="8,4,8,8">
                         <ItemsControl ItemsSource="{Binding FilteredProducts}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -764,91 +799,108 @@
                                 <DataTemplate DataType="{x:Type local:ProductRecord}">
                                     <Button Command="{Binding DataContext.AddProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
-                                            Width="170"
-                                            Height="162"
-                                            Margin="5"
+                                            Width="163"
+                                            Height="171"
+                                            Margin="4"
                                             Cursor="Hand"
                                             Background="Transparent"
                                             BorderThickness="0">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
-                                                <Border x:Name="CardBdr"
-                                                        Background="#FFFFFF"
-                                                        BorderBrush="#E5E7EB"
-                                                        BorderThickness="1"
-                                                        CornerRadius="8"
-                                                        ClipToBounds="True">
-                                                    <Grid>
-                                                        <Grid.RowDefinitions>
-                                                            <RowDefinition Height="112"/>
-                                                            <RowDefinition Height="45"/>
-                                                            <RowDefinition Height="5"/>
-                                                        </Grid.RowDefinitions>
+                                                <Grid x:Name="CardGrid">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="165"/>
+                                                        <RowDefinition Height="6"/>
+                                                    </Grid.RowDefinitions>
 
-                                                        <!-- Product Photo (Clean White Background, Centered Uniform Scaling) -->
-                                                        <Grid Grid.Row="0" Background="#FFFFFF" ClipToBounds="True">
-                                                            <Image Source="{Binding ImageBitmap}"
-                                                                   Stretch="Uniform"
-                                                                   Margin="6"
-                                                                   Visibility="{Binding HasImage, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
-                                                            <TextBlock Text="{Binding Name}"
-                                                                       FontSize="12"
-                                                                       Foreground="#4B5563"
-                                                                       HorizontalAlignment="Center"
-                                                                       VerticalAlignment="Center"
-                                                                       TextAlignment="Center"
-                                                                       TextWrapping="Wrap"
-                                                                       Margin="8"
-                                                                       Visibility="{Binding HasImage, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}"/>
+                                                    <!-- Top Card Area (163x165, border top/left/right 1px #CCCCCC, rounded top 6) -->
+                                                    <Border Grid.Row="0"
+                                                            x:Name="CardBdr"
+                                                            Background="#FFFFFF"
+                                                            BorderBrush="{StaticResource BorderMidBrush}"
+                                                            BorderThickness="1,1,1,0"
+                                                            CornerRadius="6,6,0,0"
+                                                            ClipToBounds="True">
+                                                        <Grid>
+                                                            <!-- LAYOUT WITH IMAGE -->
+                                                            <Grid Visibility="{Binding HasImage, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="121"/>
+                                                                    <RowDefinition Height="44"/>
+                                                                </Grid.RowDefinitions>
 
-                                                            <!-- Black Quantity Pill in Bottom-Right of Photo Area -->
-                                                            <Border HorizontalAlignment="Right"
-                                                                    VerticalAlignment="Bottom"
-                                                                    Background="#000000"
-                                                                    CornerRadius="4"
-                                                                    MinWidth="20"
-                                                                    Height="20"
-                                                                    Padding="5,0"
-                                                                    Margin="0,0,6,6"
-                                                                    Visibility="{Binding HasCartQuantity, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                                                                <TextBlock Text="{Binding CartQuantity}"
-                                                                           FontSize="11"
-                                                                           FontWeight="Bold"
-                                                                           Foreground="#FFFFFF"
+                                                                <!-- Row 0: Image with 4:3 ratio (161x121) -->
+                                                                <Border Grid.Row="0"
+                                                                        Background="#E9ECEF"
+                                                                        CornerRadius="5,5,0,0"
+                                                                        ClipToBounds="True">
+                                                                    <Grid>
+                                                                        <Image Source="{Binding ImageBitmap}"
+                                                                               Stretch="UniformToFill"
+                                                                               HorizontalAlignment="Center"
+                                                                               VerticalAlignment="Center"/>
+
+                                                                        <!-- Black Quantity Pill in Bottom-Right -->
+                                                                        <Border HorizontalAlignment="Right"
+                                                                                VerticalAlignment="Bottom"
+                                                                                Background="#000000"
+                                                                                CornerRadius="4"
+                                                                                MinWidth="22"
+                                                                                Height="22"
+                                                                                Padding="6,2"
+                                                                                Margin="0,0,6,6"
+                                                                                Visibility="{Binding HasCartQuantity, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                                            <TextBlock Text="{Binding CartQuantity}"
+                                                                                       FontSize="12"
+                                                                                       FontWeight="Bold"
+                                                                                       Foreground="#FFFFFF"
+                                                                                       HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center"/>
+                                                                        </Border>
+                                                                    </Grid>
+                                                                </Border>
+
+                                                                <!-- Row 1: Product Name -->
+                                                                <Border Grid.Row="1" Background="#FFFFFF" Padding="8,4">
+                                                                    <TextBlock Text="{Binding Name}"
+                                                                               FontSize="13.5"
+                                                                               FontWeight="Medium"
+                                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                                               TextWrapping="Wrap"
+                                                                               TextTrimming="CharacterEllipsis"
+                                                                               VerticalAlignment="Center"
+                                                                               HorizontalAlignment="Left"/>
+                                                                </Border>
+                                                            </Grid>
+
+                                                            <!-- LAYOUT WITHOUT IMAGE (Centered Name, Full Card) -->
+                                                            <Border Visibility="{Binding HasImage, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}"
+                                                                    Background="#FFFFFF"
+                                                                    Padding="10">
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           FontSize="14"
+                                                                           FontWeight="Normal"
+                                                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                                                           TextWrapping="Wrap"
+                                                                           TextTrimming="CharacterEllipsis"
                                                                            HorizontalAlignment="Center"
-                                                                           VerticalAlignment="Center"/>
+                                                                           VerticalAlignment="Center"
+                                                                           TextAlignment="Center"/>
                                                             </Border>
                                                         </Grid>
+                                                    </Border>
 
-                                                        <!-- Product Name (Left-Aligned, Clean Typography) -->
-                                                        <Border Grid.Row="1" Background="#FFFFFF" Padding="8,2,8,2">
-                                                            <TextBlock Text="{Binding Name}"
-                                                                       FontSize="12"
-                                                                       FontWeight="Normal"
-                                                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                                                       TextWrapping="Wrap"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       HorizontalAlignment="Left"
-                                                                       VerticalAlignment="Top"/>
-                                                        </Border>
-
-                                                        <!-- Bottom Category Accent Bar (Solid Category Color) -->
-                                                        <Border Grid.Row="2"
-                                                                Background="{Binding CategoryColorBrush}"
-                                                                CornerRadius="0,0,7,7"/>
-                                                    </Grid>
-                                                </Border>
+                                                    <!-- Bottom Category Accent Bar (6px, rounded bottom 6) -->
+                                                    <Border Grid.Row="1"
+                                                            Background="{Binding CategoryColorBrush}"
+                                                            CornerRadius="0,0,6,6"/>
+                                                </Grid>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
                                                         <Setter TargetName="CardBdr" Property="BorderBrush" Value="#9CA3AF"/>
-                                                        <Setter TargetName="CardBdr" Property="Effect">
-                                                            <Setter.Value>
-                                                                <DropShadowEffect BlurRadius="6" ShadowDepth="1" Direction="270" Opacity="0.12" Color="#000000"/>
-                                                            </Setter.Value>
-                                                        </Setter>
                                                     </Trigger>
                                                     <Trigger Property="IsPressed" Value="True">
-                                                        <Setter TargetName="CardBdr" Property="Opacity" Value="0.9"/>
+                                                        <Setter TargetName="CardGrid" Property="Opacity" Value="0.88"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -869,7 +921,7 @@
                   Visibility="{Binding IsOrdersViewActive, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="396"/>
+                    <ColumnDefinition Width="450" MaxWidth="450"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- LEFT: ORDERS LIST & SEARCH/FILTER TOOLBAR -->
@@ -1535,39 +1587,39 @@
         <!-- MODALS & OVERLAYS                                                       -->
         <!-- ======================================================================= -->
 
-        <!-- ==================== MODAL 1: OPENING CONTROL (Screenshot 5) ==================== -->
+        <!-- ==================== MODAL 1: OPENING CONTROL (Screenshot 5 / Image 3) ==================== -->
         <Grid Background="#66000000"
               Panel.ZIndex="1000"
               Visibility="{Binding IsOpeningControlModalOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-            <Border Width="580"
+            <Border Width="720"
                     Background="#FFFFFF"
                     CornerRadius="8"
-                    Padding="28,26,26,28"
+                    Padding="32,28,32,28"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Effect="{StaticResource ModalShadow}">
                 <StackPanel>
                     <TextBlock Text="Opening Control"
-                               FontSize="21"
+                               FontSize="24"
                                FontWeight="Bold"
                                Foreground="{StaticResource TextPrimaryBrush}"
                                Margin="0,0,0,24"/>
 
                     <TextBlock Text="Opening cash"
-                               FontSize="13.5"
-                               Foreground="#374151"
+                               FontSize="14.5"
+                               Foreground="{StaticResource TextPrimaryBrush}"
                                Margin="0,0,0,8"/>
 
-                    <Grid Margin="0,0,0,18">
+                    <Grid Margin="0,0,0,20">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="260"/>
                             <ColumnDefinition Width="8"/>
-                            <ColumnDefinition Width="42"/>
+                            <ColumnDefinition Width="48"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
                         <Border Grid.Column="0"
-                                Height="42"
+                                Height="48"
                                 Background="#FFFFFF"
                                 BorderBrush="{StaticResource BorderMidBrush}"
                                 BorderThickness="1"
@@ -1582,7 +1634,7 @@
                                          Grid.Column="0"
                                          Text="{Binding OpeningCashInput, UpdateSourceTrigger=PropertyChanged}"
                                          BorderThickness="0"
-                                         FontSize="15"
+                                         FontSize="16"
                                          Foreground="{StaticResource TextPrimaryBrush}"
                                          VerticalAlignment="Center"/>
                                 <Button Grid.Column="1"
@@ -1590,47 +1642,47 @@
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Cursor="Hand"
-                                        Padding="4,0">
-                                    <TextBlock Text="✕" FontSize="12" Foreground="#374151"/>
+                                        Padding="6,0">
+                                    <TextBlock Text="✕" FontSize="14" Foreground="#6C757D"/>
                                 </Button>
                             </Grid>
                         </Border>
 
                         <Button Grid.Column="2"
                                 Style="{StaticResource CartActionButtonStyle}"
-                                Height="42"
+                                Height="48"
                                 Padding="0"
                                 ToolTip="Coins / Bills">
-                            <Viewbox Width="18" Height="18">
+                            <Viewbox Width="22" Height="22">
                                 <Canvas Width="24" Height="24">
-                                    <Rectangle Canvas.Left="3" Canvas.Top="6" Width="18" Height="12" RadiusX="2" RadiusY="2" Stroke="#111827" StrokeThickness="1.8"/>
-                                    <Ellipse Canvas.Left="10" Canvas.Top="10" Width="4" Height="4" Fill="#111827"/>
+                                    <Rectangle Canvas.Left="3" Canvas.Top="6" Width="18" Height="12" RadiusX="2" RadiusY="2" Stroke="#212529" StrokeThickness="1.8"/>
+                                    <Ellipse Canvas.Left="10" Canvas.Top="10" Width="4" Height="4" Fill="#212529"/>
                                 </Canvas>
                             </Viewbox>
                         </Button>
                     </Grid>
 
                     <TextBlock Text="Opening note"
-                               FontSize="13.5"
-                               Foreground="#374151"
+                               FontSize="14.5"
+                               Foreground="{StaticResource TextPrimaryBrush}"
                                Margin="0,0,0,8"/>
 
-                    <Border Height="120"
+                    <Border Height="140"
                             Background="#FFFFFF"
                             BorderBrush="{StaticResource BorderMidBrush}"
                             BorderThickness="1"
                             CornerRadius="6"
-                            Padding="12,10"
+                            Padding="14,12"
                             Margin="0,0,0,24">
                         <Grid>
                             <TextBox Text="{Binding OpeningNote, UpdateSourceTrigger=PropertyChanged}"
                                      BorderThickness="0"
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
-                                     FontSize="14"
+                                     FontSize="15"
                                      Foreground="{StaticResource TextPrimaryBrush}"/>
                             <TextBlock Text="Add an opening note..."
-                                       FontSize="14"
+                                       FontSize="15"
                                        Foreground="{StaticResource TextPlaceholderBrush}"
                                        IsHitTestVisible="False"
                                        Visibility="{Binding OpeningNote, Converter={x:Static local:StringEmptyToVisibilityConverter.Instance}}"/>
@@ -1641,17 +1693,17 @@
                         <Button Content="Open Register"
                                 Command="{Binding OpenRegisterSubmitCommand}"
                                 Style="{StaticResource PosPrimaryButtonStyle}"
-                                Height="44"
-                                Padding="20,0"
-                                FontSize="14.5"
+                                Height="48"
+                                Padding="24,0"
+                                FontSize="15.5"
                                 FontWeight="SemiBold"
                                 Margin="0,0,10,0"/>
                         <Button Content="Discard"
                                 Command="{Binding DiscardOpeningControlCommand}"
                                 Style="{StaticResource PosSecondaryButtonStyle}"
-                                Height="44"
-                                Padding="20,0"
-                                FontSize="14.5"/>
+                                Height="48"
+                                Padding="24,0"
+                                FontSize="15.5"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

@@ -851,23 +851,86 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         if (key == "⌫" || key == "Back")
         {
-            if (_numpadBuffer.Length > 0)
+            if (string.IsNullOrEmpty(_numpadBuffer))
+            {
+                if (SelectedCartLine.Quantity > 0m)
+                {
+                    _numpadBuffer = SelectedCartLine.Quantity.ToString("G29", CultureInfo.InvariantCulture);
+                }
+                else
+                {
+                    DeleteSelectedCartLine();
+                    return;
+                }
+            }
+
+            if (_numpadBuffer == "0" || SelectedCartLine.Quantity == 0m)
+            {
+                DeleteSelectedCartLine();
+                return;
+            }
+
+            if (_numpadBuffer.Length > 1)
             {
                 _numpadBuffer = _numpadBuffer[..^1];
+                if (_numpadBuffer == "-" || _numpadBuffer == ".")
+                    _numpadBuffer = "0";
+
+                if (decimal.TryParse(_numpadBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
+                {
+                    SelectedCartLine.Quantity = val;
+                }
             }
             else
             {
-                CurrentOrder.CartItems.Remove(SelectedCartLine);
-                SelectedCartLine = CurrentOrder.CartItems.LastOrDefault();
-                if (SelectedCartLine != null)
-                    SelectedCartLine.IsSelected = true;
+                _numpadBuffer = "0";
+                SelectedCartLine.Quantity = 0m;
+            }
 
-                CurrentOrder.NotifyTotalsChanged();
-                UpdateProductCartQuantities();
-                NotifyViewStatesChanged();
-                ScheduleDraftPersistence(CurrentOrder);
+            CurrentOrder.NotifyTotalsChanged();
+            UpdateProductCartQuantities();
+            NotifyViewStatesChanged();
+            ScheduleDraftPersistence(CurrentOrder);
+            return;
+        }
+        else if (key == "+" || key == "Plus")
+        {
+            SelectedCartLine.Quantity += 1m;
+            _numpadBuffer = string.Empty;
+            CurrentOrder.NotifyTotalsChanged();
+            UpdateProductCartQuantities();
+            NotifyViewStatesChanged();
+            ScheduleDraftPersistence(CurrentOrder);
+            return;
+        }
+        else if (key == "-" || key == "Minus")
+        {
+            if (SelectedCartLine.Quantity > 1m)
+            {
+                SelectedCartLine.Quantity -= 1m;
+                _numpadBuffer = string.Empty;
+            }
+            else if (SelectedCartLine.Quantity == 1m)
+            {
+                SelectedCartLine.Quantity = 0m;
+                _numpadBuffer = "0";
+            }
+            else
+            {
+                DeleteSelectedCartLine();
                 return;
             }
+
+            CurrentOrder.NotifyTotalsChanged();
+            UpdateProductCartQuantities();
+            NotifyViewStatesChanged();
+            ScheduleDraftPersistence(CurrentOrder);
+            return;
+        }
+        else if (key == "Delete" || key == "ClearAll")
+        {
+            _ = ClearCurrentOrderLinesAsync();
+            return;
         }
         else if (key == "+/-")
         {
@@ -893,32 +956,32 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
         else
         {
-            _numpadBuffer += key;
+            if (_numpadBuffer == "0")
+                _numpadBuffer = key;
+            else
+                _numpadBuffer += key;
         }
 
-        if (decimal.TryParse(_numpadBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
+        if (decimal.TryParse(_numpadBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal newVal))
         {
-            switch (NumpadMode)
-            {
-                case "Qty":
-                    SelectedCartLine.Quantity = val;
-                    if (SelectedCartLine.Quantity == 0m && _numpadBuffer == "0")
-                    {
-                        CurrentOrder.CartItems.Remove(SelectedCartLine);
-                        SelectedCartLine = CurrentOrder.CartItems.LastOrDefault();
-                        if (SelectedCartLine != null) SelectedCartLine.IsSelected = true;
-                    }
-                    break;
-                case "%":
-                    SelectedCartLine.Discount = Math.Clamp(val, 0m, 100m);
-                    break;
-                case "Price":
-                    SelectedCartLine.IsUnitPriceTaxIncluded = true;
-                    SelectedCartLine.UnitPrice = Math.Max(0m, val);
-                    break;
-            }
+            SelectedCartLine.Quantity = newVal;
         }
 
+        CurrentOrder.NotifyTotalsChanged();
+        UpdateProductCartQuantities();
+        NotifyViewStatesChanged();
+        ScheduleDraftPersistence(CurrentOrder);
+    }
+
+    private void DeleteSelectedCartLine()
+    {
+        if (SelectedCartLine == null || CurrentOrder == null) return;
+        CurrentOrder.CartItems.Remove(SelectedCartLine);
+        SelectedCartLine = CurrentOrder.CartItems.LastOrDefault();
+        if (SelectedCartLine != null)
+            SelectedCartLine.IsSelected = true;
+
+        _numpadBuffer = string.Empty;
         CurrentOrder.NotifyTotalsChanged();
         UpdateProductCartQuantities();
         NotifyViewStatesChanged();

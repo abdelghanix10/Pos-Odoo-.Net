@@ -48,15 +48,22 @@
                           Color="#000000"
                           Opacity="0.22"/>
 
-        <!-- Numpad Key Style -->
+        <SolidColorBrush x:Key="NumpadHoverBrush" Color="#CFD4DA"/>
+        <SolidColorBrush x:Key="NumpadAmberHoverBrush" Color="#EDD376"/>
+        <SolidColorBrush x:Key="NumpadPeachHoverBrush" Color="#EACBC0"/>
+        <SolidColorBrush x:Key="NumpadCoralHoverBrush" Color="#F09194"/>
+
+        <!-- Base Numpad Button Style (0-9) -->
         <Style x:Key="NumpadButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#F4F4F4"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderMidBrush}"/>
-            <Setter Property="BorderThickness" Value="0.5"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontSize" Value="18.2"/>
             <Setter Property="FontWeight" Value="Medium"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -64,19 +71,151 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Opacity" Value="0.90"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Border" Property="Opacity" Value="0.75"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource NumpadHoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Mode Button Style: Qty -->
+        <Style x:Key="NumpadQtyButtonStyle" TargetType="Button" BasedOn="{StaticResource NumpadButtonStyle}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource NumpadHoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding NumpadMode}" Value="Qty">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding NumpadMode}" Value="Qty"/>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="#D4D1E2"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Mode Button Style: % -->
+        <Style x:Key="NumpadDiscountButtonStyle" TargetType="Button" BasedOn="{StaticResource NumpadButtonStyle}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource NumpadHoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding NumpadMode}" Value="%">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding NumpadMode}" Value="%"/>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="#D4D1E2"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Mode Button Style: Price -->
+        <Style x:Key="NumpadPriceButtonStyle" TargetType="Button" BasedOn="{StaticResource NumpadButtonStyle}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource NumpadHoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                </Trigger>
+                <DataTrigger Binding="{Binding NumpadMode}" Value="Price">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding NumpadMode}" Value="Price"/>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True"/>
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="#D4D1E2"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Special Key Button Style: +/- -->
+        <Style x:Key="NumpadAmberButtonStyle" TargetType="Button" BasedOn="{StaticResource NumpadButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource KeyAmberBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource NumpadAmberHoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Special Key Button Style: . -->
+        <Style x:Key="NumpadPeachButtonStyle" TargetType="Button" BasedOn="{StaticResource NumpadButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource KeyPeachBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource NumpadPeachHoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Special Key Button Style: ⌫ -->
+        <Style x:Key="NumpadCoralButtonStyle" TargetType="Button" BasedOn="{StaticResource NumpadButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource KeyCoralBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource NumpadCoralHoverBrush}"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                    <Setter Property="Foreground" Value="#000000"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <!-- Primary Purple Action Button -->
@@ -208,22 +347,25 @@
                         <Button Content="Register"
                                 Command="{Binding SwitchToRegisterViewCommand}"
                                 Height="48"
-                                Padding="14,0"
+                                Padding="16,0"
                                 FontSize="16"
+                                Margin="0,0,6,0"
                                 Cursor="Hand">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Bdr"
-                                            Background="Transparent"
-                                            BorderBrush="{StaticResource BorderLightBrush}"
+                                            Background="#F4F4F4"
+                                            BorderBrush="{StaticResource BorderMidBrush}"
                                             BorderThickness="1"
-                                            CornerRadius="4,0,0,4"
+                                            CornerRadius="4"
                                             Padding="{TemplateBinding Padding}">
                                         <TextBlock x:Name="Txt"
                                                    Text="{TemplateBinding Content}"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
                                                    FontWeight="Medium"
-                                                   VerticalAlignment="Center"/>
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <DataTrigger Binding="{Binding ActivePosView}" Value="Register">
@@ -244,23 +386,25 @@
                         <Button Content="Orders"
                                 Command="{Binding SwitchToOrdersViewCommand}"
                                 Height="48"
-                                Padding="14,0"
+                                Padding="16,0"
                                 FontSize="16"
-                                Margin="-1,0,0,0"
+                                Margin="0,0,8,0"
                                 Cursor="Hand">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Bdr"
-                                            Background="Transparent"
-                                            BorderBrush="{StaticResource BorderLightBrush}"
+                                            Background="#F4F4F4"
+                                            BorderBrush="{StaticResource BorderMidBrush}"
                                             BorderThickness="1"
-                                            CornerRadius="0,4,4,0"
+                                            CornerRadius="4"
                                             Padding="{TemplateBinding Padding}">
                                         <TextBlock x:Name="Txt"
                                                    Text="{TemplateBinding Content}"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
                                                    FontWeight="Medium"
-                                                   VerticalAlignment="Center"/>
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <DataTrigger Binding="{Binding ActivePosView}" Value="Orders">
@@ -277,16 +421,27 @@
                             </Button.Template>
                         </Button>
 
-                        <!-- [+] New Order Button (list-plus-btn: 48.5x49 bg #F4F4F4 border #CCCCCC) -->
+                        <!-- [+] New Order Button with Circled Plus Icon -->
                         <Button Command="{Binding CreateNewDraftOrderCommand}"
                                 Width="48" Height="48"
-                                Margin="8,0,4,0"
+                                Margin="0,0,8,0"
                                 Cursor="Hand"
                                 ToolTip="New Order">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Bdr" Background="#F4F4F4" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1" CornerRadius="4">
-                                        <TextBlock Text="+" FontSize="22" FontWeight="Normal" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-3,0,0"/>
+                                        <Viewbox Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Canvas Width="20" Height="20">
+                                                <Ellipse Canvas.Left="1" Canvas.Top="1" Width="18" Height="18"
+                                                         Stroke="{StaticResource TextPrimaryBrush}"
+                                                         StrokeThickness="1.8"/>
+                                                <Path Data="M 5.5,10 H 14.5 M 10,5.5 V 14.5"
+                                                      Stroke="{StaticResource TextPrimaryBrush}"
+                                                      StrokeThickness="1.8"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"/>
+                                            </Canvas>
+                                        </Viewbox>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
@@ -298,9 +453,9 @@
                         </Button>
 
                         <!-- Navbar Separator -->
-                        <Border Width="1" Height="48" Background="{StaticResource BorderLightBrush}" Margin="4,0,8,0"/>
+                        <Border Width="1" Height="36" Background="{StaticResource BorderLightBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
 
-                        <!-- Draft Order Tabs (floating-order: height 49, min-width 64, active #DDDBE8) -->
+                        <!-- Draft Order Tabs (floating-order: height 48, min-width 52, active #DDDBE8) -->
                         <ItemsControl ItemsSource="{Binding DraftOrders}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -312,8 +467,8 @@
                                     <Button Command="{Binding DataContext.SelectDraftOrderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
                                             Height="48"
-                                            MinWidth="64"
-                                            Padding="16,0"
+                                            MinWidth="52"
+                                            Padding="14,0"
                                             Margin="0,0,6,0"
                                             Cursor="Hand">
                                         <Button.Template>
@@ -330,7 +485,8 @@
                                                                FontWeight="Medium"
                                                                Foreground="{StaticResource TextPrimaryBrush}"
                                                                HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"/>
+                                                               VerticalAlignment="Center"
+                                                               TextAlignment="Center"/>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding IsActive}" Value="True">
@@ -422,31 +578,6 @@
                             </Grid>
                         </Border>
 
-                        <!-- Barcode Icon Button (height 44, width 44) -->
-                        <Button Width="44" Height="44"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Margin="0,0,10,0"
-                                Cursor="Hand"
-                                ToolTip="Barcode Scanner"
-                                Visibility="{Binding IsTopBarcodeVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border Background="Transparent" CornerRadius="4">
-                                        <Viewbox Width="22" Height="18" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                            <Canvas Width="24" Height="20">
-                                                <Rectangle Canvas.Left="1" Canvas.Top="2" Width="2" Height="16" Fill="#212529"/>
-                                                <Rectangle Canvas.Left="5" Canvas.Top="2" Width="1.5" Height="16" Fill="#212529"/>
-                                                <Rectangle Canvas.Left="8" Canvas.Top="2" Width="3" Height="16" Fill="#212529"/>
-                                                <Rectangle Canvas.Left="13" Canvas.Top="2" Width="1.5" Height="16" Fill="#212529"/>
-                                                <Rectangle Canvas.Left="16" Canvas.Top="2" Width="2" Height="16" Fill="#212529"/>
-                                                <Rectangle Canvas.Left="20" Canvas.Top="2" Width="3" Height="16" Fill="#212529"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                    </Border>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
 
                         <!-- Cashier Avatar (34x34 rounded 6) -->
                         <Border Width="34" Height="34"
@@ -518,7 +649,6 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- ROW 0: CART ITEMS LIST (.orderlines .orderline) -->
@@ -567,137 +697,69 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <!-- ROW 1: TAXES & TOTAL (.order-summary p-2 border-bottom) -->
+                        <!-- ROW 1: TOTAL (.order-summary p-2 border-bottom) -->
                         <Border Grid.Row="1"
                                 BorderBrush="{StaticResource BorderLightBrush}"
                                 BorderThickness="0,1,0,1"
-                                Padding="12,8"
+                                Padding="12,10"
                                 Visibility="{Binding HasCurrentOrderItems, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,4">
-                                    <TextBlock Text="Taxes" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                    <TextBlock Text="{Binding CurrentOrder.TaxesDisplay}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
-                                </Grid>
-                                <Grid>
-                                    <TextBlock Text="Total" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="{Binding CurrentOrder.TotalDisplay}" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- ROW 2: ACTION BAR (.control-buttons: Customer, Note, Park, More) -->
-                        <Border Grid.Row="2" Padding="8,8,8,6">
                             <Grid>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                    <Button Style="{StaticResource CartActionButtonStyle}"
-                                            Content="{Binding CurrentOrder.CustomerButtonDisplay, FallbackValue=Customer}"
-                                            Command="{Binding OpenCustomerPromptCommand}"
-                                            MinWidth="110"
-                                            Margin="0,0,8,0"/>
-                                    <Button Style="{StaticResource CartActionButtonStyle}"
-                                            Content="Note"
-                                            Command="{Binding OpenNotePromptCommand}"
-                                            MinWidth="68"/>
-                                </StackPanel>
-
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Style="{StaticResource CartActionButtonStyle}"
-                                            Width="49" Padding="0"
-                                            Command="{Binding ParkOrderCommand}"
-                                            Margin="0,0,8,0"
-                                            ToolTip="Park Ongoing Order">
-                                        <Viewbox Width="18" Height="18">
-                                            <Canvas Width="24" Height="24">
-                                                <Path Data="M 12,15 V 4 M 8,8 L 12,4 L 16,8 M 5,19 H 19"
-                                                      Stroke="{StaticResource TextPrimaryBrush}"
-                                                      StrokeThickness="2"
-                                                      StrokeStartLineCap="Round"
-                                                      StrokeEndLineCap="Round"
-                                                      StrokeLineJoin="Round"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                    </Button>
-
-                                    <Button Style="{StaticResource CartActionButtonStyle}"
-                                            Width="49" Padding="0"
-                                            Command="{Binding ClearCurrentOrderLinesCommand}"
-                                            ToolTip="More Actions">
-                                        <TextBlock Text="⋮" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    </Button>
-                                </StackPanel>
+                                <TextBlock Text="Total" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="{Binding CurrentOrder.TotalDisplay}" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
                             </Grid>
                         </Border>
 
-                        <!-- ROW 3: 4x4 TOUCH NUMPAD (.numpad .numpad-4-cols: 216px high) -->
-                        <Border Grid.Row="3"
-                                Margin="8,0,8,6"
-                                BorderBrush="{StaticResource BorderMidBrush}"
+                        <!-- ROW 2: 4x4 TOUCH NUMPAD (.numpad .numpad-4-cols: 216px high with 1px #DEE2E6 gap) -->
+                        <Border Grid.Row="2"
+                                Margin="8,8,8,6"
+                                BorderBrush="{StaticResource BorderLightBrush}"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 ClipToBounds="True"
                                 Visibility="{Binding ShowExpandedNumpad, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                            <UniformGrid Rows="4" Columns="4" Height="216">
-                                <Button Content="1" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="1"/>
-                                <Button Content="2" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="2"/>
-                                <Button Content="3" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="3"/>
-                                <Button Content="Qty" Command="{Binding SetNumpadModeCommand}" CommandParameter="Qty">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource NumpadButtonStyle}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding NumpadMode}" Value="Qty">
-                                                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
-                                                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
-                                                    <Setter Property="BorderThickness" Value="1.5"/>
-                                                    <Setter Property="Foreground" Value="#000000"/>
-                                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+                            <Grid Height="216" Background="{StaticResource BorderLightBrush}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="1"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="1"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="1"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                                <Button Content="4" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="4"/>
-                                <Button Content="5" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="5"/>
-                                <Button Content="6" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="6"/>
-                                <Button Content="%" Command="{Binding SetNumpadModeCommand}" CommandParameter="%">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource NumpadButtonStyle}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding NumpadMode}" Value="%">
-                                                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
-                                                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
-                                                    <Setter Property="BorderThickness" Value="1.5"/>
-                                                    <Setter Property="Foreground" Value="#000000"/>
-                                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+                                <!-- Row 0: [1] [2] [3] [Qty] -->
+                                <Button Grid.Row="0" Grid.Column="0" Content="1" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="1"/>
+                                <Button Grid.Row="0" Grid.Column="2" Content="2" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="2"/>
+                                <Button Grid.Row="0" Grid.Column="4" Content="3" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="3"/>
+                                <Button Grid.Row="0" Grid.Column="6" Content="Qty" Style="{StaticResource NumpadQtyButtonStyle}" Command="{Binding SetNumpadModeCommand}" CommandParameter="Qty"/>
 
-                                <Button Content="7" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="7"/>
-                                <Button Content="8" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="8"/>
-                                <Button Content="9" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="9"/>
-                                <Button Content="Price" Command="{Binding SetNumpadModeCommand}" CommandParameter="Price">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource NumpadButtonStyle}">
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding NumpadMode}" Value="Price">
-                                                    <Setter Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
-                                                    <Setter Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
-                                                    <Setter Property="BorderThickness" Value="1.5"/>
-                                                    <Setter Property="Foreground" Value="#000000"/>
-                                                    <Setter Property="FontWeight" Value="SemiBold"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+                                <!-- Row 2: [4] [5] [6] [+] -->
+                                <Button Grid.Row="2" Grid.Column="0" Content="4" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="4"/>
+                                <Button Grid.Row="2" Grid.Column="2" Content="5" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="5"/>
+                                <Button Grid.Row="2" Grid.Column="4" Content="6" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="6"/>
+                                <Button Grid.Row="2" Grid.Column="6" Content="+" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="+" FontSize="22" FontWeight="SemiBold"/>
 
-                                <Button Content="+/-" Style="{StaticResource NumpadButtonStyle}" Background="{StaticResource KeyAmberBrush}" Command="{Binding NumpadKeyCommand}" CommandParameter="+/-"/>
-                                <Button Content="0" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="0"/>
-                                <Button Content="." Style="{StaticResource NumpadButtonStyle}" Background="{StaticResource KeyPeachBrush}" Command="{Binding NumpadKeyCommand}" CommandParameter="."/>
-                                <Button Style="{StaticResource NumpadButtonStyle}" Background="{StaticResource KeyCoralBrush}" Command="{Binding NumpadKeyCommand}" CommandParameter="⌫">
+                                <!-- Row 4: [7] [8] [9] [-] -->
+                                <Button Grid.Row="4" Grid.Column="0" Content="7" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="7"/>
+                                <Button Grid.Row="4" Grid.Column="2" Content="8" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="8"/>
+                                <Button Grid.Row="4" Grid.Column="4" Content="9" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="9"/>
+                                <Button Grid.Row="4" Grid.Column="6" Content="-" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="-" FontSize="24" FontWeight="SemiBold"/>
+
+                                <!-- Row 6: [Delete] [0] [.] [⌫] -->
+                                <Button Grid.Row="6" Grid.Column="0" Content="Delete" Style="{StaticResource NumpadAmberButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="Delete" FontSize="13.5" FontWeight="SemiBold"/>
+                                <Button Grid.Row="6" Grid.Column="2" Content="0" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="0"/>
+                                <Button Grid.Row="6" Grid.Column="4" Content="." Style="{StaticResource NumpadPeachButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="."/>
+                                <Button Grid.Row="6" Grid.Column="6" Style="{StaticResource NumpadCoralButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="⌫">
                                     <Viewbox Width="20" Height="20">
                                         <Canvas Width="24" Height="24">
                                             <Path Data="M 21,6 H 9 L 3,12 L 9,18 H 21 Z M 12,9 L 17,15 M 17,9 L 12,15"
@@ -708,11 +770,11 @@
                                         </Canvas>
                                     </Viewbox>
                                 </Button>
-                            </UniformGrid>
+                            </Grid>
                         </Border>
 
-                        <!-- ROW 4: FULL-WIDTH PURPLE PAYMENT BUTTON (.pay-order-button height: 68px) -->
-                        <Button Grid.Row="4"
+                        <!-- ROW 3: FULL-WIDTH PURPLE PAYMENT BUTTON (.pay-order-button height: 68px) -->
+                        <Button Grid.Row="3"
                                 Content="Payment"
                                 Command="{Binding OpenPaymentViewCommand}"
                                 Style="{StaticResource PosPrimaryButtonStyle}"

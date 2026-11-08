@@ -165,9 +165,56 @@ public partial class PosRegisterViewModel : ViewModelBase
     private decimal _changeDue;
 
     private string _paymentInputBuffer = string.Empty;
+    private bool _isFirstPaymentDigit = true;
+
+    public bool CanValidatePayment => AmountTendered >= AmountDue && AmountDue > 0m;
+    public bool IsPaymentUnderpaid => AmountTendered < AmountDue;
+    public decimal RemainingAmount => Math.Max(0m, AmountDue - AmountTendered);
+    public string RemainingDisplay => $"$ {RemainingAmount:N2}";
+    public string ChangeDisplay
+    {
+        get
+        {
+            decimal diff = AmountTendered - AmountDue;
+            if (diff > 0m)
+                return $"$- {diff:N2}";
+            return "$ 0.00";
+        }
+    }
+    public string PaymentLineAmountDisplay => $"$ {AmountTendered:N2}";
+    public bool HasPaymentTendered => AmountTendered > 0m || !string.IsNullOrEmpty(_paymentInputBuffer);
 
     public string PaymentPrimaryButtonText => string.IsNullOrWhiteSpace(SelectedPaymentMethod) ? "Cash" : SelectedPaymentMethod;
     public string PaymentCurrencySymbol => "$";
+
+    public string OrderTotalDisplay
+    {
+        get
+        {
+            decimal val = CurrentOrder?.TotalAmount ?? AmountDue;
+            return $"$ {val:N2}";
+        }
+    }
+
+    public string OrderTotalIntegerPart
+    {
+        get
+        {
+            decimal val = CurrentOrder?.TotalAmount ?? AmountDue;
+            long intPart = (long)Math.Truncate(Math.Abs(val));
+            return (val < 0 ? "-" : "") + intPart.ToString("N0", CultureInfo.InvariantCulture);
+        }
+    }
+
+    public string OrderTotalDecimalPart
+    {
+        get
+        {
+            decimal val = CurrentOrder?.TotalAmount ?? AmountDue;
+            int cents = (int)Math.Round((Math.Abs(val) - Math.Truncate(Math.Abs(val))) * 100m);
+            return $".{cents:D2}";
+        }
+    }
 
     public string PaymentIntegerPart
     {
@@ -189,12 +236,45 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
     }
 
+    public void NotifyPaymentCalculationsChanged()
+    {
+        OnPropertyChanged(nameof(PaymentIntegerPart));
+        OnPropertyChanged(nameof(PaymentDecimalPart));
+        OnPropertyChanged(nameof(OrderTotalIntegerPart));
+        OnPropertyChanged(nameof(OrderTotalDecimalPart));
+        OnPropertyChanged(nameof(OrderTotalDisplay));
+        OnPropertyChanged(nameof(CanValidatePayment));
+        OnPropertyChanged(nameof(IsPaymentUnderpaid));
+        OnPropertyChanged(nameof(RemainingAmount));
+        OnPropertyChanged(nameof(RemainingDisplay));
+        OnPropertyChanged(nameof(ChangeDisplay));
+        OnPropertyChanged(nameof(PaymentLineAmountDisplay));
+        OnPropertyChanged(nameof(HasPaymentTendered));
+        OnPropertyChanged(nameof(PaymentPrimaryButtonText));
+
+        foreach (var pm in AvailablePaymentMethods)
+        {
+            pm.IsSelected = string.Equals(pm.Name, SelectedPaymentMethod, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     // ==================== SCREEN 5: PAYMENT CONFIRMATION (Screenshot 8) ====================
     [ObservableProperty]
     private bool _isPaymentConfirmationOpen;
 
     [ObservableProperty]
     private decimal _confirmedPaidAmount;
+
+    [ObservableProperty]
+    private decimal _confirmedCashAmount;
+
+    [ObservableProperty]
+    private decimal _confirmedChangeAmount;
+
+    [ObservableProperty]
+    private string _confirmedPaymentMethodName = "Cash";
+
+    public string ConfirmedTenderMethodLabel => string.IsNullOrWhiteSpace(ConfirmedPaymentMethodName) ? "Cash" : ConfirmedPaymentMethodName;
 
     public string ConfirmedIntegerPart
     {
@@ -213,6 +293,28 @@ public partial class PosRegisterViewModel : ViewModelBase
             return $".{cents:D2}";
         }
     }
+
+    public string ConfirmedChangeIntegerPart
+    {
+        get
+        {
+            long intPart = (long)Math.Truncate(Math.Abs(ConfirmedChangeAmount));
+            return (ConfirmedChangeAmount < 0 ? "-" : "") + intPart.ToString("N0", CultureInfo.InvariantCulture);
+        }
+    }
+
+    public string ConfirmedChangeDecimalPart
+    {
+        get
+        {
+            int cents = (int)Math.Round((Math.Abs(ConfirmedChangeAmount) - Math.Truncate(Math.Abs(ConfirmedChangeAmount))) * 100m);
+            return $".{cents:D2}";
+        }
+    }
+
+    public string ConfirmedChangeDisplay => $"$ {ConfirmedChangeAmount:N2}";
+    public string ConfirmedCashDisplay => $"$ {ConfirmedCashAmount:N2}";
+    public string ConfirmedPaidDisplay => $"$ {ConfirmedPaidAmount:N2}";
 
     // ==================== MODAL 2: HAMBURGER MENU (Screenshot 7) ====================
     [ObservableProperty]
@@ -362,24 +464,34 @@ public partial class PosRegisterViewModel : ViewModelBase
     partial void OnIsClosingRegisterModalOpenChanged(bool value) => OnPropertyChanged(nameof(ShowExpandedNumpad));
     partial void OnIsCartNumpadVisibleChanged(bool value) => OnPropertyChanged(nameof(ShowExpandedNumpad));
 
-    partial void OnSelectedPaymentMethodChanged(string value) => OnPropertyChanged(nameof(PaymentPrimaryButtonText));
+    partial void OnSelectedPaymentMethodChanged(string value) => NotifyPaymentCalculationsChanged();
 
-    partial void OnAmountDueChanged(decimal value)
-    {
-        OnPropertyChanged(nameof(PaymentIntegerPart));
-        OnPropertyChanged(nameof(PaymentDecimalPart));
-    }
+    partial void OnAmountDueChanged(decimal value) => NotifyPaymentCalculationsChanged();
 
-    partial void OnAmountTenderedChanged(decimal value)
-    {
-        OnPropertyChanged(nameof(PaymentIntegerPart));
-        OnPropertyChanged(nameof(PaymentDecimalPart));
-    }
+    partial void OnAmountTenderedChanged(decimal value) => NotifyPaymentCalculationsChanged();
 
     partial void OnConfirmedPaidAmountChanged(decimal value)
     {
         OnPropertyChanged(nameof(ConfirmedIntegerPart));
         OnPropertyChanged(nameof(ConfirmedDecimalPart));
+        OnPropertyChanged(nameof(ConfirmedPaidDisplay));
+    }
+
+    partial void OnConfirmedCashAmountChanged(decimal value)
+    {
+        OnPropertyChanged(nameof(ConfirmedCashDisplay));
+    }
+
+    partial void OnConfirmedChangeAmountChanged(decimal value)
+    {
+        OnPropertyChanged(nameof(ConfirmedChangeIntegerPart));
+        OnPropertyChanged(nameof(ConfirmedChangeDecimalPart));
+        OnPropertyChanged(nameof(ConfirmedChangeDisplay));
+    }
+
+    partial void OnConfirmedPaymentMethodNameChanged(string value)
+    {
+        OnPropertyChanged(nameof(ConfirmedTenderMethodLabel));
     }
 
     partial void OnClosingCashCountChanged(string value)
@@ -1388,12 +1500,14 @@ public partial class PosRegisterViewModel : ViewModelBase
         AmountDue = CurrentOrder.TotalAmount;
         AmountTendered = AmountDue;
         ChangeDue = 0.00m;
-        _paymentInputBuffer = string.Empty;
+        _paymentInputBuffer = AmountTendered.ToString("0.##", CultureInfo.InvariantCulture);
+        _isFirstPaymentDigit = true;
 
         var defaultMethod = AvailablePaymentMethods.FirstOrDefault();
         SelectedPaymentMethod = defaultMethod?.Name ?? "Cash";
         SelectedPaymentMethodOdooId = defaultMethod?.OdooId;
 
+        NotifyPaymentCalculationsChanged();
         IsPaymentViewOpen = true;
     }
 
@@ -1404,11 +1518,22 @@ public partial class PosRegisterViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    public void ClearPaymentLine()
+    {
+        AmountTendered = 0m;
+        _paymentInputBuffer = string.Empty;
+        _isFirstPaymentDigit = true;
+        ChangeDue = 0m;
+        NotifyPaymentCalculationsChanged();
+    }
+
+    [RelayCommand]
     public void SelectPaymentMethodOption(PosPaymentMethodRecord? method)
     {
         if (method == null) return;
         SelectedPaymentMethod = method.Name;
         SelectedPaymentMethodOdooId = method.OdooId;
+        NotifyPaymentCalculationsChanged();
     }
 
     [RelayCommand]
@@ -1417,6 +1542,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         SelectedPaymentMethod = method;
         var matched = AvailablePaymentMethods.FirstOrDefault(m => string.Equals(m.Name, method, StringComparison.OrdinalIgnoreCase));
         SelectedPaymentMethodOdooId = matched?.OdooId;
+        NotifyPaymentCalculationsChanged();
     }
 
     [RelayCommand]
@@ -1431,36 +1557,76 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         if (key == "⌫" || key == "Back")
         {
-            if (_paymentInputBuffer.Length > 0)
+            if (_paymentInputBuffer.Length > 1)
+            {
                 _paymentInputBuffer = _paymentInputBuffer[..^1];
+                if (_paymentInputBuffer == "-" || _paymentInputBuffer == ".")
+                    _paymentInputBuffer = "0";
+            }
+            else
+            {
+                _paymentInputBuffer = "0";
+            }
+
+            if (decimal.TryParse(_paymentInputBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
+            {
+                AmountTendered = parsed;
+            }
+            else
+            {
+                AmountTendered = 0m;
+            }
+            _isFirstPaymentDigit = false;
         }
         else if (key == "+/-")
         {
             if (_paymentInputBuffer.StartsWith('-'))
                 _paymentInputBuffer = _paymentInputBuffer[1..];
-            else if (!string.IsNullOrEmpty(_paymentInputBuffer))
+            else if (!string.IsNullOrEmpty(_paymentInputBuffer) && _paymentInputBuffer != "0")
                 _paymentInputBuffer = "-" + _paymentInputBuffer;
+
+            if (decimal.TryParse(_paymentInputBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
+            {
+                AmountTendered = parsed;
+            }
         }
         else if (key == ".")
         {
-            if (!_paymentInputBuffer.Contains('.'))
+            if (_isFirstPaymentDigit)
+            {
+                _paymentInputBuffer = "0.";
+                _isFirstPaymentDigit = false;
+            }
+            else if (!_paymentInputBuffer.Contains('.'))
+            {
                 _paymentInputBuffer = string.IsNullOrEmpty(_paymentInputBuffer) ? "0." : _paymentInputBuffer + ".";
+            }
+
+            if (decimal.TryParse(_paymentInputBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
+            {
+                AmountTendered = parsed;
+            }
         }
         else
         {
-            _paymentInputBuffer += key;
+            if (_isFirstPaymentDigit || _paymentInputBuffer == "0" || string.IsNullOrEmpty(_paymentInputBuffer))
+            {
+                _paymentInputBuffer = key;
+                _isFirstPaymentDigit = false;
+            }
+            else
+            {
+                _paymentInputBuffer += key;
+            }
+
+            if (decimal.TryParse(_paymentInputBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
+            {
+                AmountTendered = parsed;
+            }
         }
 
-        if (string.IsNullOrEmpty(_paymentInputBuffer))
-        {
-            AmountTendered = AmountDue;
-            ChangeDue = 0.00m;
-        }
-        else if (decimal.TryParse(_paymentInputBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
-        {
-            AmountTendered = parsed;
-            ChangeDue = Math.Max(0.00m, AmountTendered - AmountDue);
-        }
+        ChangeDue = Math.Max(0.00m, AmountTendered - AmountDue);
+        NotifyPaymentCalculationsChanged();
     }
 
     [RelayCommand]
@@ -1468,16 +1634,11 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         if (decimal.TryParse(amountStr, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal add))
         {
-            if (string.IsNullOrEmpty(_paymentInputBuffer))
-            {
-                AmountTendered = AmountDue + add;
-            }
-            else
-            {
-                AmountTendered += add;
-            }
+            AmountTendered += add;
             _paymentInputBuffer = AmountTendered.ToString("0.##", CultureInfo.InvariantCulture);
+            _isFirstPaymentDigit = false;
             ChangeDue = Math.Max(0.00m, AmountTendered - AmountDue);
+            NotifyPaymentCalculationsChanged();
         }
     }
 
@@ -1485,6 +1646,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     public async Task ValidatePaymentAsync()
     {
         if (CurrentOrder == null || !CurrentOrder.HasItems) return;
+        if (!CanValidatePayment) return;
 
         try
         {
@@ -1569,6 +1731,9 @@ public partial class PosRegisterViewModel : ViewModelBase
             );
 
             ConfirmedPaidAmount = total;
+            ConfirmedCashAmount = AmountTendered;
+            ConfirmedChangeAmount = Math.Max(0.00m, AmountTendered - total);
+            ConfirmedPaymentMethodName = SelectedPaymentMethod;
             IsPaymentViewOpen = false;
             IsPaymentConfirmationOpen = true;
             OdooSyncService.Instance.NotifyQueueUpdated();

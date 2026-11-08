@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace OdooPosLogin;
@@ -20,6 +21,13 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
     private string _integration = "None required";
     private string? _imageBase64;
     private BitmapImage? _imageBitmap;
+    private bool _isSelected;
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set { if (_isSelected != value) { _isSelected = value; OnPropertyChanged(); } }
+    }
 
     public long Id
     {
@@ -197,6 +205,36 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
 
     public bool HasImage => ImageBitmap != null;
     public bool HasNoImage => ImageBitmap == null;
+
+    public ImageSource? IconSource
+    {
+        get
+        {
+            if (ImageBitmap != null) return ImageBitmap;
+            var t = (MethodType ?? string.Empty).ToLowerInvariant();
+            var n = (Name ?? string.Empty).ToLowerInvariant();
+            string asset = (t == "cash" || n.Contains("cash"))
+                ? "pack://application:,,,/Assets/money.png"
+                : (t == "pay_later" || t == "customer_account" || n.Contains("customer") || n.Contains("account") || n.Contains("later"))
+                    ? "pack://application:,,,/Assets/pay-later.png"
+                    : "pack://application:,,,/Assets/card-bank.png";
+
+            try
+            {
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.UriSource = new Uri(asset, UriKind.Absolute);
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.EndInit();
+                bmp.Freeze();
+                return bmp;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

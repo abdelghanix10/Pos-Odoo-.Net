@@ -22,6 +22,32 @@ public partial class PosRegisterViewModel : ViewModelBase
     private PosSessionRecord? _currentSession;
 
     [ObservableProperty]
+    private string _currentSessionNameDisplay = string.Empty;
+
+    [ObservableProperty]
+    private int _sessionTotalOrdersCount;
+
+    [ObservableProperty]
+    private decimal _sessionTotalPaymentsAmount;
+
+    public string CurrentSessionDisplayName
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(CurrentSessionNameDisplay))
+                return CurrentSessionNameDisplay;
+            if (!string.IsNullOrWhiteSpace(CurrentConfig?.CurrentSessionName))
+                return CurrentConfig.CurrentSessionName;
+            if (!string.IsNullOrWhiteSpace(CurrentSession?.Name))
+                return CurrentSession.Name;
+            return $"{ActiveShopName}/00001";
+        }
+    }
+
+    public string SessionTotalOrdersDisplay => SessionTotalOrdersCount.ToString();
+    public string SessionTotalPaymentsDisplay => $"$ {SessionTotalPaymentsAmount:N2}";
+
+    [ObservableProperty]
     private string _cashierName = "Mitchell Admin";
 
     [ObservableProperty]
@@ -633,15 +659,10 @@ public partial class PosRegisterViewModel : ViewModelBase
         IsDraftOrdersWarningModalOpen = false;
         IsNoteModalOpen = false;
 
-        if (config.IsClosed)
+        if (config.IsClosed || config.IsOpeningControl || showOpeningControl)
         {
             IsPosLandingScreenOpen = true;
             IsOpeningControlModalOpen = false;
-        }
-        else if (config.IsOpeningControl || showOpeningControl)
-        {
-            IsPosLandingScreenOpen = false;
-            IsOpeningControlModalOpen = true;
         }
         else
         {
@@ -651,10 +672,38 @@ public partial class PosRegisterViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public void EnterPosFromLanding()
+    public async Task EnterPosFromLandingAsync()
     {
         IsPosLandingScreenOpen = false;
-        IsOpeningControlModalOpen = true;
+        IsOpeningControlModalOpen = false;
+        ActivePosView = "Register";
+
+        if (CurrentConfig != null && (CurrentConfig.IsClosed || CurrentConfig.IsOpeningControl))
+        {
+            CurrentConfig.CurrentSessionState = "opened";
+            int cfgId = CurrentConfig.OdooId;
+            int? sessId = CurrentConfig.CurrentSessionId;
+            string cfgName = CurrentConfig.Name;
+
+            try
+            {
+                var (_, resolvedSessOdooId, resolvedSessName) = await SqliteDatabaseService.Instance.UpdateSessionOpeningControlAsync(
+                    cfgId,
+                    sessId,
+                    CurrentConfig.OpeningBalance,
+                    string.Empty,
+                    cfgName,
+                    CurrentConfig.ActiveUserId,
+                    CashierName,
+                    enqueueForOdooSync: true
+                );
+
+                if (resolvedSessOdooId.HasValue)
+                    CurrentConfig.CurrentSessionId = resolvedSessOdooId.Value;
+                CurrentConfig.CurrentSessionName = resolvedSessName;
+            }
+            catch { }
+        }
     }
 
     public async Task ReloadPaymentMethodsForShopAsync()
@@ -1282,6 +1331,12 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         IEnumerable<PosOrderRecord> source = _allInPosOrders;
 
+        // In POS register, default to orders of the active session when not searching
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            source = source.Where(OrderMatchesCurrentSession);
+        }
+
         if (OrderStatusFilter is "Active" or "Ongoing")
         {
             source = source.Where(o => o.IsDraft);
@@ -1473,11 +1528,59 @@ public partial class PosRegisterViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    public void OpenOpeningControlModal()
+    {
+        IsHamburgerMenuOpen = false;
+        IsOpeningControlModalOpen = false;
+        IsPosLandingScreenOpen = true;
+    }
+
+    [RelayCommand]
     public void DiscardOpeningControl()
     {
         IsOpeningControlModalOpen = false;
-        IsPosLandingScreenOpen = false;
-        ReturnToDashboardRequested?.Invoke();
+        if (CurrentConfig != null && (CurrentConfig.IsClosed || CurrentConfig.IsOpeningControl))
+        {
+            IsPosLandingScreenOpen = false;
+            ReturnToDashboardRequested?.Invoke();
+        }
+    }
+
+    public bool OrderMatchesCurrentSession(PosOrderRecord o)
+    {
+        if (o == null) return false;
+
+        // 1. Session Odoo ID / Local Session ID match
+        int? targetSessOdooId = CurrentConfig?.CurrentSessionId ?? CurrentSession?.OdooId;
+        if (targetSessOdooId.HasValue && targetSessOdooId.Value > 0)
+        {
+            if (o.SessionOdooId.HasValue && o.SessionOdooId.Value == targetSessOdooId.Value)
+                return true;
+            if (o.SessionId.HasValue && o.SessionId.Value == targetSessOdooId.Value)
+                return true;
+        }
+
+        // 2. Session Local ID match
+        if (CurrentSession != null && CurrentSession.Id > 0)
+        {
+            if (o.SessionId.HasValue && o.SessionId.Value == (int)CurrentSession.Id)
+                return true;
+        }
+
+        // 3. Session Name match (e.g. "Furniture Shop/00008")
+        string? targetSessName = !string.IsNullOrWhiteSpace(CurrentSessionNameDisplay)
+            ? CurrentSessionNameDisplay
+            : (!string.IsNullOrWhiteSpace(CurrentConfig?.CurrentSessionName)
+                ? CurrentConfig.CurrentSessionName
+                : CurrentSession?.Name);
+
+        if (!string.IsNullOrWhiteSpace(targetSessName) && targetSessName != "/" && !string.IsNullOrWhiteSpace(o.SessionName))
+        {
+            if (string.Equals(o.SessionName.Trim(), targetSessName.Trim(), StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     [RelayCommand]
@@ -1580,15 +1683,8 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
         else if (key == "+/-")
         {
-            if (_paymentInputBuffer.StartsWith('-'))
-                _paymentInputBuffer = _paymentInputBuffer[1..];
-            else if (!string.IsNullOrEmpty(_paymentInputBuffer) && _paymentInputBuffer != "0")
-                _paymentInputBuffer = "-" + _paymentInputBuffer;
-
-            if (decimal.TryParse(_paymentInputBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
-            {
-                AmountTendered = parsed;
-            }
+            // "+/-" is disabled in payment tender numpad
+            return;
         }
         else if (key == ".")
         {
@@ -1802,6 +1898,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     public void OpenHamburgerMenu()
     {
         _ = RefreshPendingSyncCountAsync();
+        _ = UpdateSessionBreakdownAsync();
         IsHamburgerMenuOpen = true;
     }
 
@@ -1892,12 +1989,21 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         int sessId = CurrentConfig?.CurrentSessionId ?? 1;
         string shopName = CurrentConfig?.Name ?? ActiveShopName;
+        string sessName = CurrentConfig?.CurrentSessionName ?? (CurrentSession?.Name ?? $"{ActiveShopName}/00001");
+        CurrentSessionNameDisplay = sessName;
 
-        var sessOrders = _allInPosOrders.Where(o =>
-            ((o.SessionOdooId == sessId || o.SessionId == sessId) || string.Equals(o.PosConfigName, shopName, StringComparison.OrdinalIgnoreCase))
-            && !o.IsCancelled && !o.IsDraft).ToList();
+        try
+        {
+            var loaded = await SqliteDatabaseService.Instance.LoadAllOrdersAsync(shopName);
+            _allInPosOrders.Clear();
+            _allInPosOrders.AddRange(loaded);
+        }
+        catch { }
+
+        var sessOrders = _allInPosOrders.Where(o => OrderMatchesCurrentSession(o) && !o.IsCancelled && !o.IsDraft).ToList();
 
         int count = sessOrders.Count;
+        SessionTotalOrdersCount = count;
         decimal cashSales = 0.00m;
         decimal cardSales = 0.00m;
         decimal custAccountSales = 0.00m;
@@ -1931,6 +2037,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
 
         decimal totalSessionSales = cashSales + cardSales + custAccountSales;
+        SessionTotalPaymentsAmount = totalSessionSales;
         decimal openBal = CurrentConfig?.OpeningBalance ?? 0.00m;
         decimal cashMoves = await SqliteDatabaseService.Instance.GetSessionCashInOutTotalAsync(sessId);
 
@@ -1940,6 +2047,10 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         decimal expectedCash = openBal + cashSales + cashMoves;
         SessionSummaryText = $"{count} orders: $ {totalSessionSales:N2}";
+
+        OnPropertyChanged(nameof(CurrentSessionDisplayName));
+        OnPropertyChanged(nameof(SessionTotalOrdersDisplay));
+        OnPropertyChanged(nameof(SessionTotalPaymentsDisplay));
 
         CashCounted = expectedCash;
         CashDifference = 0.00m;

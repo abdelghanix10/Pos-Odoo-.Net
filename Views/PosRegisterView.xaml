@@ -54,6 +54,37 @@
         <SolidColorBrush x:Key="NumpadCoralHoverBrush" Color="#F09194"/>
         <SolidColorBrush x:Key="NumpadGreenHoverBrush" Color="#A8DDB4"/>
 
+        <!-- Modal Close Button Style: Transparent background always, ONLY icon color changes on hover -->
+        <Style x:Key="ModalCloseButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <TextBlock x:Name="CloseIcon"
+                                       Text="✕"
+                                       FontSize="16"
+                                       FontWeight="Medium"
+                                       Foreground="#6C757D"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CloseIcon" Property="Foreground" Value="#000000"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="CloseIcon" Property="Foreground" Value="#495057"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Base Numpad Button Style (0-9) -->
         <Style x:Key="NumpadButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#F4F4F4"/>
@@ -321,6 +352,10 @@
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Border" Property="Background" Value="#DDDBE8"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Border" Property="Opacity" Value="0.45"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -1516,7 +1551,7 @@
                             <Button Grid.Row="4" Grid.Column="6" Content="+50" Style="{StaticResource PaymentNumpadGreenButtonStyle}" Command="{Binding AddQuickTenderCommand}" CommandParameter="50"/>
 
                             <!-- Row 6: [+/-] [0] [.] [⌫] -->
-                            <Button Grid.Row="6" Grid.Column="0" Content="+/-" Style="{StaticResource PaymentNumpadAmberButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="+/-"/>
+                            <Button Grid.Row="6" Grid.Column="0" Content="+/-" Style="{StaticResource PaymentNumpadAmberButtonStyle}" IsEnabled="False"/>
                             <Button Grid.Row="6" Grid.Column="2" Content="0" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="0"/>
                             <Button Grid.Row="6" Grid.Column="4" Content="." Style="{StaticResource PaymentNumpadPeachButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="."/>
                             <Button Grid.Row="6" Grid.Column="6" Style="{StaticResource PaymentNumpadCoralButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="⌫">
@@ -1891,7 +1926,7 @@
         </Grid>
 
         <!-- ======================================================================= -->
-        <!-- 6. POS LANDING SCREEN ("Open Register", Screenshot 6)                   -->
+        <!-- 6. POS LANDING SCREEN ("Open Register" / Opening Control)               -->
         <!-- ======================================================================= -->
         <Grid Panel.ZIndex="900"
               Visibility="{Binding IsPosLandingScreenOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
@@ -1906,58 +1941,69 @@
                 </LinearGradientBrush>
             </Grid.Background>
 
-            <Grid VerticalAlignment="Top" Margin="18,16,18,0">
+            <!-- Top Row: Time/Date | Shop Name | Logo -->
+            <Grid VerticalAlignment="Top" Margin="24,20,24,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top">
+                <!-- Left: Clock + Day/Date -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="{Binding LandingClockText}"
-                               FontSize="22"
+                               FontSize="20"
                                FontWeight="Normal"
-                               Foreground="#1F2937"
+                               Foreground="#212529"
                                VerticalAlignment="Center"
-                               Margin="0,0,8,0"/>
+                               Margin="0,0,10,0"/>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding LandingDayNameText}" FontSize="9.5" Foreground="#374151"/>
-                        <TextBlock Text="{Binding LandingFullDateText}" FontSize="9.5" Foreground="#374151"/>
+                        <TextBlock Text="{Binding LandingDayNameText}" FontSize="10" Foreground="#4B5563"/>
+                        <TextBlock Text="{Binding LandingFullDateText}" FontSize="10" Foreground="#4B5563"/>
                     </StackPanel>
                 </StackPanel>
 
+                <!-- Center: Shop Name -->
                 <TextBlock Grid.Column="1"
                            Text="{Binding ActiveShopName}"
-                           FontSize="23"
+                           FontSize="20"
                            FontWeight="SemiBold"
-                           Foreground="#1F2937"
+                           Foreground="#212529"
                            HorizontalAlignment="Center"
-                           VerticalAlignment="Top"
-                           Margin="0,4,0,0"/>
+                           VerticalAlignment="Center"/>
 
-                <Border Grid.Column="2"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Top"
-                        Background="#14714B67"
-                        CornerRadius="4"
-                        Padding="14,8">
-                    <Grid>
-                        <Image Source="{Binding CompanyLogoBitmap}"
-                               MaxHeight="34"
-                               Stretch="Uniform"
-                               Visibility="{Binding HasCompanyLogo, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
-                        <StackPanel Orientation="Horizontal"
-                                    VerticalAlignment="Center"
-                                    Visibility="{Binding HasCompanyLogo, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
-                            <TextBlock Text="📷 " FontSize="17" Foreground="#5E4760" VerticalAlignment="Center"/>
-                            <TextBlock Text="Your logo" FontSize="22" FontWeight="Bold" Foreground="#5E4760" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+                <!-- Right: Logo or "Your logo" -->
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <Image Source="{Binding CompanyLogoBitmap}"
+                           MaxHeight="32"
+                           Stretch="Uniform"
+                           Visibility="{Binding HasCompanyLogo, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding HasCompanyLogo, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
+                        <!-- Camera Icon -->
+                        <Viewbox Width="20" Height="20" Margin="0,0,6,0">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="M 4,7 H 8 L 9.5,4.5 H 14.5 L 16,7 H 20 C 21.1,7 22,7.9 22,9 V 19 C 22,20.1 21.1,21 20,21 H 4 C 2.9,21 2,20.1 2,19 V 9 C 2,7.9 2.9,7 4,7 Z"
+                                      Stroke="#714B67" StrokeThickness="1.8" StrokeLineJoin="Round" Fill="Transparent"/>
+                                <Ellipse Canvas.Left="8" Canvas.Top="10" Width="8" Height="8" Stroke="#714B67" StrokeThickness="1.8"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock Text="Your logo"
+                                   FontSize="20"
+                                   FontWeight="Bold"
+                                   Foreground="#714B67"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
             </Grid>
 
+            <!-- Center: "Open Register" Card -->
             <Button Command="{Binding EnterPosFromLandingCommand}"
-                    Width="156" Height="156"
+                    Width="175" Height="175"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Cursor="Hand">
@@ -1965,55 +2011,78 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="CardBdr"
                                 Background="#FFFFFF"
-                                BorderBrush="#D1D5DB"
-                                BorderThickness="1"
-                                CornerRadius="8">
+                                CornerRadius="14">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.08"/>
+                            </Border.Effect>
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Viewbox Width="42" Height="42" Margin="0,0,0,12">
+                                <!-- Shopping Basket Icon (exact match to reference image) -->
+                                <Viewbox Width="44" Height="44" Margin="0,0,0,14">
                                     <Canvas Width="24" Height="24">
-                                        <Path Data="M 9,4 L 6,9 M 15,4 L 18,9 M 3,9 H 21 L 19,19 H 5 Z"
-                                              Stroke="#1F2937"
+                                        <!-- Handle -->
+                                        <Path Data="M 8.5,9 L 10.5,3.5 H 13.5 L 15.5,9"
+                                              Stroke="#212529"
+                                              StrokeThickness="2"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round"/>
+                                        <!-- Basket Body -->
+                                        <Path Data="M 3,9 H 21 L 18.5,20 H 5.5 Z"
+                                              Stroke="#212529"
                                               StrokeThickness="2"
                                               StrokeStartLineCap="Round"
                                               StrokeLineJoin="Round"
                                               Fill="Transparent"/>
-                                        <Ellipse Canvas.Left="10.2" Canvas.Top="12.2" Width="3.6" Height="3.6" Fill="#1F2937"/>
+                                        <!-- Center dot -->
+                                        <Ellipse Canvas.Left="10.5" Canvas.Top="13" Width="3" Height="3" Fill="#212529"/>
                                     </Canvas>
                                 </Viewbox>
                                 <TextBlock Text="Open Register"
-                                           FontSize="13.5"
+                                           FontSize="14"
                                            FontWeight="SemiBold"
-                                           Foreground="#1F2937"
+                                           Foreground="#212529"
                                            HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="CardBdr" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                                <Setter TargetName="CardBdr" Property="Background" Value="#F8F9FA"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="CardBdr" Property="Background" Value="#F1F3F5"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
             </Button>
 
+            <!-- Bottom: "Backend" Button -->
             <Button Command="{Binding ReturnToBackendCommand}"
                     Content="Backend"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Bottom"
-                    Margin="0,0,0,18"
-                    Height="36"
-                    Padding="14,0"
+                    Margin="0,0,0,24"
+                    Height="34"
+                    Padding="16,0"
                     Cursor="Hand">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="#1F252D" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                        <Border x:Name="Bdr" Background="#212529" CornerRadius="4" Padding="{TemplateBinding Padding}">
                             <TextBlock Text="{TemplateBinding Content}"
-                                       FontSize="13"
+                                       FontSize="12.5"
                                        FontWeight="SemiBold"
                                        Foreground="#FFFFFF"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bdr" Property="Background" Value="#343A40"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bdr" Property="Background" Value="#000000"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Button.Template>
             </Button>
@@ -2035,11 +2104,17 @@
                     VerticalAlignment="Center"
                     Effect="{StaticResource ModalShadow}">
                 <StackPanel>
-                    <TextBlock Text="Opening Control"
-                               FontSize="24"
-                               FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimaryBrush}"
-                               Margin="0,0,0,24"/>
+                    <Grid Margin="0,0,0,24">
+                        <TextBlock Text="Opening Control"
+                                   FontSize="24"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                        <Button Command="{Binding DiscardOpeningControlCommand}"
+                                Style="{StaticResource ModalCloseButtonStyle}"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"/>
+                    </Grid>
 
                     <TextBlock Text="Opening cash"
                                FontSize="14.5"
@@ -2145,220 +2220,168 @@
             </Border>
         </Grid>
 
-        <!-- ==================== MODAL 2: HAMBURGER MENU (Screenshot 7) ==================== -->
+        <!-- ==================== MODAL 2: 3-DOTS POPUP (Odoo Hamburger Menu) ==================== -->
         <Grid Background="#66000000"
               Panel.ZIndex="1100"
               Visibility="{Binding IsHamburgerMenuOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-            <Border Width="690"
+            <Border Width="460"
                     Background="#FFFFFF"
-                    CornerRadius="6"
-                    Padding="18"
+                    CornerRadius="8"
+                    Padding="22"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Effect="{StaticResource ModalShadow}">
                 <StackPanel>
-                    <!-- Header: [🔗 LNA] + [↻ Unsynced Queue] on left, ✕ on right -->
-                    <Grid Margin="0,0,0,14">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                            <Border BorderBrush="#319795"
-                                    BorderThickness="1"
-                                    CornerRadius="4"
-                                    Padding="10,5"
-                                    Margin="0,0,10,0">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="🔗 " FontSize="12" Foreground="#1F7A8C"/>
-                                    <TextBlock Text="LNA" FontSize="13" FontWeight="SemiBold" Foreground="#1F7A8C"/>
-                                </StackPanel>
-                            </Border>
-
-                            <Button Command="{Binding OpenPendingSyncWindowCommand}"
-                                    Cursor="Hand"
-                                    Background="#F3ECF1"
-                                    BorderBrush="#68598A"
-                                    BorderThickness="1"
-                                    Padding="12,5">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}"
-                                                BorderBrush="{TemplateBinding BorderBrush}"
-                                                BorderThickness="{TemplateBinding BorderThickness}"
-                                                CornerRadius="4"
-                                                Padding="{TemplateBinding Padding}">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock Text="↻  Unsynced Odoo Queue (" FontSize="12.5" FontWeight="SemiBold" Foreground="#68598A"/>
-                                                <TextBlock Text="{Binding PendingSyncCount}" FontSize="12.5" FontWeight="Bold" Foreground="#68598A"/>
-                                                <TextBlock Text=")" FontSize="12.5" FontWeight="SemiBold" Foreground="#68598A"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                        </StackPanel>
+                    <!-- Header: Title + Close Button -->
+                    <Grid Margin="0,0,0,16">
+                        <TextBlock Text="Session Information"
+                                   FontSize="17.5"
+                                   FontWeight="Bold"
+                                   Foreground="#212529"
+                                   VerticalAlignment="Center"/>
 
                         <Button Command="{Binding CloseHamburgerMenuCommand}"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand"
+                                Style="{StaticResource ModalCloseButtonStyle}"
                                 HorizontalAlignment="Right"
-                                Padding="4">
-                            <TextBlock Text="✕" FontSize="16" Foreground="#6B7280"/>
-                        </Button>
+                                VerticalAlignment="Center"/>
                     </Grid>
 
-                    <!-- 2x4 Grid of Tiles (7 Tiles) -->
-                    <UniformGrid Columns="4" Rows="2">
-                        <!-- 1. Customer Display -->
-                        <Button Command="{Binding CustomerDisplayTileCommand}" Height="148" Margin="5" Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr" Background="#F9FAFB" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="4">
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Viewbox Width="22" Height="22" Margin="0,0,0,10">
-                                                <Canvas Width="24" Height="24">
-                                                    <Rectangle Canvas.Left="3" Canvas.Top="4" Width="18" Height="12" RadiusX="1.5" RadiusY="1.5" Stroke="#6B7280" StrokeThickness="1.8"/>
-                                                    <Path Data="M 8,20 H 16 M 12,16 V 20" Stroke="#6B7280" StrokeThickness="1.8" StrokeStartLineCap="Round"/>
-                                                </Canvas>
-                                            </Viewbox>
-                                            <TextBlock Text="Customer Display" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#F3F4F6"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                    <!-- Session Stats Card -->
+                    <Border Background="#F8F9FA"
+                            BorderBrush="#DEE2E6"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="18,16"
+                            Margin="0,0,0,20">
+                        <StackPanel>
+                            <!-- Session Name -->
+                            <TextBlock Text="SESSION"
+                                       FontSize="11"
+                                       FontWeight="Bold"
+                                       Foreground="#6C757D"
+                                       Margin="0,0,0,4"/>
+                            <TextBlock Text="{Binding CurrentSessionDisplayName}"
+                                       FontSize="16.5"
+                                       FontWeight="SemiBold"
+                                       Foreground="#212529"
+                                       TextTrimming="CharacterEllipsis"/>
 
-                        <!-- 2. Install App -->
-                        <Button Command="{Binding InstallAppTileCommand}" Height="148" Margin="5" Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr" Background="#F9FAFB" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="4">
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Viewbox Width="22" Height="22" Margin="0,0,0,10">
-                                                <Canvas Width="24" Height="24">
-                                                    <Path Data="M 12,4 V 15 M 8,11 L 12,15 L 16,11 M 5,19 H 19" Stroke="#6B7280" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
-                                                </Canvas>
-                                            </Viewbox>
-                                            <TextBlock Text="Install App" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#F3F4F6"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                            <Border Height="1" Background="#DEE2E6" Margin="0,14"/>
 
-                        <!-- 3. Cash In/Out -->
-                        <Button Command="{Binding CashInOutTileCommand}" Height="148" Margin="5" Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr" Background="#F9FAFB" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="4">
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Viewbox Width="22" Height="22" Margin="0,0,0,10">
-                                                <Canvas Width="24" Height="24">
-                                                    <Rectangle Canvas.Left="3" Canvas.Top="6" Width="18" Height="12" RadiusX="2" RadiusY="2" Stroke="#6B7280" StrokeThickness="1.8"/>
-                                                    <Ellipse Canvas.Left="10" Canvas.Top="10" Width="4" Height="4" Fill="#6B7280"/>
-                                                </Canvas>
-                                            </Viewbox>
-                                            <TextBlock Text="Cash In/Out" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#F3F4F6"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                            <!-- Orders & Payments Grid -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                        <!-- 4. Reload Data -->
-                        <Button Command="{Binding ReloadOdooDataCommand}" Height="148" Margin="5" Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr" Background="#F9FAFB" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="4">
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="↻" FontSize="22" Foreground="#6B7280" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                            <TextBlock Text="Reload Data" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#F3F4F6"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                                <!-- Column 0: Total Orders -->
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="TOTAL ORDERS"
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6C757D"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding SessionTotalOrdersDisplay}"
+                                               FontSize="22"
+                                               FontWeight="Bold"
+                                               Foreground="#212529"/>
+                                </StackPanel>
 
-                        <!-- 5. Create Product -->
-                        <Button Command="{Binding CreateProductTileCommand}" Height="148" Margin="5" Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr" Background="#F9FAFB" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="4">
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="+" FontSize="22" Foreground="#6B7280" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                            <TextBlock Text="Create Product" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#F3F4F6"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                                <!-- Column 1: Total Payment -->
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="TOTAL PAYMENT"
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6C757D"
+                                               Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding SessionTotalPaymentsDisplay}"
+                                               FontSize="22"
+                                               FontWeight="Bold"
+                                               Foreground="#71639E"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
 
-                        <!-- 6. < Backend -->
-                        <Button Command="{Binding ReturnToBackendCommand}" Height="148" Margin="5" Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr" Background="#F9FAFB" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="4">
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock Text="‹" FontSize="22" Foreground="#6B7280" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                                            <TextBlock Text="Backend" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#F3F4F6"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                    <!-- Opening Control Action -->
+                    <Button Command="{Binding OpenOpeningControlModalCommand}"
+                            Height="48"
+                            Margin="0,0,0,10"
+                            Cursor="Hand">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bdr"
+                                        Background="#F8F9FA"
+                                        BorderBrush="#DEE2E6"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="16,0">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <!-- Basket / Register Icon (matches Opening Control landing screen) -->
+                                        <Viewbox Width="20" Height="20" Margin="0,0,10,0">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Data="M 8.5,9 L 10.5,3.5 H 13.5 L 15.5,9 M 3,9 H 21 L 18.5,20 H 5.5 Z"
+                                                      Stroke="#212529" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeLineJoin="Round" Fill="Transparent"/>
+                                                <Ellipse Canvas.Left="10.5" Canvas.Top="13" Width="3" Height="3" Fill="#212529"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="Opening Control"
+                                                   FontSize="14.5"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#212529"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bdr" Property="Background" Value="#E9ECEF"/>
+                                        <Setter TargetName="Bdr" Property="BorderBrush" Value="#CED4DA"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Bdr" Property="Background" Value="#DEE2E6"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
 
-                        <!-- 7. Close Register (Crimson Red Tile #D62849) -->
-                        <Button Command="{Binding OpenClosingRegisterWorkflowCommand}" Height="148" Margin="5" Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr" Background="{StaticResource DangerRedBrush}" CornerRadius="4">
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <Viewbox Width="22" Height="22" Margin="0,0,0,10">
-                                                <Canvas Width="24" Height="24">
-                                                    <Ellipse Canvas.Left="3" Canvas.Top="8" Width="7" Height="7" Stroke="#FFFFFF" StrokeThickness="1.8"/>
-                                                    <Path Data="M 10,11.5 H 21 M 17,11.5 V 15 M 20,11.5 V 15" Stroke="#FFFFFF" StrokeThickness="1.8" StrokeStartLineCap="Round"/>
-                                                </Canvas>
-                                            </Viewbox>
-                                            <TextBlock Text="Close Register" FontSize="13.5" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Opacity" Value="0.92"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                    </UniformGrid>
+                    <!-- Close Register Action -->
+                    <Button Command="{Binding OpenClosingRegisterWorkflowCommand}"
+                            Height="50"
+                            Cursor="Hand">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bdr"
+                                        Background="#DC3545"
+                                        CornerRadius="6"
+                                        Padding="16,0">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <!-- Key Icon -->
+                                        <Viewbox Width="20" Height="20" Margin="0,0,10,0">
+                                            <Canvas Width="24" Height="24">
+                                                <Ellipse Canvas.Left="3" Canvas.Top="8" Width="7" Height="7" Stroke="#FFFFFF" StrokeThickness="1.8"/>
+                                                <Path Data="M 10,11.5 H 21 M 17,11.5 V 15 M 20,11.5 V 15" Stroke="#FFFFFF" StrokeThickness="1.8" StrokeStartLineCap="Round"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="Close Register"
+                                                   FontSize="15"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FFFFFF"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bdr" Property="Background" Value="#BD2130"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Bdr" Property="Background" Value="#B21F2D"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </StackPanel>
             </Border>
         </Grid>
@@ -2568,12 +2591,8 @@
                                        FontWeight="Bold"
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
                             <Button Command="{Binding DismissDraftOrdersWarningCommand}"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand"
-                                    HorizontalAlignment="Right">
-                                <TextBlock Text="✕" FontSize="15" Foreground="#6B7280"/>
-                            </Button>
+                                    Style="{StaticResource ModalCloseButtonStyle}"
+                                    HorizontalAlignment="Right"/>
                         </Grid>
 
                         <TextBlock Text="You cannot close the POS while there are still draft orders for the day."

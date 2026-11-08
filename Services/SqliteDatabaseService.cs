@@ -602,6 +602,29 @@ public class SqliteDatabaseService
                 ActiveUserName TEXT,
                 ActiveUserAvatar TEXT,
                 RecentSalesPointsJson TEXT,
+                SelectedPaymentMethodsCsv TEXT DEFAULT 'Cash,Card,Customer Account',
+                IsOneClickPaymentEnabled INTEGER DEFAULT 0,
+                OneClickPaymentMethodsCsv TEXT DEFAULT 'Cash',
+                IsRestrictCategoriesEnabled INTEGER DEFAULT 0,
+                RestrictedCategoriesCsv TEXT DEFAULT '',
+                IsVariantsEnabled INTEGER DEFAULT 1,
+                IsAutomaticReceiptPrintingEnabled INTEGER DEFAULT 0,
+                IsPreventLineMergingEnabled INTEGER DEFAULT 0,
+                IsPrintLastReceiptEnabled INTEGER DEFAULT 0,
+                IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0,
+                CustomOrderReceiptDesignId INTEGER,
+                IsHideOpeningCashControlEnabled INTEGER DEFAULT 0,
+                DefaultOpeningCashAmount REAL DEFAULT 0.0,
+                IsSecondReceiptEnabled INTEGER DEFAULT 0,
+                SecondReceiptDesignId INTEGER,
+                UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS PosReceiptDesigns (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL,
+                OpenCashDrawerOnly INTEGER DEFAULT 0,
+                ReceiptXml TEXT DEFAULT '',
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -660,7 +683,22 @@ public class SqliteDatabaseService
             "ALTER TABLE PosOrders ADD COLUMN IsToInvoice INTEGER DEFAULT 0;",
             "ALTER TABLE PosOrders ADD COLUMN IsSynced INTEGER DEFAULT 1;",
             "ALTER TABLE PosOrderLines ADD COLUMN CustomerNote TEXT;",
-            "ALTER TABLE PosPayments ADD COLUMN IsSynced INTEGER DEFAULT 1;"
+            "ALTER TABLE PosPayments ADD COLUMN IsSynced INTEGER DEFAULT 1;",
+            "ALTER TABLE PosConfigs ADD COLUMN SelectedPaymentMethodsCsv TEXT DEFAULT 'Cash,Card,Customer Account';",
+            "ALTER TABLE PosConfigs ADD COLUMN IsOneClickPaymentEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN OneClickPaymentMethodsCsv TEXT DEFAULT 'Cash';",
+            "ALTER TABLE PosConfigs ADD COLUMN IsRestrictCategoriesEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN RestrictedCategoriesCsv TEXT DEFAULT '';",
+            "ALTER TABLE PosConfigs ADD COLUMN IsVariantsEnabled INTEGER DEFAULT 1;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsAutomaticReceiptPrintingEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsPreventLineMergingEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsPrintLastReceiptEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN CustomOrderReceiptDesignId INTEGER;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsHideOpeningCashControlEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN DefaultOpeningCashAmount REAL DEFAULT 0.0;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsSecondReceiptEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN SecondReceiptDesignId INTEGER;"
         ];
 
         foreach (string sql in migrations)
@@ -672,6 +710,42 @@ public class SqliteDatabaseService
                 alterCmd.ExecuteNonQuery();
             }
             catch { }
+        }
+
+        // Seed default Receipt Designs if table is empty
+        using (var checkDesignsCmd = connection.CreateCommand())
+        {
+            checkDesignsCmd.CommandText = "SELECT COUNT(*) FROM PosReceiptDesigns;";
+            long designsCount = Convert.ToInt64(checkDesignsCmd.ExecuteScalar() ?? 0L);
+            if (designsCount == 0)
+            {
+                using var seedDesignCmd = connection.CreateCommand();
+                seedDesignCmd.CommandText = """
+                    INSERT INTO PosReceiptDesigns (Name, OpenCashDrawerOnly, ReceiptXml)
+                    VALUES
+                        ('Standard Order Receipt', 0, @stdXml),
+                        ('Simplified Kitchen / Second Receipt', 0, @secXml),
+                        ('Open Cash Drawer Pulse Only', 1, '<receipt open-cashdrawer="true" />');
+                    """;
+                seedDesignCmd.Parameters.AddWithValue("@stdXml", ReceiptDesignRecord.GetDefaultXmlTemplate());
+                seedDesignCmd.Parameters.AddWithValue("@secXml", """
+<t t-name="point_of_sale.SecondReceipt">
+    <div class="pos-receipt">
+        <div class="pos-receipt-order-data">
+            <h2><t t-esc="receipt.name" /></h2>
+            <div>Date: <t t-esc="receipt.date.localestring" /></div>
+        </div>
+        <br />
+        <div class="orderlines">
+            <t t-foreach="receipt.orderlines" t-as="line" t-key="line.id">
+                <div><t t-esc="line.qty" /> x <t t-esc="line.product_name" /></div>
+            </t>
+        </div>
+    </div>
+</t>
+""");
+                seedDesignCmd.ExecuteNonQuery();
+            }
         }
 
         using var checkConfig = connection.CreateCommand();
@@ -3246,7 +3320,22 @@ public class SqliteDatabaseService
         cmd.CommandText = """
             SELECT c.Id, c.OdooId, c.Name, c.CurrentSessionId, c.CurrentSessionName, c.CurrentSessionState,
                    c.LastClosingDate, c.LastClosingBalance, c.OpeningBalance,
-                   c.ActiveUserId, c.ActiveUserName, COALESCE(c.ActiveUserAvatar, u.AvatarBase64), c.RecentSalesPointsJson
+                   c.ActiveUserId, c.ActiveUserName, COALESCE(c.ActiveUserAvatar, u.AvatarBase64), c.RecentSalesPointsJson,
+                   COALESCE(c.SelectedPaymentMethodsCsv, 'Cash,Card,Customer Account'),
+                   COALESCE(c.IsOneClickPaymentEnabled, 0),
+                   COALESCE(c.OneClickPaymentMethodsCsv, 'Cash'),
+                   COALESCE(c.IsRestrictCategoriesEnabled, 0),
+                   COALESCE(c.RestrictedCategoriesCsv, ''),
+                   COALESCE(c.IsVariantsEnabled, 1),
+                   COALESCE(c.IsAutomaticReceiptPrintingEnabled, 0),
+                   COALESCE(c.IsPreventLineMergingEnabled, 0),
+                   COALESCE(c.IsPrintLastReceiptEnabled, 0),
+                   COALESCE(c.IsCustomOrderReceiptsEnabled, 0),
+                   c.CustomOrderReceiptDesignId,
+                   COALESCE(c.IsHideOpeningCashControlEnabled, 0),
+                   COALESCE(c.DefaultOpeningCashAmount, 0.0),
+                   COALESCE(c.IsSecondReceiptEnabled, 0),
+                   c.SecondReceiptDesignId
             FROM PosConfigs c
             LEFT JOIN Users u ON c.ActiveUserId = u.OdooId
             ORDER BY COALESCE(c.OdooId, c.Id) ASC;
@@ -3269,7 +3358,22 @@ public class SqliteDatabaseService
                 ActiveUserId = reader.IsDBNull(9) ? null : reader.GetInt32(9),
                 ActiveUserName = reader.IsDBNull(10) ? null : reader.GetString(10),
                 ActiveUserAvatarBase64 = reader.IsDBNull(11) ? null : reader.GetString(11),
-                RecentSalesPointsJson = reader.IsDBNull(12) ? "[]" : reader.GetString(12)
+                RecentSalesPointsJson = reader.IsDBNull(12) ? "[]" : reader.GetString(12),
+                SelectedPaymentMethodsCsv = reader.IsDBNull(13) ? "Cash,Card,Customer Account" : reader.GetString(13),
+                IsOneClickPaymentEnabled = !reader.IsDBNull(14) && reader.GetInt32(14) != 0,
+                OneClickPaymentMethodsCsv = reader.IsDBNull(15) ? "Cash" : reader.GetString(15),
+                IsRestrictCategoriesEnabled = !reader.IsDBNull(16) && reader.GetInt32(16) != 0,
+                RestrictedCategoriesCsv = reader.IsDBNull(17) ? "" : reader.GetString(17),
+                IsVariantsEnabled = reader.IsDBNull(18) || reader.GetInt32(18) != 0,
+                IsAutomaticReceiptPrintingEnabled = !reader.IsDBNull(19) && reader.GetInt32(19) != 0,
+                IsPreventLineMergingEnabled = !reader.IsDBNull(20) && reader.GetInt32(20) != 0,
+                IsPrintLastReceiptEnabled = !reader.IsDBNull(21) && reader.GetInt32(21) != 0,
+                IsCustomOrderReceiptsEnabled = !reader.IsDBNull(22) && reader.GetInt32(22) != 0,
+                CustomOrderReceiptDesignId = reader.IsDBNull(23) ? null : reader.GetInt64(23),
+                IsHideOpeningCashControlEnabled = !reader.IsDBNull(24) && reader.GetInt32(24) != 0,
+                DefaultOpeningCashAmount = reader.IsDBNull(25) ? 0.00m : Convert.ToDecimal(reader.GetDouble(25)),
+                IsSecondReceiptEnabled = !reader.IsDBNull(26) && reader.GetInt32(26) != 0,
+                SecondReceiptDesignId = reader.IsDBNull(27) ? null : reader.GetInt64(27)
             });
         }
 
@@ -3416,6 +3520,140 @@ public class SqliteDatabaseService
         cmd.CommandText = "SELECT LastPosConfigsSyncedAt FROM OdooConfig WHERE Id = 1;";
         var res = await cmd.ExecuteScalarAsync();
         return res is DBNull or null ? null : res.ToString();
+    }
+
+    public async Task SavePosConfigSettingsAsync(PosConfigRecord config)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            UPDATE PosConfigs
+            SET SelectedPaymentMethodsCsv = @payMethods,
+                IsOneClickPaymentEnabled = @oneClickEnabled,
+                OneClickPaymentMethodsCsv = @oneClickMethods,
+                IsRestrictCategoriesEnabled = @restrictCatEnabled,
+                RestrictedCategoriesCsv = @restrictedCats,
+                IsVariantsEnabled = @variantsEnabled,
+                IsAutomaticReceiptPrintingEnabled = @autoPrint,
+                IsPreventLineMergingEnabled = @preventMerge,
+                IsPrintLastReceiptEnabled = @printLast,
+                IsCustomOrderReceiptsEnabled = @customReceiptEnabled,
+                CustomOrderReceiptDesignId = @customReceiptId,
+                IsHideOpeningCashControlEnabled = @hideOpening,
+                DefaultOpeningCashAmount = @defaultCash,
+                IsSecondReceiptEnabled = @secondReceiptEnabled,
+                SecondReceiptDesignId = @secondReceiptId,
+                UpdatedAt = CURRENT_TIMESTAMP
+            WHERE Id = @id OR OdooId = @odooId;
+            """;
+
+        cmd.Parameters.AddWithValue("@payMethods", config.SelectedPaymentMethodsCsv ?? "Cash,Card,Customer Account");
+        cmd.Parameters.AddWithValue("@oneClickEnabled", config.IsOneClickPaymentEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@oneClickMethods", config.OneClickPaymentMethodsCsv ?? "Cash");
+        cmd.Parameters.AddWithValue("@restrictCatEnabled", config.IsRestrictCategoriesEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@restrictedCats", config.RestrictedCategoriesCsv ?? "");
+        cmd.Parameters.AddWithValue("@variantsEnabled", config.IsVariantsEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@autoPrint", config.IsAutomaticReceiptPrintingEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@preventMerge", config.IsPreventLineMergingEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@printLast", config.IsPrintLastReceiptEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@customReceiptEnabled", config.IsCustomOrderReceiptsEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@customReceiptId", (object?)config.CustomOrderReceiptDesignId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@hideOpening", config.IsHideOpeningCashControlEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@defaultCash", (double)config.DefaultOpeningCashAmount);
+        cmd.Parameters.AddWithValue("@secondReceiptEnabled", config.IsSecondReceiptEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@secondReceiptId", (object?)config.SecondReceiptDesignId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@id", config.Id);
+        cmd.Parameters.AddWithValue("@odooId", config.OdooId);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    // =========================================================================
+    // 12B. RECEIPT DESIGNS REPOSITORY (pos.receipt.design)
+    // =========================================================================
+    public async Task<List<ReceiptDesignRecord>> LoadAllReceiptDesignsAsync()
+    {
+        var list = new List<ReceiptDesignRecord>();
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, Name, COALESCE(OpenCashDrawerOnly, 0), COALESCE(ReceiptXml, ''), COALESCE(UpdatedAt, '')
+            FROM PosReceiptDesigns
+            ORDER BY Id ASC;
+            """;
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            list.Add(new ReceiptDesignRecord
+            {
+                Id = reader.GetInt64(0),
+                Name = reader.GetString(1),
+                OpenCashDrawerOnly = reader.GetInt32(2) != 0,
+                ReceiptXml = reader.GetString(3),
+                UpdatedAt = reader.GetString(4)
+            });
+        }
+
+        return list;
+    }
+
+    public async Task SaveReceiptDesignAsync(ReceiptDesignRecord design)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+
+        if (design.Id > 0)
+        {
+            cmd.CommandText = """
+                UPDATE PosReceiptDesigns
+                SET Name = @name,
+                    OpenCashDrawerOnly = @openDrawerOnly,
+                    ReceiptXml = @xml,
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE Id = @id;
+                """;
+            cmd.Parameters.AddWithValue("@id", design.Id);
+        }
+        else
+        {
+            cmd.CommandText = """
+                INSERT INTO PosReceiptDesigns (Name, OpenCashDrawerOnly, ReceiptXml, UpdatedAt)
+                VALUES (@name, @openDrawerOnly, @xml, CURRENT_TIMESTAMP);
+                SELECT last_insert_rowid();
+                """;
+        }
+
+        cmd.Parameters.AddWithValue("@name", string.IsNullOrWhiteSpace(design.Name) ? "New Receipt Design" : design.Name.Trim());
+        cmd.Parameters.AddWithValue("@openDrawerOnly", design.OpenCashDrawerOnly ? 1 : 0);
+        cmd.Parameters.AddWithValue("@xml", design.ReceiptXml ?? string.Empty);
+
+        if (design.Id > 0)
+        {
+            await cmd.ExecuteNonQueryAsync();
+        }
+        else
+        {
+            var newId = await cmd.ExecuteScalarAsync();
+            if (newId != null && long.TryParse(newId.ToString(), out long generatedId))
+            {
+                design.Id = generatedId;
+            }
+        }
+    }
+
+    public async Task DeleteReceiptDesignAsync(long id)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "DELETE FROM PosReceiptDesigns WHERE Id = @id;";
+        cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     // =========================================================================

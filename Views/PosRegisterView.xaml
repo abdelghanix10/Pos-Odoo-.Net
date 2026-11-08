@@ -743,6 +743,36 @@
                             </Button.Template>
                         </Button>
 
+                        <!-- Print Last Receipt Button (Setting 7: Enable a button to print the last paid order) -->
+                        <Button Command="{Binding PrintLastReceiptCommand}"
+                                Height="36"
+                                Padding="12,0"
+                                Margin="0,0,10,0"
+                                Cursor="Hand"
+                                ToolTip="Print Last Receipt"
+                                Visibility="{Binding IsPrintLastReceiptVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="PrtBdr"
+                                            Background="#F3F4F6"
+                                            BorderBrush="#D1D5DB"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="{TemplateBinding Padding}">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="🖨 " FontSize="13" Foreground="#374151" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Print Last Receipt" FontSize="13" FontWeight="SemiBold" Foreground="#374151" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="PrtBdr" Property="Background" Value="#E5E7EB"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
                         <!-- Search products... (form-control form-control-lg input-container: height 44, rounded 6) -->
                         <Border Width="260"
                                 Height="44"
@@ -976,16 +1006,69 @@
                             </Grid>
                         </Border>
 
-                        <!-- ROW 3: FULL-WIDTH PURPLE PAYMENT BUTTON (.pay-order-button height: 68px) -->
-                        <Button Grid.Row="3"
-                                Content="Payment"
-                                Command="{Binding OpenPaymentViewCommand}"
-                                Style="{StaticResource PosPrimaryButtonStyle}"
-                                Height="68"
-                                Margin="8,0,8,8"
-                                FontSize="17.5"
-                                FontWeight="Bold"
-                                Visibility="{Binding HasCurrentOrderItems, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
+                        <!-- ROW 3: PAYMENT BUTTON + OPTIONAL ONE-CLICK PAYMENT BUTTON (Matches Image 3) -->
+                        <Grid Grid.Row="3"
+                              Margin="8,0,8,8"
+                              Height="68"
+                              Visibility="{Binding HasCurrentOrderItems, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+
+                            <!-- Standard Full-Width Payment Button (when One-click Payment is disabled) -->
+                            <Button Content="Payment"
+                                    Command="{Binding OpenPaymentViewCommand}"
+                                    Style="{StaticResource PosPrimaryButtonStyle}"
+                                    Height="68"
+                                    FontSize="17.5"
+                                    FontWeight="Bold"
+                                    Visibility="{Binding IsOneClickPaymentVisible, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}"/>
+
+                            <!-- Side-by-Side [Payment] [Cash] Buttons (when One-click Payment is enabled - Image 3) -->
+                            <Grid Visibility="{Binding IsOneClickPaymentVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="6"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Column="0"
+                                        Content="Payment"
+                                        Command="{Binding OpenPaymentViewCommand}"
+                                        Style="{StaticResource PosPrimaryButtonStyle}"
+                                        Height="68"
+                                        FontSize="17.5"
+                                        FontWeight="Bold"/>
+
+                                <Button Grid.Column="2"
+                                        Content="{Binding OneClickPaymentButtonLabel}"
+                                        Command="{Binding OneClickPayCommand}"
+                                        Height="68"
+                                        Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="OneClickBdr"
+                                                    Background="#EAECEF"
+                                                    BorderBrush="#D1D5DB"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6">
+                                                <TextBlock Text="{TemplateBinding Content}"
+                                                           FontSize="17.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#111827"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="OneClickBdr" Property="Background" Value="#DEE2E6"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="OneClickBdr" Property="Background" Value="#CED4DA"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </Grid>
+                        </Grid>
                     </Grid>
                 </Border>
 
@@ -2742,6 +2825,241 @@
                         <Button Content="Discard" Command="{Binding CloseNoteModalCommand}" Style="{StaticResource PosSecondaryButtonStyle}"/>
                     </StackPanel>
                 </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ==================== MODAL 6: PRODUCT VARIANT SELECTION POPUP (Setting 4) ==================== -->
+        <Grid Background="#66000000"
+              Panel.ZIndex="1400"
+              Visibility="{Binding IsVariantPopupOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+            <Border Width="620"
+                    MaxHeight="680"
+                    Background="#FFFFFF"
+                    CornerRadius="8"
+                    Padding="28,24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Effect="{StaticResource ModalShadow}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header: Product Name + Dynamic Variant Total Price + Close Button -->
+                    <Border Grid.Row="0" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="0,0,0,16" Margin="0,0,0,18">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding VariantPopupProductName}"
+                                           FontSize="20"
+                                           FontWeight="Bold"
+                                           Foreground="#111827"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="Select product attributes &amp; variant options"
+                                           FontSize="12.5"
+                                           Foreground="#6B7280"
+                                           Margin="0,3,0,0"/>
+                            </StackPanel>
+
+                            <Border Grid.Column="1"
+                                    Background="#F3E8FF"
+                                    BorderBrush="#714B67"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="12,6"
+                                    VerticalAlignment="Center"
+                                    Margin="12,0">
+                                <TextBlock Text="{Binding VariantPopupTotalPriceDisplay}"
+                                           FontSize="16"
+                                           FontWeight="Bold"
+                                           Foreground="#714B67"/>
+                            </Border>
+
+                            <Button Grid.Column="2"
+                                    Command="{Binding CloseVariantPopupCommand}"
+                                    Style="{StaticResource ModalCloseButtonStyle}"
+                                    VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Body: Attribute Groups (Pills / Color Swatches / Extra Prices) -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="440">
+                        <ItemsControl ItemsSource="{Binding VariantAttributeGroups}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:PosVariantAttributeGroup}">
+                                    <StackPanel Margin="0,0,0,20">
+                                        <TextBlock Text="{Binding AttributeName}"
+                                                   FontSize="14.5"
+                                                   FontWeight="Bold"
+                                                   Foreground="#1F2937"
+                                                   Margin="0,0,0,10"/>
+
+                                        <ItemsControl ItemsSource="{Binding Options}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type local:PosVariantOptionItem}">
+                                                    <Button Command="{Binding DataContext.SelectVariantOptionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Cursor="Hand"
+                                                            Margin="0,0,10,10">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="OptBdr"
+                                                                        Background="#F9FAFB"
+                                                                        BorderBrush="#D1D5DB"
+                                                                        BorderThickness="1.5"
+                                                                        CornerRadius="8"
+                                                                        Padding="16,10"
+                                                                        MinWidth="74">
+                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                        <!-- Color Swatch if HtmlColor is set -->
+                                                                        <Ellipse Width="16" Height="16"
+                                                                                 Fill="{Binding SwatchBrush}"
+                                                                                 Stroke="#9CA3AF"
+                                                                                 StrokeThickness="1"
+                                                                                 Margin="0,0,8,0"
+                                                                                 Visibility="{Binding HasColorSwatch, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
+
+                                                                        <TextBlock x:Name="OptTxt"
+                                                                                   Text="{Binding ValueName}"
+                                                                                   FontSize="14"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Foreground="#1F2937"
+                                                                                   VerticalAlignment="Center"/>
+
+                                                                        <!-- Extra Price Badge -->
+                                                                        <Border Background="#ECFDF5"
+                                                                                BorderBrush="#A7F3D0"
+                                                                                BorderThickness="1"
+                                                                                CornerRadius="10"
+                                                                                Padding="7,2"
+                                                                                Margin="8,0,0,0"
+                                                                                Visibility="{Binding HasExtraPrice, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                                            <TextBlock Text="{Binding ExtraPriceDisplay}"
+                                                                                       FontSize="11.5"
+                                                                                       FontWeight="Bold"
+                                                                                       Foreground="#047857"/>
+                                                                        </Border>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter TargetName="OptBdr" Property="Background" Value="#F3E8FF"/>
+                                                                        <Setter TargetName="OptBdr" Property="BorderBrush" Value="#71639E"/>
+                                                                        <Setter TargetName="OptBdr" Property="BorderThickness" Value="2"/>
+                                                                        <Setter TargetName="OptTxt" Property="Foreground" Value="#5B4B8A"/>
+                                                                    </DataTrigger>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="OptBdr" Property="BorderBrush" Value="#71639E"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <!-- Footer: Add / Discard -->
+                    <Border Grid.Row="2" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,8,0,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <Button Content="Add"
+                                    Command="{Binding ConfirmVariantSelectionCommand}"
+                                    Style="{StaticResource PosPrimaryButtonStyle}"
+                                    MinWidth="110"
+                                    Height="42"
+                                    FontSize="15"
+                                    FontWeight="Bold"
+                                    Margin="0,0,10,0"/>
+                            <Button Content="Discard"
+                                    Command="{Binding CloseVariantPopupCommand}"
+                                    Style="{StaticResource PosSecondaryButtonStyle}"
+                                    MinWidth="100"
+                                    Height="42"
+                                    FontSize="14.5"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ==================== MODAL 7: RECEIPT PREVIEW (Custom Order Receipts & Second Receipt) ==================== -->
+        <Grid Background="#66000000"
+              Panel.ZIndex="1500"
+              Visibility="{Binding IsReceiptPreviewModalOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+            <Border Width="520"
+                    MaxHeight="740"
+                    Background="#FFFFFF"
+                    CornerRadius="8"
+                    Padding="24,20"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Effect="{StaticResource ModalShadow}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="{Binding ReceiptPreviewTitle}" FontSize="18" FontWeight="Bold" Foreground="#111827"/>
+                            <TextBlock Text="{Binding ReceiptPreviewDesignBadge}" FontSize="12.5" FontWeight="SemiBold" Foreground="#714B67" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Button Command="{Binding CloseReceiptPreviewModalCommand}"
+                                Style="{StaticResource ModalCloseButtonStyle}"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="560">
+                        <StackPanel>
+                            <!-- Main Receipt Paper -->
+                            <Border Background="#FAFAFA" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="4" Padding="18,16" Margin="0,0,0,14">
+                                <TextBlock Text="{Binding ReceiptPreviewMainText}"
+                                           FontFamily="Consolas"
+                                           FontSize="12.5"
+                                           Foreground="#111827"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+
+                            <!-- Second Receipt Paper (When Second Receipt is enabled) -->
+                            <StackPanel Visibility="{Binding HasSecondReceiptPreview, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                <TextBlock Text="{Binding ReceiptPreviewSecondTitle}"
+                                           FontSize="13.5" FontWeight="Bold" Foreground="#374151" Margin="0,4,0,8"/>
+                                <Border Background="#FFFBEB" BorderBrush="#FCD34D" BorderThickness="1" CornerRadius="4" Padding="18,16">
+                                    <TextBlock Text="{Binding ReceiptPreviewSecondText}"
+                                               FontFamily="Consolas"
+                                               FontSize="12.5"
+                                               Foreground="#111827"
+                                               TextWrapping="Wrap"/>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                        <Button Content="Close"
+                                Command="{Binding CloseReceiptPreviewModalCommand}"
+                                Style="{StaticResource PosPrimaryButtonStyle}"
+                                MinWidth="100"/>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
 

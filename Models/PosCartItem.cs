@@ -7,6 +7,7 @@ namespace OdooPosLogin;
 public class PosCartItem : INotifyPropertyChanged
 {
     private ProductRecord _product;
+    private string? _customProductName;
     private decimal _quantity = 1m;
     private decimal _unitPrice;
     private decimal _taxRate;
@@ -15,11 +16,12 @@ public class PosCartItem : INotifyPropertyChanged
     private bool _isSelected;
     private bool _isUnitPriceTaxIncluded;
 
-    public PosCartItem(ProductRecord product, decimal quantity = 1m, bool unitPriceIsTaxIncluded = false)
+    public PosCartItem(ProductRecord product, decimal quantity = 1m, bool unitPriceIsTaxIncluded = false, string? customProductName = null, decimal? customUnitPrice = null)
     {
         _product = product;
+        _customProductName = customProductName;
         _quantity = quantity;
-        _unitPrice = product.ListPrice;
+        _unitPrice = customUnitPrice ?? product.ListPrice;
         _taxRate = product.SalesTaxRate >= 0m ? product.SalesTaxRate : 15.0m;
         _isUnitPriceTaxIncluded = unitPriceIsTaxIncluded;
     }
@@ -27,11 +29,22 @@ public class PosCartItem : INotifyPropertyChanged
     public ProductRecord Product
     {
         get => _product;
-        set { _product = value; OnPropertyChanged(); }
+        set { _product = value; OnPropertyChanged(); OnPropertyChanged(nameof(ProductName)); }
     }
 
     public int? ProductOdooId => _product.OdooId;
-    public string ProductName => _product.Name;
+    public string ProductName
+    {
+        get => !string.IsNullOrWhiteSpace(_customProductName) ? _customProductName : _product.Name;
+        set
+        {
+            if (_customProductName != value)
+            {
+                _customProductName = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public decimal Quantity
     {

@@ -13,6 +13,9 @@ public partial class PosRegisterViewModel : ViewModelBase
     private readonly List<ProductRecord> _allProducts = [];
     private readonly List<PosCategoryRecord> _allCategories = [];
     private readonly List<PosOrderRecord> _allInPosOrders = [];
+    private readonly List<ProductAttributeRecord> _allProductAttributes = [];
+    private readonly List<ReceiptDesignRecord> _allReceiptDesigns = [];
+    private PosOrderRecord? _lastPaidOrder;
 
     // ==================== SESSION & CONFIG CONTEXT ====================
     [ObservableProperty]
@@ -575,6 +578,57 @@ public partial class PosRegisterViewModel : ViewModelBase
     [ObservableProperty]
     private string _noteInputText = string.Empty;
 
+    // ==================== POS SETTINGS DRIVEN UI PROPERTIES ====================
+    public bool IsOneClickPaymentVisible =>
+        CurrentConfig != null &&
+        CurrentConfig.IsOneClickPaymentEnabled &&
+        CurrentConfig.OneClickPaymentMethodsList.Count > 0;
+
+    public string OneClickPaymentButtonLabel =>
+        CurrentConfig?.OneClickPaymentMethodsList.FirstOrDefault() ?? "Cash";
+
+    public bool IsPrintLastReceiptVisible =>
+        CurrentConfig != null && CurrentConfig.IsPrintLastReceiptEnabled;
+
+    // ==================== MODAL 6: PRODUCT VARIANT SELECTION POPUP ====================
+    [ObservableProperty]
+    private bool _isVariantPopupOpen;
+
+    [ObservableProperty]
+    private ProductRecord? _variantPopupProduct;
+
+    [ObservableProperty]
+    private string _variantPopupProductName = string.Empty;
+
+    [ObservableProperty]
+    private decimal _variantPopupTotalPrice;
+
+    public string VariantPopupTotalPriceDisplay => $"$ {VariantPopupTotalPrice:N2}";
+
+    public ObservableCollection<PosVariantAttributeGroup> VariantAttributeGroups { get; } = [];
+
+    // ==================== MODAL 7: RECEIPT PREVIEW / CUSTOM & SECOND RECEIPT ====================
+    [ObservableProperty]
+    private bool _isReceiptPreviewModalOpen;
+
+    [ObservableProperty]
+    private string _receiptPreviewTitle = "Order Receipt";
+
+    [ObservableProperty]
+    private string _receiptPreviewDesignBadge = "Standard Receipt";
+
+    [ObservableProperty]
+    private string _receiptPreviewMainText = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasSecondReceiptPreview;
+
+    [ObservableProperty]
+    private string _receiptPreviewSecondTitle = "Second Simplified Receipt";
+
+    [ObservableProperty]
+    private string _receiptPreviewSecondText = string.Empty;
+
     // Toast notifications inside POS
     [ObservableProperty]
     private string _posToastMessage = string.Empty;
@@ -714,6 +768,9 @@ public partial class PosRegisterViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsTopBarcodeVisible));
         OnPropertyChanged(nameof(HasCurrentOrderItems));
         OnPropertyChanged(nameof(ShowExpandedNumpad));
+        OnPropertyChanged(nameof(IsOneClickPaymentVisible));
+        OnPropertyChanged(nameof(OneClickPaymentButtonLabel));
+        OnPropertyChanged(nameof(IsPrintLastReceiptVisible));
     }
 
     private void ScheduleDraftPersistence(PosDraftOrder? draft)
@@ -769,6 +826,31 @@ public partial class PosRegisterViewModel : ViewModelBase
     // =========================================================================
     public async Task InitializeRegisterAsync(PosConfigRecord config, bool showOpeningControl = false)
     {
+        try
+        {
+            var freshConfigs = await SqliteDatabaseService.Instance.LoadAllPosConfigsAsync();
+            var fresh = freshConfigs.FirstOrDefault(c => c.OdooId == config.OdooId || c.Id == config.Id);
+            if (fresh != null)
+            {
+                config.SelectedPaymentMethodsCsv = fresh.SelectedPaymentMethodsCsv;
+                config.IsOneClickPaymentEnabled = fresh.IsOneClickPaymentEnabled;
+                config.OneClickPaymentMethodsCsv = fresh.OneClickPaymentMethodsCsv;
+                config.IsRestrictCategoriesEnabled = fresh.IsRestrictCategoriesEnabled;
+                config.RestrictedCategoriesCsv = fresh.RestrictedCategoriesCsv;
+                config.IsVariantsEnabled = fresh.IsVariantsEnabled;
+                config.IsAutomaticReceiptPrintingEnabled = fresh.IsAutomaticReceiptPrintingEnabled;
+                config.IsPreventLineMergingEnabled = fresh.IsPreventLineMergingEnabled;
+                config.IsPrintLastReceiptEnabled = fresh.IsPrintLastReceiptEnabled;
+                config.IsCustomOrderReceiptsEnabled = fresh.IsCustomOrderReceiptsEnabled;
+                config.CustomOrderReceiptDesignId = fresh.CustomOrderReceiptDesignId;
+                config.IsHideOpeningCashControlEnabled = fresh.IsHideOpeningCashControlEnabled;
+                config.DefaultOpeningCashAmount = fresh.DefaultOpeningCashAmount;
+                config.IsSecondReceiptEnabled = fresh.IsSecondReceiptEnabled;
+                config.SecondReceiptDesignId = fresh.SecondReceiptDesignId;
+            }
+        }
+        catch { }
+
         CurrentConfig = config;
         ActiveShopName = config.Name;
         CashierName = !string.IsNullOrWhiteSpace(config.ActiveUserName) ? config.ActiveUserName! : "Mitchell Admin";
@@ -792,12 +874,22 @@ public partial class PosRegisterViewModel : ViewModelBase
                         CashierName = matchedUser.Name;
                 }
             }
+
+            var attrs = await SqliteDatabaseService.Instance.LoadAllAttributesAsync();
+            _allProductAttributes.Clear();
+            _allProductAttributes.AddRange(attrs);
+
+            var designs = await SqliteDatabaseService.Instance.LoadAllReceiptDesignsAsync();
+            _allReceiptDesigns.Clear();
+            _allReceiptDesigns.AddRange(designs);
         }
         catch { }
 
-        decimal defaultCash = config.LastClosingBalance > 0
-            ? config.LastClosingBalance
-            : (config.OpeningBalance > 0 ? config.OpeningBalance : 0.00m);
+        decimal defaultCash = config.IsHideOpeningCashControlEnabled
+            ? config.DefaultOpeningCashAmount
+            : (config.LastClosingBalance > 0
+                ? config.LastClosingBalance
+                : (config.OpeningBalance > 0 ? config.OpeningBalance : 0.00m));
 
         OpeningCashInput = defaultCash.ToString("0.00", CultureInfo.InvariantCulture);
         ClosingCashCount = OpeningCashInput;
@@ -828,6 +920,22 @@ public partial class PosRegisterViewModel : ViewModelBase
         IsClosingRegisterModalOpen = false;
         IsDraftOrdersWarningModalOpen = false;
         IsNoteModalOpen = false;
+        IsVariantPopupOpen = false;
+        IsReceiptPreviewModalOpen = false;
+        NotifyViewStatesChanged();
+
+        // Setting 9: Hide Opening Cash Control (Automatically hide the opening cash control popup and set cash to the default amount)
+        if (config.IsHideOpeningCashControlEnabled)
+        {
+            config.OpeningBalance = config.DefaultOpeningCashAmount;
+            IsPosLandingScreenOpen = false;
+            IsOpeningControlModalOpen = false;
+            if (config.IsClosed || config.IsOpeningControl)
+            {
+                await EnterPosFromLandingAsync();
+            }
+            return;
+        }
 
         if (config.IsClosed || config.IsOpeningControl || showOpeningControl)
         {
@@ -884,35 +992,68 @@ public partial class PosRegisterViewModel : ViewModelBase
             var allMethods = await SqliteDatabaseService.Instance.LoadAllPaymentMethodsAsync();
             AvailablePaymentMethods.Clear();
 
-            string shopName = CurrentConfig?.Name ?? "";
-            var shopMethods = allMethods.Where(m =>
-                string.IsNullOrWhiteSpace(m.LinkedPosConfigs) ||
-                m.LinkedShopsList.Any(s => string.Equals(s, shopName, StringComparison.OrdinalIgnoreCase))).ToList();
-
-            if (shopMethods.Count == 0)
-                shopMethods = allMethods;
-
-            if (shopMethods.Count == 0)
+            // Setting 1: Filter by SelectedPaymentMethodsList from PoS Settings
+            var configuredNames = CurrentConfig?.SelectedPaymentMethodsList ?? [];
+            if (configuredNames.Count > 0)
             {
-                AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 1, Name = "Cash", MethodType = "cash" });
-                AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 2, Name = "Card", MethodType = "bank" });
-                AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 3, Name = "Customer Account", MethodType = "pay_later" });
+                int fallbackOdooId = 10;
+                foreach (var name in configuredNames)
+                {
+                    var match = allMethods.FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+                    if (match != null)
+                    {
+                        AvailablePaymentMethods.Add(match);
+                    }
+                    else
+                    {
+                        string methodType = name.Contains("Cash", StringComparison.OrdinalIgnoreCase)
+                            ? "cash"
+                            : (name.Contains("Customer", StringComparison.OrdinalIgnoreCase) || name.Contains("Account", StringComparison.OrdinalIgnoreCase)
+                                ? "pay_later"
+                                : "bank");
+                        AvailablePaymentMethods.Add(new PosPaymentMethodRecord
+                        {
+                            OdooId = fallbackOdooId++,
+                            Name = name,
+                            MethodType = methodType
+                        });
+                    }
+                }
             }
             else
             {
-                foreach (var m in shopMethods)
+                string shopName = CurrentConfig?.Name ?? "";
+                var shopMethods = allMethods.Where(m =>
+                    string.IsNullOrWhiteSpace(m.LinkedPosConfigs) ||
+                    m.LinkedShopsList.Any(s => string.Equals(s, shopName, StringComparison.OrdinalIgnoreCase))).ToList();
+
+                if (shopMethods.Count == 0)
+                    shopMethods = allMethods;
+
+                if (shopMethods.Count == 0)
                 {
-                    AvailablePaymentMethods.Add(m);
-                }
-                if (!AvailablePaymentMethods.Any(m => m.IsTypeCustomerAccount))
-                {
+                    AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 1, Name = "Cash", MethodType = "cash" });
+                    AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 2, Name = "Card", MethodType = "bank" });
                     AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 3, Name = "Customer Account", MethodType = "pay_later" });
+                }
+                else
+                {
+                    foreach (var m in shopMethods)
+                    {
+                        AvailablePaymentMethods.Add(m);
+                    }
+                    if (!AvailablePaymentMethods.Any(m => m.IsTypeCustomerAccount))
+                    {
+                        AvailablePaymentMethods.Add(new PosPaymentMethodRecord { OdooId = 3, Name = "Customer Account", MethodType = "pay_later" });
+                    }
                 }
             }
 
             var firstMethod = AvailablePaymentMethods.FirstOrDefault();
             SelectedPaymentMethod = firstMethod?.Name ?? "Cash";
             SelectedPaymentMethodOdooId = firstMethod?.OdooId;
+            OnPropertyChanged(nameof(IsOneClickPaymentVisible));
+            OnPropertyChanged(nameof(OneClickPaymentButtonLabel));
         }
         catch { }
     }
@@ -930,6 +1071,22 @@ public partial class PosRegisterViewModel : ViewModelBase
                 c.LinkedShopsList.Any(s => string.Equals(s, shopName, StringComparison.OrdinalIgnoreCase))).ToList();
 
             if (shopCats.Count == 0) shopCats = cats;
+
+            // Setting 3: Restrict Categories
+            var restrictedCats = (CurrentConfig?.IsRestrictCategoriesEnabled == true)
+                ? CurrentConfig.RestrictedCategoriesList
+                : [];
+
+            if (restrictedCats.Count > 0)
+            {
+                var filteredCats = shopCats.Where(c =>
+                    restrictedCats.Any(rc => string.Equals(rc, c.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+                if (filteredCats.Count > 0)
+                {
+                    shopCats = filteredCats;
+                }
+            }
+
             _allCategories.AddRange(shopCats);
 
             Categories.Clear();
@@ -940,7 +1097,19 @@ public partial class PosRegisterViewModel : ViewModelBase
 
             var prods = await SqliteDatabaseService.Instance.LoadAllProductsAsync();
             _allProducts.Clear();
-            _allProducts.AddRange(prods.Where(p => p.AvailableInPos));
+            var availableProds = prods.Where(p => p.AvailableInPos).ToList();
+
+            if (restrictedCats.Count > 0)
+            {
+                var restrictedProds = availableProds.Where(p =>
+                    restrictedCats.Any(rc => string.Equals(rc, p.PosCategoryName, StringComparison.OrdinalIgnoreCase))).ToList();
+                if (restrictedProds.Count > 0)
+                {
+                    availableProds = restrictedProds;
+                }
+            }
+
+            _allProducts.AddRange(availableProds);
 
             FilterProducts();
             UpdateProductCartQuantities();
@@ -1124,10 +1293,34 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         if (product == null || CurrentOrder == null) return;
 
-        var existing = CurrentOrder.CartItems.FirstOrDefault(i =>
-            i.Product.Id == product.Id &&
-            Math.Abs(i.UnitPrice - product.ListPrice) < 0.001m &&
-            i.Discount == 0m);
+        // Setting 4: Variants (Open Variant Selection Popup if enabled and product has attributes/variants)
+        bool variantsEnabled = CurrentConfig?.IsVariantsEnabled ?? true;
+        if (variantsEnabled && (product.AttributeLines.Count > 0 || product.VariantCount > 1))
+        {
+            OpenVariantSelectionPopup(product);
+            return;
+        }
+
+        AddProductCore(product, customName: null, customPrice: null);
+    }
+
+    private void AddProductCore(ProductRecord product, string? customName, decimal? customPrice)
+    {
+        if (CurrentOrder == null) return;
+
+        string targetName = !string.IsNullOrWhiteSpace(customName) ? customName : product.Name;
+        decimal targetPrice = customPrice ?? product.ListPrice;
+
+        // Setting 6: Prevent Line Merging (Always create new order lines instead of merging quantities)
+        bool preventMerging = CurrentConfig?.IsPreventLineMergingEnabled ?? false;
+
+        var existing = preventMerging
+            ? null
+            : CurrentOrder.CartItems.FirstOrDefault(i =>
+                i.Product.Id == product.Id &&
+                string.Equals(i.ProductName, targetName, StringComparison.OrdinalIgnoreCase) &&
+                Math.Abs(i.UnitPrice - targetPrice) < 0.001m &&
+                i.Discount == 0m);
 
         if (existing != null)
         {
@@ -1136,7 +1329,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
         else
         {
-            var newItem = new PosCartItem(product, 1m);
+            var newItem = new PosCartItem(product, 1m, unitPriceIsTaxIncluded: false, customProductName: customName, customUnitPrice: customPrice);
             CurrentOrder.CartItems.Add(newItem);
             SelectCartLine(newItem);
         }
@@ -1148,6 +1341,153 @@ public partial class PosRegisterViewModel : ViewModelBase
         NotifyViewStatesChanged();
 
         ScheduleDraftPersistence(CurrentOrder);
+    }
+
+    private void OpenVariantSelectionPopup(ProductRecord product)
+    {
+        VariantPopupProduct = product;
+        VariantAttributeGroups.Clear();
+
+        var lines = product.AttributeLines;
+        if (lines.Count > 0)
+        {
+            foreach (var line in lines)
+            {
+                var dbAttr = _allProductAttributes.FirstOrDefault(a =>
+                    string.Equals(a.Name, line.AttributeName, StringComparison.OrdinalIgnoreCase));
+
+                var group = new PosVariantAttributeGroup
+                {
+                    AttributeName = line.AttributeName,
+                    DisplayType = dbAttr?.DisplayType ?? "pills"
+                };
+
+                bool isFirst = true;
+                foreach (var valName in line.ValuePills)
+                {
+                    var dbVal = dbAttr?.Values.FirstOrDefault(v =>
+                        string.Equals(v.Name, valName, StringComparison.OrdinalIgnoreCase));
+
+                    group.Options.Add(new PosVariantOptionItem
+                    {
+                        AttributeName = line.AttributeName,
+                        ValueName = valName,
+                        HtmlColor = dbVal?.HtmlColor,
+                        ExtraPrice = dbVal != null ? Convert.ToDecimal(dbVal.DefaultExtraPrice) : 0.00m,
+                        IsCustom = dbVal?.IsCustom ?? false,
+                        IsSelected = isFirst
+                    });
+                    isFirst = false;
+                }
+
+                if (group.Options.Count > 0)
+                {
+                    VariantAttributeGroups.Add(group);
+                }
+            }
+        }
+        else if (_allProductAttributes.Count > 0)
+        {
+            // Fallback attribute group if VariantCount > 1 but AttributesJson was empty
+            var fallbackAttr = _allProductAttributes.First();
+            var group = new PosVariantAttributeGroup
+            {
+                AttributeName = fallbackAttr.Name,
+                DisplayType = fallbackAttr.DisplayType
+            };
+            bool isFirst = true;
+            foreach (var v in fallbackAttr.Values.Take(5))
+            {
+                group.Options.Add(new PosVariantOptionItem
+                {
+                    AttributeName = fallbackAttr.Name,
+                    ValueName = v.Name,
+                    HtmlColor = v.HtmlColor,
+                    ExtraPrice = Convert.ToDecimal(v.DefaultExtraPrice),
+                    IsCustom = v.IsCustom,
+                    IsSelected = isFirst
+                });
+                isFirst = false;
+            }
+            if (group.Options.Count > 0)
+                VariantAttributeGroups.Add(group);
+        }
+
+        if (VariantAttributeGroups.Count == 0)
+        {
+            AddProductCore(product, customName: null, customPrice: null);
+            return;
+        }
+
+        RecalculateVariantPopupSummary();
+        IsVariantPopupOpen = true;
+    }
+
+    private void RecalculateVariantPopupSummary()
+    {
+        if (VariantPopupProduct == null) return;
+
+        decimal basePrice = VariantPopupProduct.ListPrice;
+        decimal extra = 0.00m;
+        var selectedParts = new List<string>();
+
+        foreach (var group in VariantAttributeGroups)
+        {
+            var selected = group.SelectedOption ?? group.Options.FirstOrDefault();
+            if (selected != null)
+            {
+                extra += selected.ExtraPrice;
+                string label = selected.IsCustom && !string.IsNullOrWhiteSpace(selected.CustomTextValue)
+                    ? $"{selected.ValueName}: {selected.CustomTextValue.Trim()}"
+                    : selected.ValueName;
+                selectedParts.Add(label);
+            }
+        }
+
+        VariantPopupTotalPrice = basePrice + extra;
+        OnPropertyChanged(nameof(VariantPopupTotalPriceDisplay));
+
+        VariantPopupProductName = selectedParts.Count > 0
+            ? $"{VariantPopupProduct.Name} ({string.Join(", ", selectedParts)})"
+            : VariantPopupProduct.Name;
+    }
+
+    [RelayCommand]
+    public void SelectVariantOption(PosVariantOptionItem? option)
+    {
+        if (option == null) return;
+
+        var group = VariantAttributeGroups.FirstOrDefault(g =>
+            string.Equals(g.AttributeName, option.AttributeName, StringComparison.OrdinalIgnoreCase));
+        if (group != null)
+        {
+            foreach (var opt in group.Options)
+            {
+                opt.IsSelected = ReferenceEquals(opt, option);
+            }
+        }
+
+        RecalculateVariantPopupSummary();
+    }
+
+    [RelayCommand]
+    public void ConfirmVariantSelection()
+    {
+        if (VariantPopupProduct == null)
+        {
+            IsVariantPopupOpen = false;
+            return;
+        }
+
+        RecalculateVariantPopupSummary();
+        AddProductCore(VariantPopupProduct, VariantPopupProductName, VariantPopupTotalPrice);
+        IsVariantPopupOpen = false;
+    }
+
+    [RelayCommand]
+    public void CloseVariantPopup()
+    {
+        IsVariantPopupOpen = false;
     }
 
     [RelayCommand]
@@ -1785,6 +2125,25 @@ public partial class PosRegisterViewModel : ViewModelBase
         IsPaymentViewOpen = true;
     }
 
+    // Setting 2: One-click Payment (Shortcut to skip payment screen)
+    [RelayCommand]
+    public async Task OneClickPayAsync()
+    {
+        if (CurrentOrder == null || !CurrentOrder.HasItems) return;
+
+        string oneClickMethod = OneClickPaymentButtonLabel;
+        var matchedMethod = AvailablePaymentMethods.FirstOrDefault(m =>
+            string.Equals(m.Name, oneClickMethod, StringComparison.OrdinalIgnoreCase));
+
+        AmountDue = CurrentOrder.TotalAmount;
+        AmountTendered = AmountDue;
+        ChangeDue = 0.00m;
+        SelectedPaymentMethod = matchedMethod?.Name ?? oneClickMethod;
+        SelectedPaymentMethodOdooId = matchedMethod?.OdooId;
+
+        await ValidatePaymentAsync();
+    }
+
     [RelayCommand]
     public void ClosePaymentView()
     {
@@ -1997,6 +2356,12 @@ public partial class PosRegisterViewModel : ViewModelBase
                 enqueueForOdooSync: true
             );
 
+            order.Lines.Clear();
+            foreach (var l in lines) order.Lines.Add(l);
+            order.Payments.Clear();
+            foreach (var p in payments) order.Payments.Add(p);
+            _lastPaidOrder = order;
+
             ConfirmedPaidAmount = total;
             ConfirmedCashAmount = AmountTendered;
             ConfirmedChangeAmount = Math.Max(0.00m, AmountTendered - total);
@@ -2004,6 +2369,12 @@ public partial class PosRegisterViewModel : ViewModelBase
             IsPaymentViewOpen = false;
             IsPaymentConfirmationOpen = true;
             OdooSyncService.Instance.NotifyQueueUpdated();
+
+            // Setting 5: Automatic Receipt Printing
+            if (CurrentConfig?.IsAutomaticReceiptPrintingEnabled == true)
+            {
+                ExecuteOrderReceiptPrint(order, isAutoPrint: true);
+            }
 
             await ReloadInPosOrdersAsync();
             await RefreshPendingSyncCountAsync();
@@ -2053,7 +2424,140 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public void PrintReceipt()
     {
-        ShowPosToast("Receipt sent to printer.");
+        var targetOrder = _lastPaidOrder ?? _allInPosOrders.FirstOrDefault(o => !o.IsDraft && !o.IsCancelled);
+        if (targetOrder != null)
+        {
+            ExecuteOrderReceiptPrint(targetOrder, isAutoPrint: false);
+        }
+        else
+        {
+            ShowPosToast("Receipt sent to printer.");
+        }
+    }
+
+    // Setting 7: Print Last Receipt (Enable a button to print the last paid order.)
+    [RelayCommand]
+    public void PrintLastReceipt()
+    {
+        IsHamburgerMenuOpen = false;
+        var targetOrder = _lastPaidOrder ?? _allInPosOrders.FirstOrDefault(o => OrderMatchesCurrentSession(o) && !o.IsDraft && !o.IsCancelled)
+                          ?? _allInPosOrders.FirstOrDefault(o => !o.IsDraft && !o.IsCancelled);
+        if (targetOrder == null)
+        {
+            ShowPosToast("No paid order found to print.");
+            return;
+        }
+
+        ExecuteOrderReceiptPrint(targetOrder, isAutoPrint: false);
+    }
+
+    [RelayCommand]
+    public void CloseReceiptPreviewModal()
+    {
+        IsReceiptPreviewModalOpen = false;
+    }
+
+    private void ExecuteOrderReceiptPrint(PosOrderRecord order, bool isAutoPrint)
+    {
+        ReceiptDesignRecord? mainDesign = null;
+        if (CurrentConfig?.IsCustomOrderReceiptsEnabled == true && CurrentConfig.CustomOrderReceiptDesignId.HasValue)
+        {
+            mainDesign = _allReceiptDesigns.FirstOrDefault(d => d.Id == CurrentConfig.CustomOrderReceiptDesignId.Value)
+                         ?? _allReceiptDesigns.FirstOrDefault();
+        }
+
+        ReceiptDesignRecord? secondDesign = null;
+        if (CurrentConfig?.IsSecondReceiptEnabled == true)
+        {
+            secondDesign = CurrentConfig.SecondReceiptDesignId.HasValue
+                ? _allReceiptDesigns.FirstOrDefault(d => d.Id == CurrentConfig.SecondReceiptDesignId.Value)
+                : _allReceiptDesigns.Skip(1).FirstOrDefault() ?? _allReceiptDesigns.FirstOrDefault();
+        }
+
+        // If main design is "Open Cash Drawer Only" and no second receipt is enabled
+        if (mainDesign != null && mainDesign.OpenCashDrawerOnly && secondDesign == null)
+        {
+            ShowPosToast($"Cash Drawer Opened ({mainDesign.Name}) — No paper receipt printed.");
+            return;
+        }
+
+        ReceiptPreviewTitle = isAutoPrint ? "Automatic Receipt Printed" : "Order Receipt";
+        ReceiptPreviewDesignBadge = mainDesign != null
+            ? (mainDesign.OpenCashDrawerOnly ? $"{mainDesign.Name} (Cash Drawer Only)" : $"Custom Design: {mainDesign.Name}")
+            : "Standard Receipt";
+
+        ReceiptPreviewMainText = BuildFormattedReceiptText(order, mainDesign, isSimplified: false);
+
+        if (secondDesign != null)
+        {
+            HasSecondReceiptPreview = true;
+            ReceiptPreviewSecondTitle = secondDesign.OpenCashDrawerOnly
+                ? $"Second Receipt: {secondDesign.Name} (Open Cash Drawer Only)"
+                : $"Second Receipt ({secondDesign.Name})";
+            ReceiptPreviewSecondText = BuildFormattedReceiptText(order, secondDesign, isSimplified: true);
+        }
+        else
+        {
+            HasSecondReceiptPreview = false;
+            ReceiptPreviewSecondText = string.Empty;
+        }
+
+        IsReceiptPreviewModalOpen = true;
+        ShowPosToast(isAutoPrint
+            ? (HasSecondReceiptPreview ? "Main & Second Receipts printed automatically." : "Receipt printed automatically.")
+            : "Receipt printed.");
+    }
+
+    private string BuildFormattedReceiptText(PosOrderRecord order, ReceiptDesignRecord? design, bool isSimplified)
+    {
+        if (design != null && design.OpenCashDrawerOnly)
+        {
+            return $"[PULSE SIGNAL] Cash Drawer Opened via \"{design.Name}\".\n(Open Cash Drawer Only = Yes)";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"========================================");
+        sb.AppendLine($"            {ActiveShopName.ToUpperInvariant()}");
+        sb.AppendLine($"========================================");
+        sb.AppendLine($"Order:   {(!string.IsNullOrWhiteSpace(order.PosReference) ? order.PosReference : order.Name)}");
+        sb.AppendLine($"Date:    {(order.DateOrder ?? DateTime.Now):yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"Cashier: {order.CashierName}");
+        if (!string.IsNullOrWhiteSpace(order.CustomerName))
+            sb.AppendLine($"Customer: {order.CustomerName}");
+        sb.AppendLine($"----------------------------------------");
+
+        foreach (var line in order.Lines)
+        {
+            if (isSimplified)
+            {
+                sb.AppendLine($"{line.Qty:0.##} x  {line.ProductName}");
+            }
+            else
+            {
+                sb.AppendLine($"{line.Qty:0.##} x {line.ProductName,-22} $ {line.PriceSubtotalIncl,7:N2}");
+                if (line.Discount > 0)
+                    sb.AppendLine($"   Discount: {line.Discount:0.#}%");
+            }
+        }
+
+        sb.AppendLine($"----------------------------------------");
+        if (!isSimplified)
+        {
+            sb.AppendLine($"Taxes:                       $ {order.AmountTax,8:N2}");
+            sb.AppendLine($"TOTAL:                       $ {order.AmountTotal,8:N2}");
+            foreach (var p in order.Payments)
+            {
+                sb.AppendLine($"{p.PaymentMethodName,-28} $ {p.Amount,8:N2}");
+            }
+        }
+
+        if (design != null && !string.IsNullOrWhiteSpace(design.ReceiptXml))
+        {
+            sb.AppendLine($"----------------------------------------");
+            sb.AppendLine($"[Template: {design.Name}]");
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     [RelayCommand]

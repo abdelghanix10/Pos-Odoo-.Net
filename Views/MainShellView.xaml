@@ -722,6 +722,28 @@
                             </Grid>
                         </Button>
 
+                        <!-- 13.5 POS SETTINGS & RECEIPT DESIGNS -->
+                        <Button x:Name="NavPosSettingsBtn"
+                                Style="{StaticResource SidebarItemButtonStyle}"
+                                Click="NavPosSettings_Click"
+                                ToolTip="Point of Sale Settings &amp; Receipt Designs">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Grid.Column="0" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M 4,6 H 20 M 4,12 H 20 M 4,18 H 20" Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                                        <Ellipse Canvas.Left="13" Canvas.Top="3.5" Width="5" Height="5" Fill="White" Stroke="{StaticResource OdooTealBrush}" StrokeThickness="2"/>
+                                        <Ellipse Canvas.Left="6" Canvas.Top="9.5" Width="5" Height="5" Fill="White" Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2"/>
+                                        <Ellipse Canvas.Left="14" Canvas.Top="15.5" Width="5" Height="5" Fill="White" Stroke="{StaticResource OdooTealBrush}" StrokeThickness="2"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Grid.Column="1" x:Name="PosSettingsLabel" Text="PoS Settings" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                            </Grid>
+                        </Button>
+
                         <!-- 14. SETTINGS -->
                         <Button x:Name="NavSettingsBtn"
                                 Style="{StaticResource SidebarItemButtonStyle}"
@@ -834,6 +856,8 @@
                         Padding="28,0">
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="TabGeneral" Style="{StaticResource OdooActiveTabButtonStyle}" Content="Odoo Connection &amp; Sync" Click="TabButton_Click" Tag="General"/>
+                        <Button x:Name="TabPosSettings" Style="{StaticResource OdooTabButtonStyle}" Content="Point of Sale Settings" Click="TabButton_Click" Tag="PosSettings"/>
+                        <Button x:Name="TabReceiptDesigns" Style="{StaticResource OdooTabButtonStyle}" Content="Receipt Designs" Click="TabButton_Click" Tag="ReceiptDesigns"/>
                         <Button x:Name="TabLocale" Style="{StaticResource OdooTabButtonStyle}" Content="Locale" Click="TabButton_Click" Tag="Locale"/>
                         <Button x:Name="TabPaymentMethod" Style="{StaticResource OdooTabButtonStyle}" Content="Payment Method" Click="TabButton_Click" Tag="PaymentMethod"/>
                         <Button x:Name="TabPeripherals" Style="{StaticResource OdooTabButtonStyle}" Content="Peripherals" Click="TabButton_Click" Tag="Peripherals"/>
@@ -1501,6 +1525,7 @@
             <local:SessionManagementView x:Name="SessionsViewControl" Visibility="Collapsed"/>
             <local:OrderManagementView x:Name="OrdersViewControl" Visibility="Collapsed"/>
             <local:PaymentManagementView x:Name="PaymentsViewControl" Visibility="Collapsed"/>
+            <local:PosSettingsView x:Name="PosSettingsViewControl" Visibility="Collapsed"/>
             <local:PosDashboardView x:Name="DashboardViewControl" Visibility="Visible"/>
 
             <!-- ==================== TOAST BANNER NOTIFICATION ==================== -->

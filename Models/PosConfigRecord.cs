@@ -52,6 +52,154 @@ public class PosConfigRecord : INotifyPropertyChanged
     private string _areaGeometryString = string.Empty;
     private string _markerGeometryString = string.Empty;
 
+    // =========================================================================
+    // POS SETTINGS (10 Settings + Receipt Design selections)
+    // =========================================================================
+    private string _selectedPaymentMethodsCsv = "Cash,Card,Customer Account";
+    private bool _isOneClickPaymentEnabled = false;
+    private string _oneClickPaymentMethodsCsv = "Cash";
+    private bool _isRestrictCategoriesEnabled = false;
+    private string _restrictedCategoriesCsv = string.Empty;
+    private bool _isVariantsEnabled = true;
+    private bool _isAutomaticReceiptPrintingEnabled = false;
+    private bool _isPreventLineMergingEnabled = false;
+    private bool _isPrintLastReceiptEnabled = false;
+    private bool _isCustomOrderReceiptsEnabled = false;
+    private long? _customOrderReceiptDesignId = null;
+    private bool _isHideOpeningCashControlEnabled = false;
+    private decimal _defaultOpeningCashAmount = 0.00m;
+    private bool _isSecondReceiptEnabled = false;
+    private long? _secondReceiptDesignId = null;
+
+    public string SelectedPaymentMethodsCsv
+    {
+        get => _selectedPaymentMethodsCsv;
+        set
+        {
+            if (_selectedPaymentMethodsCsv != value)
+            {
+                _selectedPaymentMethodsCsv = value ?? string.Empty;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedPaymentMethodsList));
+            }
+        }
+    }
+
+    public List<string> SelectedPaymentMethodsList =>
+        string.IsNullOrWhiteSpace(_selectedPaymentMethodsCsv)
+            ? []
+            : _selectedPaymentMethodsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    public bool IsOneClickPaymentEnabled
+    {
+        get => _isOneClickPaymentEnabled;
+        set { if (_isOneClickPaymentEnabled != value) { _isOneClickPaymentEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public string OneClickPaymentMethodsCsv
+    {
+        get => _oneClickPaymentMethodsCsv;
+        set
+        {
+            if (_oneClickPaymentMethodsCsv != value)
+            {
+                _oneClickPaymentMethodsCsv = value ?? string.Empty;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(OneClickPaymentMethodsList));
+            }
+        }
+    }
+
+    public List<string> OneClickPaymentMethodsList =>
+        string.IsNullOrWhiteSpace(_oneClickPaymentMethodsCsv)
+            ? []
+            : _oneClickPaymentMethodsCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    public bool IsRestrictCategoriesEnabled
+    {
+        get => _isRestrictCategoriesEnabled;
+        set { if (_isRestrictCategoriesEnabled != value) { _isRestrictCategoriesEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public string RestrictedCategoriesCsv
+    {
+        get => _restrictedCategoriesCsv;
+        set
+        {
+            if (_restrictedCategoriesCsv != value)
+            {
+                _restrictedCategoriesCsv = value ?? string.Empty;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RestrictedCategoriesList));
+            }
+        }
+    }
+
+    public List<string> RestrictedCategoriesList =>
+        string.IsNullOrWhiteSpace(_restrictedCategoriesCsv)
+            ? []
+            : _restrictedCategoriesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+    public bool IsVariantsEnabled
+    {
+        get => _isVariantsEnabled;
+        set { if (_isVariantsEnabled != value) { _isVariantsEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsAutomaticReceiptPrintingEnabled
+    {
+        get => _isAutomaticReceiptPrintingEnabled;
+        set { if (_isAutomaticReceiptPrintingEnabled != value) { _isAutomaticReceiptPrintingEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsPreventLineMergingEnabled
+    {
+        get => _isPreventLineMergingEnabled;
+        set { if (_isPreventLineMergingEnabled != value) { _isPreventLineMergingEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsPrintLastReceiptEnabled
+    {
+        get => _isPrintLastReceiptEnabled;
+        set { if (_isPrintLastReceiptEnabled != value) { _isPrintLastReceiptEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsCustomOrderReceiptsEnabled
+    {
+        get => _isCustomOrderReceiptsEnabled;
+        set { if (_isCustomOrderReceiptsEnabled != value) { _isCustomOrderReceiptsEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public long? CustomOrderReceiptDesignId
+    {
+        get => _customOrderReceiptDesignId;
+        set { if (_customOrderReceiptDesignId != value) { _customOrderReceiptDesignId = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsHideOpeningCashControlEnabled
+    {
+        get => _isHideOpeningCashControlEnabled;
+        set { if (_isHideOpeningCashControlEnabled != value) { _isHideOpeningCashControlEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public decimal DefaultOpeningCashAmount
+    {
+        get => _defaultOpeningCashAmount;
+        set { if (_defaultOpeningCashAmount != value) { _defaultOpeningCashAmount = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsSecondReceiptEnabled
+    {
+        get => _isSecondReceiptEnabled;
+        set { if (_isSecondReceiptEnabled != value) { _isSecondReceiptEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public long? SecondReceiptDesignId
+    {
+        get => _secondReceiptDesignId;
+        set { if (_secondReceiptDesignId != value) { _secondReceiptDesignId = value; OnPropertyChanged(); } }
+    }
+
     public ObservableCollection<SparklineDataPoint> SparklinePoints { get; } = [];
 
     private static SolidColorBrush CreateFrozenBrush(string hex)

@@ -95,6 +95,176 @@ public partial class PosRegisterViewModel : ViewModelBase
     [ObservableProperty]
     private string _landingFullDateText = "October, 27, 2026";
 
+    [ObservableProperty]
+    private bool _isRegisterOpenForLanding;
+
+    [ObservableProperty]
+    private bool _isRegisterClosedForLanding = true;
+
+    [ObservableProperty]
+    private string _landingActionButtonText = "Open Register";
+
+    [ObservableProperty]
+    private string _lastSessionTitle = string.Empty;
+
+    [ObservableProperty]
+    private string _lastSessionPosName = string.Empty;
+
+    [ObservableProperty]
+    private string _lastSessionOpeningDateDisplay = "—";
+
+    [ObservableProperty]
+    private string _lastSessionClosingDateDisplay = "—";
+
+    [ObservableProperty]
+    private string _lastSessionOrdersCountDisplay = "0";
+
+    [ObservableProperty]
+    private string _lastSessionTotalDisplay = "$ 0.00";
+
+    partial void OnCurrentConfigChanged(PosConfigRecord? value)
+    {
+        UpdateLandingState();
+        if (IsRegisterClosedForLanding)
+        {
+            _ = LoadLastSessionInfoAsync();
+        }
+    }
+
+    partial void OnIsPosLandingScreenOpenChanged(bool value)
+    {
+        if (value)
+        {
+            UpdateLandingState();
+            if (IsRegisterClosedForLanding)
+            {
+                _ = LoadLastSessionInfoAsync();
+            }
+        }
+    }
+
+    public void UpdateLandingState()
+    {
+        bool isOpen = CurrentConfig != null &&
+                      string.Equals(CurrentConfig.CurrentSessionState, "opened", StringComparison.OrdinalIgnoreCase);
+
+        IsRegisterOpenForLanding = isOpen;
+        IsRegisterClosedForLanding = !isOpen;
+        LandingActionButtonText = isOpen ? "Continue" : "Open Register";
+    }
+
+    public async Task LoadLastSessionInfoAsync()
+    {
+        try
+        {
+            string currentShopName = CurrentConfig?.Name ?? ActiveShopName;
+            int? currentConfigOdooId = CurrentConfig?.OdooId;
+
+            var allSessions = await SqliteDatabaseService.Instance.LoadAllSessionsAsync();
+            if (allSessions == null || allSessions.Count == 0)
+            {
+                SetDefaultLastSessionInfo();
+                return;
+            }
+
+            // Find sessions belonging to this shop/POS
+            var configSessions = allSessions.Where(s =>
+                (!string.IsNullOrWhiteSpace(currentShopName) && string.Equals(s.PosConfigName, currentShopName, StringComparison.OrdinalIgnoreCase)) ||
+                (currentConfigOdooId.HasValue && s.PosConfigId.HasValue && s.PosConfigId.Value == currentConfigOdooId.Value) ||
+                (!string.IsNullOrWhiteSpace(s.Name) && !string.IsNullOrWhiteSpace(currentShopName) && s.Name.StartsWith(currentShopName, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+
+            // Look for latest closed session for this config
+            var lastClosed = configSessions
+                .Where(s => string.Equals(s.State, "closed", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(s => s.StopAt ?? s.StartAt ?? DateTime.MinValue)
+                .ThenByDescending(s => s.OdooId ?? (int)s.Id)
+                .FirstOrDefault();
+
+            // If no closed session found for this config, try any closed session in DB
+            if (lastClosed == null)
+            {
+                lastClosed = allSessions
+                    .Where(s => string.Equals(s.State, "closed", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(s => s.StopAt ?? s.StartAt ?? DateTime.MinValue)
+                    .ThenByDescending(s => s.OdooId ?? (int)s.Id)
+                    .FirstOrDefault();
+            }
+
+            // If still no closed session, pick latest session of this config
+            if (lastClosed == null)
+            {
+                lastClosed = configSessions
+                    .OrderByDescending(s => s.StopAt ?? s.StartAt ?? DateTime.MinValue)
+                    .ThenByDescending(s => s.OdooId ?? (int)s.Id)
+                    .FirstOrDefault();
+            }
+
+            if (lastClosed == null)
+            {
+                SetDefaultLastSessionInfo();
+                return;
+            }
+
+            string title = !string.IsNullOrWhiteSpace(lastClosed.Name) ? lastClosed.Name : $"{currentShopName}/00001";
+            string posName = !string.IsNullOrWhiteSpace(lastClosed.PosConfigName) ? lastClosed.PosConfigName : currentShopName;
+
+            string openDate = lastClosed.StartAt.HasValue
+                ? lastClosed.StartAt.Value.ToString("yyyy-MM-dd HH:mm:ss")
+                : "—";
+
+            string closeDate = lastClosed.StopAt.HasValue
+                ? lastClosed.StopAt.Value.ToString("yyyy-MM-dd HH:mm:ss")
+                : (CurrentConfig?.LastClosingDate.HasValue == true
+                    ? CurrentConfig.LastClosingDate.Value.ToString("yyyy-MM-dd HH:mm:ss")
+                    : "—");
+
+            int ordersCount = lastClosed.OrdersCount;
+            decimal totalAmount = lastClosed.TotalPaymentsAmount;
+
+            try
+            {
+                var orders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync(lastClosed.Name);
+                var matched = orders.Where(o =>
+                    (lastClosed.OdooId.HasValue && o.SessionOdooId == lastClosed.OdooId.Value) ||
+                    string.Equals(o.SessionName, lastClosed.Name, StringComparison.OrdinalIgnoreCase) ||
+                    (lastClosed.Id > 0 && o.SessionId == lastClosed.Id)
+                ).ToList();
+
+                if (matched.Count > 0)
+                {
+                    ordersCount = matched.Count;
+                    totalAmount = matched.Sum(o => o.AmountTotal);
+                }
+            }
+            catch { }
+
+            LastSessionTitle = title;
+            LastSessionPosName = posName;
+            LastSessionOpeningDateDisplay = openDate;
+            LastSessionClosingDateDisplay = closeDate;
+            LastSessionOrdersCountDisplay = ordersCount.ToString();
+            LastSessionTotalDisplay = $"$ {totalAmount:N2}";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LoadLastSessionInfoAsync] Error: {ex.Message}");
+            SetDefaultLastSessionInfo();
+        }
+    }
+
+    private void SetDefaultLastSessionInfo()
+    {
+        string shop = CurrentConfig?.Name ?? ActiveShopName;
+        if (string.IsNullOrWhiteSpace(shop)) shop = "Point of Sale";
+        LastSessionTitle = $"{shop}/00001";
+        LastSessionPosName = shop;
+        LastSessionOpeningDateDisplay = "—";
+        LastSessionClosingDateDisplay = "—";
+        LastSessionOrdersCountDisplay = "0";
+        LastSessionTotalDisplay = "$ 0.00";
+    }
+
     // ==================== TOP NAVIGATION & ACTIVE VIEW ====================
     [ObservableProperty]
     private string _activePosView = "Register"; // "Register" or "Orders"
@@ -681,6 +851,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         if (CurrentConfig != null && (CurrentConfig.IsClosed || CurrentConfig.IsOpeningControl))
         {
             CurrentConfig.CurrentSessionState = "opened";
+            UpdateLandingState();
             int cfgId = CurrentConfig.OdooId;
             int? sessId = CurrentConfig.CurrentSessionId;
             string cfgName = CurrentConfig.Name;
@@ -2144,6 +2315,9 @@ public partial class PosRegisterViewModel : ViewModelBase
                 CurrentConfig.LastClosingBalance = counted;
                 CurrentConfig.LastClosingDate = DateTime.Now;
             }
+
+            UpdateLandingState();
+            _ = LoadLastSessionInfoAsync();
 
             IsClosingRegisterModalOpen = false;
             IsDraftOrdersWarningModalOpen = false;

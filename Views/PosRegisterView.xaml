@@ -1941,8 +1941,8 @@
                 </LinearGradientBrush>
             </Grid.Background>
 
-            <!-- Top Row: Time/Date | Shop Name | Logo -->
-            <Grid VerticalAlignment="Top" Margin="24,20,24,0">
+            <!-- Top Row: Time/Date | Shop Name | Logo (Scaled 3x) -->
+            <Grid VerticalAlignment="Top" Margin="36,28,36,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -1950,25 +1950,25 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Left: Clock + Day/Date -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
                     <TextBlock Text="{Binding LandingClockText}"
-                               FontSize="20"
-                               FontWeight="Normal"
-                               Foreground="#212529"
+                               FontSize="56"
+                               FontWeight="Light"
+                               Foreground="#1F2937"
                                VerticalAlignment="Center"
-                               Margin="0,0,10,0"/>
+                               Margin="0,0,16,0"/>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding LandingDayNameText}" FontSize="10" Foreground="#4B5563"/>
-                        <TextBlock Text="{Binding LandingFullDateText}" FontSize="10" Foreground="#4B5563"/>
+                        <TextBlock Text="{Binding LandingDayNameText}" FontSize="20" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,2"/>
+                        <TextBlock Text="{Binding LandingFullDateText}" FontSize="18" FontWeight="Normal" Foreground="#6B7280"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- Center: Shop Name -->
                 <TextBlock Grid.Column="1"
                            Text="{Binding ActiveShopName}"
-                           FontSize="20"
+                           FontSize="52"
                            FontWeight="SemiBold"
-                           Foreground="#212529"
+                           Foreground="#1F2937"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"/>
 
@@ -1978,14 +1978,14 @@
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center">
                     <Image Source="{Binding CompanyLogoBitmap}"
-                           MaxHeight="32"
+                           MaxHeight="80"
                            Stretch="Uniform"
                            Visibility="{Binding HasCompanyLogo, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
                     <StackPanel Orientation="Horizontal"
                                 VerticalAlignment="Center"
                                 Visibility="{Binding HasCompanyLogo, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
                         <!-- Camera Icon -->
-                        <Viewbox Width="20" Height="20" Margin="0,0,6,0">
+                        <Viewbox Width="50" Height="50" Margin="0,0,12,0">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M 4,7 H 8 L 9.5,4.5 H 14.5 L 16,7 H 20 C 21.1,7 22,7.9 22,9 V 19 C 22,20.1 21.1,21 20,21 H 4 C 2.9,21 2,20.1 2,19 V 9 C 2,7.9 2.9,7 4,7 Z"
                                       Stroke="#714B67" StrokeThickness="1.8" StrokeLineJoin="Round" Fill="Transparent"/>
@@ -1993,7 +1993,7 @@
                             </Canvas>
                         </Viewbox>
                         <TextBlock Text="Your logo"
-                                   FontSize="20"
+                                   FontSize="48"
                                    FontWeight="Bold"
                                    Foreground="#714B67"
                                    VerticalAlignment="Center"/>
@@ -2001,60 +2001,160 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Center: "Open Register" Card -->
-            <Button Command="{Binding EnterPosFromLandingCommand}"
-                    Width="175" Height="175"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Cursor="Hand">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="CardBdr"
-                                Background="#FFFFFF"
-                                CornerRadius="14">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.08"/>
-                            </Border.Effect>
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <!-- Shopping Basket Icon (exact match to reference image) -->
-                                <Viewbox Width="44" Height="44" Margin="0,0,0,14">
-                                    <Canvas Width="24" Height="24">
-                                        <!-- Handle -->
-                                        <Path Data="M 8.5,9 L 10.5,3.5 H 13.5 L 15.5,9"
-                                              Stroke="#212529"
-                                              StrokeThickness="2"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"
-                                              StrokeLineJoin="Round"/>
-                                        <!-- Basket Body -->
-                                        <Path Data="M 3,9 H 21 L 18.5,20 H 5.5 Z"
-                                              Stroke="#212529"
-                                              StrokeThickness="2"
-                                              StrokeStartLineCap="Round"
-                                              StrokeLineJoin="Round"
-                                              Fill="Transparent"/>
-                                        <!-- Center dot -->
-                                        <Ellipse Canvas.Left="10.5" Canvas.Top="13" Width="3" Height="3" Fill="#212529"/>
-                                    </Canvas>
-                                </Viewbox>
-                                <TextBlock Text="Open Register"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="#212529"
-                                           HorizontalAlignment="Center"/>
-                            </StackPanel>
+            <!-- Center Content: Action Card + Last Session Info -->
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+
+                <!-- Center: "Open Register" / "Continue" Card -->
+                <Button Command="{Binding EnterPosFromLandingCommand}"
+                        Width="180" Height="180"
+                        HorizontalAlignment="Center"
+                        Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="CardBdr"
+                                    Background="#FFFFFF"
+                                    CornerRadius="16">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="24" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.08"/>
+                                </Border.Effect>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <!-- Shopping Basket Icon (exact match to reference image) -->
+                                    <Viewbox Width="46" Height="46" Margin="0,0,0,14">
+                                        <Canvas Width="24" Height="24">
+                                            <!-- Handle -->
+                                            <Path Data="M 8.5,9 L 10.5,3.5 H 13.5 L 15.5,9"
+                                                  Stroke="#212529"
+                                                  StrokeThickness="2"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round"/>
+                                            <!-- Basket Body -->
+                                            <Path Data="M 3,9 H 21 L 18.5,20 H 5.5 Z"
+                                                  Stroke="#212529"
+                                                  StrokeThickness="2"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  Fill="Transparent"/>
+                                            <!-- Center dot -->
+                                            <Ellipse Canvas.Left="10.5" Canvas.Top="13" Width="3" Height="3" Fill="#212529"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock Text="{Binding LandingActionButtonText}"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"
+                                               Foreground="#212529"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="CardBdr" Property="Background" Value="#F8F9FA"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="CardBdr" Property="Background" Value="#F1F3F5"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!-- Last Session Information (Visible only when register is closed) -->
+                <Border Visibility="{Binding IsRegisterClosedForLanding, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
+                        Background="#FFFFFF"
+                        CornerRadius="14"
+                        BorderBrush="#E2E8F0"
+                        BorderThickness="1"
+                        Margin="0,26,0,0"
+                        Width="560"
+                        Padding="24,18">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.06"/>
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Card Header -->
+                        <Border Grid.Row="0" BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,0,0,10" Margin="0,0,0,14">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Viewbox Width="15" Height="15" Margin="0,0,8,0">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M 12,2 C 6.5,2 2,6.5 2,12 C 2,17.5 6.5,22 12,22 C 17.5,22 22,17.5 22,12 C 22,6.5 17.5,2 12,2 Z M 12,6 V 12 L 16,14.5"
+                                                  Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock Text="LAST SESSION DETAILS"
+                                               FontSize="11.5"
+                                               FontWeight="Bold"
+                                               Foreground="#64748B"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Border HorizontalAlignment="Right"
+                                        Background="#F8FAFC"
+                                        BorderBrush="#E2E8F0"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="8,3">
+                                    <TextBlock Text="{Binding LastSessionTitle}"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="#475569"/>
+                                </Border>
+                            </Grid>
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="CardBdr" Property="Background" Value="#F8F9FA"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="CardBdr" Property="Background" Value="#F1F3F5"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
-            </Button>
+
+                        <!-- Info Grid: 2 columns x 3 rows -->
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="24"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Row 0: Point of Sale & Title -->
+                            <StackPanel Grid.Row="0" Grid.Column="0">
+                                <TextBlock Text="Point of Sale" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding LastSessionPosName}" FontSize="13.5" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="2">
+                                <TextBlock Text="Session Title" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding LastSessionTitle}" FontSize="13.5" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+
+                            <!-- Row 1: Opening Date & Closing Date -->
+                            <StackPanel Grid.Row="2" Grid.Column="0">
+                                <TextBlock Text="Opening Date" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding LastSessionOpeningDateDisplay}" FontSize="13" FontWeight="Normal" Foreground="#334155"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="2">
+                                <TextBlock Text="Closing Date" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding LastSessionClosingDateDisplay}" FontSize="13" FontWeight="Normal" Foreground="#334155"/>
+                            </StackPanel>
+
+                            <!-- Row 2: Orders & Total -->
+                            <StackPanel Grid.Row="4" Grid.Column="0">
+                                <TextBlock Text="Orders" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding LastSessionOrdersCountDisplay}" FontSize="15" FontWeight="Bold" Foreground="#1E293B"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="4" Grid.Column="2">
+                                <TextBlock Text="Total" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding LastSessionTotalDisplay}" FontSize="15" FontWeight="Bold" Foreground="#16A34A"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </StackPanel>
 
             <!-- Bottom: "Backend" Button -->
             <Button Command="{Binding ReturnToBackendCommand}"

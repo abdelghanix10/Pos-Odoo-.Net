@@ -68,9 +68,9 @@ public partial class MainShellView : UserControl
         {
             SwitchToOrders(shopName);
         };
-        DashboardViewControl.VM.ViewSessionsRequested += _ =>
+        DashboardViewControl.VM.ViewSessionsRequested += shopName =>
         {
-            SwitchToSessions();
+            SwitchToSessions(shopName);
         };
         DashboardViewControl.VM.ViewPaymentsRequested += shopName =>
         {
@@ -93,6 +93,10 @@ public partial class MainShellView : UserControl
         PosSettingsViewControl.VM.NavigateToAttributesRequested += () =>
         {
             SwitchToAttributes();
+        };
+        PosSettingsViewControl.VM.NavigateToReceiptDesignsRequested += () =>
+        {
+            SwitchToReceiptDesigns();
         };
         PosSettingsViewControl.VM.SettingsSaved += () =>
         {
@@ -338,6 +342,7 @@ public partial class MainShellView : UserControl
         PendingSyncLabel.Visibility = labelVis;
         SidebarPendingCountBadge.Visibility = labelVis;
         PosSettingsLabel.Visibility = labelVis;
+        ReceiptDesignsLabel.Visibility = labelVis;
         SettingsLabel.Visibility = labelVis;
         LogoutLabel.Visibility = labelVis;
 
@@ -364,6 +369,7 @@ public partial class MainShellView : UserControl
     private void NavCompanies_Click(object sender, RoutedEventArgs e) => SwitchToCompanies();
     private void NavUsers_Click(object sender, RoutedEventArgs e) => SwitchToUsers();
     private void NavPosSettings_Click(object sender, RoutedEventArgs e) => SwitchToPosSettings();
+    private void NavReceiptDesigns_Click(object sender, RoutedEventArgs e) => SwitchToReceiptDesigns();
     private void NavSettings_Click(object sender, RoutedEventArgs e) => SwitchToSettings();
 
     private void HideAllMainViews()
@@ -395,14 +401,14 @@ public partial class MainShellView : UserControl
         [
             NavDashboardBtn, NavSessionsBtn, NavOrdersBtn, NavPaymentsBtn, NavPaymentMethodsBtn,
             NavProductsBtn, NavCombosBtn, NavCategoriesBtn, NavAttributesBtn, NavProductTagsBtn,
-            NavCompaniesBtn, NavUsersBtn, NavPosSettingsBtn, NavSettingsBtn
+            NavCompaniesBtn, NavUsersBtn, NavPosSettingsBtn, NavReceiptDesignsBtn, NavSettingsBtn
         ];
 
         TextBlock[] allLabels =
         [
             DashboardLabel, SessionsLabel, OrdersLabel, PaymentsLabel, PaymentMethodsLabel,
             ProductsLabel, CombosLabel, CategoriesLabel, AttributesLabel, ProductTagsLabel,
-            CompaniesLabel, UsersLabel, PosSettingsLabel, SettingsLabel
+            CompaniesLabel, UsersLabel, PosSettingsLabel, ReceiptDesignsLabel, SettingsLabel
         ];
 
         foreach (var btn in allButtons)
@@ -420,13 +426,13 @@ public partial class MainShellView : UserControl
         _ = DashboardViewControl.ReloadConfigsFromDatabaseAsync();
     }
 
-    public void SwitchToSessions()
+    public void SwitchToSessions(string? shopFilter = null)
     {
         HideAllMainViews();
         SessionsViewControl.VM.ResetToMainList();
         SessionsViewControl.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavSessionsBtn, SessionsLabel);
-        _ = SessionsViewControl.ReloadSessionsFromDatabaseAsync(resetDetailView: true);
+        _ = SessionsViewControl.ReloadSessionsFromDatabaseAsync(shopFilter, resetDetailView: true);
     }
 
     public void SwitchToOrders(string? sessionFilter = null)
@@ -524,8 +530,16 @@ public partial class MainShellView : UserControl
         HideAllMainViews();
         PosSettingsViewControl.Visibility = Visibility.Visible;
         PosSettingsViewControl.VM.IsReceiptDesignsSubTabSelected = openReceiptDesigns;
-        SetActiveSidebarButton(NavPosSettingsBtn, PosSettingsLabel);
+        if (openReceiptDesigns)
+            SetActiveSidebarButton(NavReceiptDesignsBtn, ReceiptDesignsLabel);
+        else
+            SetActiveSidebarButton(NavPosSettingsBtn, PosSettingsLabel);
         _ = PosSettingsViewControl.VM.LoadDataAsync(configOdooId);
+    }
+
+    public void SwitchToReceiptDesigns()
+    {
+        SwitchToPosSettings(configOdooId: null, openReceiptDesigns: true);
     }
 
     public void SwitchToSettings()
@@ -548,41 +562,12 @@ public partial class MainShellView : UserControl
     {
         if (sender is not Button clickedTab) return;
 
-        string tabTag = clickedTab.Tag as string ?? "General";
-        if (tabTag == "PosSettings")
-        {
-            SwitchToPosSettings(openReceiptDesigns: false);
-            return;
-        }
-        if (tabTag == "ReceiptDesigns")
-        {
-            SwitchToPosSettings(openReceiptDesigns: true);
-            return;
-        }
-
         Style activeStyle = (Style)FindResource("OdooActiveTabButtonStyle");
-        Style defaultStyle = (Style)FindResource("OdooTabButtonStyle");
-
-        TabGeneral.Style = defaultStyle;
-        TabPosSettings.Style = defaultStyle;
-        TabReceiptDesigns.Style = defaultStyle;
-        TabLocale.Style = defaultStyle;
-        TabPaymentMethod.Style = defaultStyle;
-        TabPeripherals.Style = defaultStyle;
-        TabSystemOptions.Style = defaultStyle;
-
+        TabGeneral.Style = activeStyle;
         clickedTab.Style = activeStyle;
 
-        if (tabTag == "General")
-        {
-            GeneralSettingsScrollViewer.Visibility = Visibility.Visible;
-            OtherTabsEmptyContainer.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            GeneralSettingsScrollViewer.Visibility = Visibility.Collapsed;
-            OtherTabsEmptyContainer.Visibility = Visibility.Visible;
-        }
+        GeneralSettingsScrollViewer.Visibility = Visibility.Visible;
+        OtherTabsEmptyContainer.Visibility = Visibility.Collapsed;
     }
 
     // =========================================================================

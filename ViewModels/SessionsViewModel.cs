@@ -16,6 +16,7 @@ public partial class SessionsViewModel : ViewModelBase
     public const string DatePresetCustom = "Custom Range";
 
     private readonly List<PosSessionRecord> _allSessions = [];
+    private readonly List<PosConfigRecord> _allConfigs = [];
     private bool _suppressFilterRefresh;
 
     [ObservableProperty]
@@ -196,7 +197,7 @@ public partial class SessionsViewModel : ViewModelBase
         UpdatePager();
     }
 
-    public async Task ReloadSessionsAsync(bool resetDetailView = false)
+    public async Task ReloadSessionsAsync(bool resetDetailView = false, string? shopFilter = null)
     {
         try
         {
@@ -205,16 +206,54 @@ public partial class SessionsViewModel : ViewModelBase
                 IsDetailViewVisible = false;
             }
 
+            var configs = await SqliteDatabaseService.Instance.LoadAllPosConfigsAsync();
+            _allConfigs.Clear();
+            _allConfigs.AddRange(configs);
+
             var sessions = await SqliteDatabaseService.Instance.LoadAllSessionsAsync();
             _allSessions.Clear();
             _allSessions.AddRange(sessions);
             RebuildShopFilterOptions();
-            RefreshFilter();
+
+            if (shopFilter != null)
+            {
+                SetShopFilter(shopFilter);
+            }
+            else
+            {
+                RefreshFilter();
+            }
         }
         catch (Exception ex)
         {
             ShowToast($"Failed to load sessions: {ex.Message}", "Error");
         }
+    }
+
+    public void SetShopFilter(string? shopName)
+    {
+        _suppressFilterRefresh = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(shopName))
+            {
+                SelectedShopFilter = AllShopsOption;
+            }
+            else if (AvailableShops.Any(s => string.Equals(s, shopName, StringComparison.OrdinalIgnoreCase)))
+            {
+                SelectedShopFilter = AvailableShops.First(s => string.Equals(s, shopName, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                AvailableShops.Add(shopName);
+                SelectedShopFilter = shopName;
+            }
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+        RefreshFilter();
     }
 
     private void RebuildShopFilterOptions()
@@ -224,6 +263,10 @@ public partial class SessionsViewModel : ViewModelBase
         {
             string prev = SelectedShopFilter;
             var set = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in _allConfigs)
+            {
+                if (!string.IsNullOrWhiteSpace(c.Name)) set.Add(c.Name.Trim());
+            }
             foreach (var s in _allSessions)
             {
                 if (!string.IsNullOrWhiteSpace(s.PosConfigName)) set.Add(s.PosConfigName.Trim());

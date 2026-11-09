@@ -18,6 +18,8 @@ public partial class OrdersViewModel : ViewModelBase
     public const string DatePresetCustom = "Custom Range";
 
     private readonly List<PosOrderRecord> _allOrders = [];
+    private readonly List<PosConfigRecord> _allConfigs = [];
+    private readonly List<PosSessionRecord> _allSessions = [];
     private bool _suppressFilterRefresh;
 
     [ObservableProperty]
@@ -242,6 +244,14 @@ public partial class OrdersViewModel : ViewModelBase
                 IsDetailViewVisible = false;
             }
 
+            var configs = await SqliteDatabaseService.Instance.LoadAllPosConfigsAsync();
+            _allConfigs.Clear();
+            _allConfigs.AddRange(configs);
+
+            var sessions = await SqliteDatabaseService.Instance.LoadAllSessionsAsync();
+            _allSessions.Clear();
+            _allSessions.AddRange(sessions);
+
             var orders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync();
             _allOrders.Clear();
             _allOrders.AddRange(orders);
@@ -263,6 +273,14 @@ public partial class OrdersViewModel : ViewModelBase
             string prevSession = SelectedSessionFilter;
 
             var shopNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in _allConfigs)
+            {
+                if (!string.IsNullOrWhiteSpace(c.Name)) shopNames.Add(c.Name.Trim());
+            }
+            foreach (var s in _allSessions)
+            {
+                if (!string.IsNullOrWhiteSpace(s.PosConfigName)) shopNames.Add(s.PosConfigName.Trim());
+            }
             foreach (var o in _allOrders)
             {
                 if (!string.IsNullOrWhiteSpace(o.PosConfigName)) shopNames.Add(o.PosConfigName.Trim());
@@ -291,6 +309,15 @@ public partial class OrdersViewModel : ViewModelBase
         bool filterByShop = !string.IsNullOrWhiteSpace(activeShop) && activeShop != AllShopsOption;
 
         var sessionNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in _allSessions)
+        {
+            if (string.IsNullOrWhiteSpace(s.Name) || s.Name == "/") continue;
+            if (!filterByShop || string.Equals(s.PosConfigName, activeShop, StringComparison.OrdinalIgnoreCase) ||
+                s.Name.StartsWith(activeShop + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                sessionNames.Add(s.Name.Trim());
+            }
+        }
         foreach (var o in _allOrders)
         {
             if (string.IsNullOrWhiteSpace(o.SessionName) || o.SessionName == "/") continue;
@@ -324,7 +351,7 @@ public partial class OrdersViewModel : ViewModelBase
         _suppressFilterRefresh = true;
         try
         {
-            SessionFilter = sessionName;
+            SessionFilter = null;
             if (string.IsNullOrWhiteSpace(sessionName))
             {
                 SelectedShopFilter = AllShopsOption;

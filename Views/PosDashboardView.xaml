@@ -451,7 +451,7 @@
                                                 </ToggleButton.Template>
                                             </ToggleButton>
 
-                                            <!-- Two-Column Popover Menu (Matching Furniture Shop in Screenshot 10) -->
+                                            <!-- Popover Menu -->
                                             <Popup IsOpen="{Binding IsChecked, ElementName=CardMenuToggle, Mode=TwoWay}"
                                                    PlacementTarget="{Binding ElementName=CardMenuToggle}"
                                                    Placement="Bottom"
@@ -467,40 +467,23 @@
                                                         CornerRadius="4"
                                                         Effect="{StaticResource PopoverShadow}">
                                                     <StackPanel>
-                                                        <!-- Top Two Columns: View | Reporting -->
-                                                        <Grid Margin="14,14,14,10">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                            </Grid.ColumnDefinitions>
-
-                                                            <!-- Column 1: View -->
-                                                            <StackPanel Grid.Column="0">
-                                                                <TextBlock Text="View"
-                                                                           FontSize="13.5"
-                                                                           FontWeight="Bold"
-                                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                                           Margin="4,0,0,8"/>
-                                                                <Button Style="{StaticResource PopoverMenuLinkStyle}"
-                                                                        Content="Orders"
-                                                                        Click="PopoverViewOrders_Click"/>
-                                                                <Button Style="{StaticResource PopoverMenuLinkStyle}"
-                                                                        Content="Sessions"
-                                                                        Click="PopoverViewSessions_Click"/>
-                                                            </StackPanel>
-
-                                                            <!-- Column 2: Reporting -->
-                                                            <StackPanel Grid.Column="1">
-                                                                <TextBlock Text="Reporting"
-                                                                           FontSize="13.5"
-                                                                           FontWeight="Bold"
-                                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                                           Margin="4,0,0,8"/>
-                                                                <Button Style="{StaticResource PopoverMenuLinkStyle}"
-                                                                        Content="Orders"
-                                                                        Click="PopoverReportingOrders_Click"/>
-                                                            </StackPanel>
-                                                        </Grid>
+                                                        <!-- View Section: Orders, Sessions, Payments -->
+                                                        <StackPanel Margin="14,14,14,10">
+                                                            <TextBlock Text="View"
+                                                                       FontSize="13.5"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="{StaticResource PrimaryTextBrush}"
+                                                                       Margin="4,0,0,8"/>
+                                                            <Button Style="{StaticResource PopoverMenuLinkStyle}"
+                                                                    Content="Orders"
+                                                                    Click="PopoverViewOrders_Click"/>
+                                                            <Button Style="{StaticResource PopoverMenuLinkStyle}"
+                                                                    Content="Sessions"
+                                                                    Click="PopoverViewSessions_Click"/>
+                                                            <Button Style="{StaticResource PopoverMenuLinkStyle}"
+                                                                    Content="Payments"
+                                                                    Click="PopoverViewPayments_Click"/>
+                                                        </StackPanel>
 
                                                         <!-- Divider -->
                                                         <Border Height="1" Background="{StaticResource SubtleBorderBrush}"/>

@@ -195,7 +195,14 @@ public record PosConfigDto(
     int? ActiveUserId,
     string? ActiveUserName,
     string? ActiveUserAvatar,
-    string? RecentSalesPointsJson
+    string? RecentSalesPointsJson,
+    string SelectedPaymentMethodsCsv = "Cash,Card,Customer Account",
+    bool IsOneClickPaymentEnabled = false,
+    string OneClickPaymentMethod = "Cash",
+    bool IsRestrictCategoriesEnabled = false,
+    string RestrictedCategoriesCsv = "",
+    bool IsVariantsEnabled = true,
+    bool IsAutomaticReceiptPrintingEnabled = false
 );
 
 public record DatabaseCountsSummary(
@@ -3419,11 +3426,26 @@ public class SqliteDatabaseService
                 sparkCmd.Transaction = transaction;
                 sparkCmd.CommandText = """
                     UPDATE PosConfigs
-                    SET Name = @name, RecentSalesPointsJson = @salesPoints, UpdatedAt = CURRENT_TIMESTAMP
+                    SET Name = @name, RecentSalesPointsJson = @salesPoints,
+                        SelectedPaymentMethodsCsv = @payMethods,
+                        IsOneClickPaymentEnabled = @oneClickEnabled,
+                        OneClickPaymentMethodsCsv = @oneClickMethods,
+                        IsRestrictCategoriesEnabled = @restrictCatEnabled,
+                        RestrictedCategoriesCsv = @restrictedCats,
+                        IsVariantsEnabled = @variantsEnabled,
+                        IsAutomaticReceiptPrintingEnabled = @autoPrint,
+                        UpdatedAt = CURRENT_TIMESTAMP
                     WHERE OdooId = @odooId;
                     """;
                 sparkCmd.Parameters.AddWithValue("@name", c.Name);
                 sparkCmd.Parameters.AddWithValue("@salesPoints", c.RecentSalesPointsJson ?? "[]");
+                sparkCmd.Parameters.AddWithValue("@payMethods", c.SelectedPaymentMethodsCsv ?? "Cash,Card,Customer Account");
+                sparkCmd.Parameters.AddWithValue("@oneClickEnabled", c.IsOneClickPaymentEnabled ? 1 : 0);
+                sparkCmd.Parameters.AddWithValue("@oneClickMethods", c.OneClickPaymentMethod ?? "Cash");
+                sparkCmd.Parameters.AddWithValue("@restrictCatEnabled", c.IsRestrictCategoriesEnabled ? 1 : 0);
+                sparkCmd.Parameters.AddWithValue("@restrictedCats", c.RestrictedCategoriesCsv ?? "");
+                sparkCmd.Parameters.AddWithValue("@variantsEnabled", c.IsVariantsEnabled ? 1 : 0);
+                sparkCmd.Parameters.AddWithValue("@autoPrint", c.IsAutomaticReceiptPrintingEnabled ? 1 : 0);
                 sparkCmd.Parameters.AddWithValue("@odooId", c.OdooId);
                 await sparkCmd.ExecuteNonQueryAsync();
                 updated++;
@@ -3441,7 +3463,15 @@ public class SqliteDatabaseService
                         CurrentSessionState = @state, LastClosingDate = @closingDate,
                         LastClosingBalance = @closingBal, OpeningBalance = @openBal,
                         ActiveUserId = @userId, ActiveUserName = @userName, ActiveUserAvatar = @avatar,
-                        RecentSalesPointsJson = @salesPoints, UpdatedAt = CURRENT_TIMESTAMP
+                        RecentSalesPointsJson = @salesPoints,
+                        SelectedPaymentMethodsCsv = @payMethods,
+                        IsOneClickPaymentEnabled = @oneClickEnabled,
+                        OneClickPaymentMethodsCsv = @oneClickMethods,
+                        IsRestrictCategoriesEnabled = @restrictCatEnabled,
+                        RestrictedCategoriesCsv = @restrictedCats,
+                        IsVariantsEnabled = @variantsEnabled,
+                        IsAutomaticReceiptPrintingEnabled = @autoPrint,
+                        UpdatedAt = CURRENT_TIMESTAMP
                     WHERE OdooId = @odooId;
                     """;
                 updated++;
@@ -3451,10 +3481,16 @@ public class SqliteDatabaseService
                 cmd.CommandText = """
                     INSERT INTO PosConfigs (OdooId, Name, CurrentSessionId, CurrentSessionName, CurrentSessionState,
                                            LastClosingDate, LastClosingBalance, OpeningBalance,
-                                           ActiveUserId, ActiveUserName, ActiveUserAvatar, RecentSalesPointsJson)
+                                           ActiveUserId, ActiveUserName, ActiveUserAvatar, RecentSalesPointsJson,
+                                           SelectedPaymentMethodsCsv, IsOneClickPaymentEnabled, OneClickPaymentMethodsCsv,
+                                           IsRestrictCategoriesEnabled, RestrictedCategoriesCsv, IsVariantsEnabled,
+                                           IsAutomaticReceiptPrintingEnabled)
                     VALUES (@odooId, @name, @sessId, @sessName, @state,
                             @closingDate, @closingBal, @openBal,
-                            @userId, @userName, @avatar, @salesPoints);
+                            @userId, @userName, @avatar, @salesPoints,
+                            @payMethods, @oneClickEnabled, @oneClickMethods,
+                            @restrictCatEnabled, @restrictedCats, @variantsEnabled,
+                            @autoPrint);
                     """;
                 imported++;
             }
@@ -3471,6 +3507,13 @@ public class SqliteDatabaseService
             cmd.Parameters.AddWithValue("@userName", (object?)c.ActiveUserName ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@avatar", (object?)c.ActiveUserAvatar ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@salesPoints", c.RecentSalesPointsJson ?? "[]");
+            cmd.Parameters.AddWithValue("@payMethods", c.SelectedPaymentMethodsCsv ?? "Cash,Card,Customer Account");
+            cmd.Parameters.AddWithValue("@oneClickEnabled", c.IsOneClickPaymentEnabled ? 1 : 0);
+            cmd.Parameters.AddWithValue("@oneClickMethods", c.OneClickPaymentMethod ?? "Cash");
+            cmd.Parameters.AddWithValue("@restrictCatEnabled", c.IsRestrictCategoriesEnabled ? 1 : 0);
+            cmd.Parameters.AddWithValue("@restrictedCats", c.RestrictedCategoriesCsv ?? "");
+            cmd.Parameters.AddWithValue("@variantsEnabled", c.IsVariantsEnabled ? 1 : 0);
+            cmd.Parameters.AddWithValue("@autoPrint", c.IsAutomaticReceiptPrintingEnabled ? 1 : 0);
             await cmd.ExecuteNonQueryAsync();
         }
 
@@ -3529,14 +3572,7 @@ public class SqliteDatabaseService
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = """
             UPDATE PosConfigs
-            SET SelectedPaymentMethodsCsv = @payMethods,
-                IsOneClickPaymentEnabled = @oneClickEnabled,
-                OneClickPaymentMethodsCsv = @oneClickMethods,
-                IsRestrictCategoriesEnabled = @restrictCatEnabled,
-                RestrictedCategoriesCsv = @restrictedCats,
-                IsVariantsEnabled = @variantsEnabled,
-                IsAutomaticReceiptPrintingEnabled = @autoPrint,
-                IsPreventLineMergingEnabled = @preventMerge,
+            SET IsPreventLineMergingEnabled = @preventMerge,
                 IsPrintLastReceiptEnabled = @printLast,
                 IsCustomOrderReceiptsEnabled = @customReceiptEnabled,
                 CustomOrderReceiptDesignId = @customReceiptId,
@@ -3548,13 +3584,6 @@ public class SqliteDatabaseService
             WHERE Id = @id OR OdooId = @odooId;
             """;
 
-        cmd.Parameters.AddWithValue("@payMethods", config.SelectedPaymentMethodsCsv ?? "Cash,Card,Customer Account");
-        cmd.Parameters.AddWithValue("@oneClickEnabled", config.IsOneClickPaymentEnabled ? 1 : 0);
-        cmd.Parameters.AddWithValue("@oneClickMethods", config.OneClickPaymentMethodsCsv ?? "Cash");
-        cmd.Parameters.AddWithValue("@restrictCatEnabled", config.IsRestrictCategoriesEnabled ? 1 : 0);
-        cmd.Parameters.AddWithValue("@restrictedCats", config.RestrictedCategoriesCsv ?? "");
-        cmd.Parameters.AddWithValue("@variantsEnabled", config.IsVariantsEnabled ? 1 : 0);
-        cmd.Parameters.AddWithValue("@autoPrint", config.IsAutomaticReceiptPrintingEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@preventMerge", config.IsPreventLineMergingEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@printLast", config.IsPrintLastReceiptEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@customReceiptEnabled", config.IsCustomOrderReceiptsEnabled ? 1 : 0);

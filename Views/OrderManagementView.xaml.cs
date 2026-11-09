@@ -14,10 +14,10 @@ public partial class OrderManagementView : UserControl
 
     public async Task ReloadOrdersFromDatabaseAsync(string? sessionFilter = null, bool resetDetailView = true)
     {
+        await VM.ReloadOrdersAsync(resetDetailView);
         if (sessionFilter != null)
         {
             VM.SetSessionFilter(sessionFilter);
         }
-        await VM.ReloadOrdersAsync(resetDetailView);
     }
 }

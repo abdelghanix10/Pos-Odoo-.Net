@@ -70,6 +70,15 @@ public partial class PosDashboardView : UserControl
         }
     }
 
+    private void PopoverViewPayments_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement elem && elem.DataContext is PosConfigRecord config)
+        {
+            CloseParentPopup(elem);
+            VM.ViewPaymentsCommand.Execute(config);
+        }
+    }
+
     private void PopoverReportingOrders_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement elem && elem.DataContext is PosConfigRecord config)

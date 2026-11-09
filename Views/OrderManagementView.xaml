@@ -237,19 +237,6 @@
                             </Button.Template>
                         </Button>
 
-                        <Border Background="{StaticResource OdooPurpleSoftBrush}"
-                                CornerRadius="10"
-                                Margin="10,0,0,0"
-                                Padding="8,2.5"
-                                Visibility="{Binding SessionFilter, Converter={x:Static local:StringNotEmptyToVisibilityConverter.Instance}}">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding SessionFilter}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource OdooPurpleBrush}"/>
-                                <Button Background="Transparent" BorderThickness="0" Padding="5,0,0,0" Cursor="Hand" Command="{Binding ClearSessionFilterCommand}">
-                                    <TextBlock Text="✕" FontSize="10" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}"/>
-                                </Button>
-                            </StackPanel>
-                        </Border>
-
                         <StackPanel Orientation="Horizontal"
                                     Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                             <TextBlock Text="  /  " FontSize="17" Foreground="{StaticResource SecondaryTextBrush}"/>

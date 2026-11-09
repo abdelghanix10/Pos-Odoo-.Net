@@ -12,8 +12,8 @@ public partial class SessionManagementView : UserControl
         InitializeComponent();
     }
 
-    public async Task ReloadSessionsFromDatabaseAsync(bool resetDetailView = true)
+    public async Task ReloadSessionsFromDatabaseAsync(string? shopFilter = null, bool resetDetailView = true)
     {
-        await VM.ReloadSessionsAsync(resetDetailView);
+        await VM.ReloadSessionsAsync(resetDetailView, shopFilter);
     }
 }

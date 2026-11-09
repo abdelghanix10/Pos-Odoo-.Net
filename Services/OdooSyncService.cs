@@ -2521,7 +2521,9 @@ public class OdooSyncService
     private async Task<List<PosConfigDto>> FetchOdooPosConfigsInternalAsync(
         OdooConfigRecord config,
         int uid,
-        List<PosSessionDto>? preloadedSessions = null)
+        List<PosSessionDto>? preloadedSessions = null,
+        List<PosPaymentMethodDto>? preloadedPaymentMethods = null,
+        List<PosCategoryDto>? preloadedCategories = null)
     {
         var sessions = preloadedSessions ?? await FetchOdooSessionsInternalAsync(config, uid);
         var sessionsById = sessions.ToDictionary(s => s.OdooId, s => s);
@@ -2530,9 +2532,36 @@ public class OdooSyncService
             .GroupBy(s => s.PosConfigId!.Value)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.OdooId).Take(5).Reverse().ToList());
 
+        var payMethodNameById = new Dictionary<int, string>();
+        try
+        {
+            var pms = preloadedPaymentMethods ?? await FetchOdooPaymentMethodsInternalAsync(config, uid);
+            foreach (var pm in pms)
+            {
+                if (pm.OdooId > 0 && !string.IsNullOrWhiteSpace(pm.Name))
+                    payMethodNameById[pm.OdooId] = pm.Name.Trim();
+            }
+        }
+        catch { }
+
+        var categoryNameById = new Dictionary<int, string>();
+        try
+        {
+            var cats = preloadedCategories ?? await FetchOdooCategoriesInternalAsync(config, uid);
+            foreach (var cat in cats)
+            {
+                if (cat.OdooId > 0 && !string.IsNullOrWhiteSpace(cat.Name))
+                    categoryNameById[cat.OdooId] = cat.Name.Trim();
+            }
+        }
+        catch { }
+
         var fields = await FilterValidFieldsAsync(config, uid, "pos.config",
             "id", "name", "current_session_id", "current_session_state",
-            "last_session_closing_date", "last_session_closing_cash", "pos_session_username");
+            "last_session_closing_date", "last_session_closing_cash", "pos_session_username",
+            "payment_method_ids", "use_fast_payment", "fast_payment_method_ids", "fast_payment_method_id",
+            "limit_categories", "iface_available_categ_ids",
+            "product_configurator", "group_product_variant", "iface_print_auto");
 
         using var doc = await SearchReadAsync(config, uid, "pos.config", [], fields);
 
@@ -2547,6 +2576,57 @@ public class OdooSyncService
                 string state = GetStringOrDefault(item, "current_session_state", "closed");
                 DateTime? lastCloseDate = GetDateTimeOrNull(item, "last_session_closing_date");
                 decimal lastCloseCash = GetDecimalOrDefault(item, "last_session_closing_cash");
+
+                // 1. Payment Methods (payment_method_ids)
+                var pmIds = GetIdArray(item, "payment_method_ids");
+                var pmNames = pmIds
+                    .Select(id => payMethodNameById.TryGetValue(id, out var n) ? n : null)
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                string selectedPaymentMethodsCsv = pmNames.Count > 0
+                    ? string.Join(",", pmNames)
+                    : "Cash,Card,Customer Account";
+
+                // 2. One-click Payment (use_fast_payment + single method)
+                var fastPmIds = GetIdArray(item, "fast_payment_method_ids");
+                var (singleFastPmId, singleFastPmName) = GetMany2One(item, "fast_payment_method_id");
+                string? oneClickMethodName = null;
+                if (fastPmIds.Count > 0 && payMethodNameById.TryGetValue(fastPmIds[0], out var fName))
+                {
+                    oneClickMethodName = fName;
+                }
+                else if (!string.IsNullOrWhiteSpace(singleFastPmName))
+                {
+                    oneClickMethodName = singleFastPmName.Trim();
+                }
+                else if (singleFastPmId.HasValue && payMethodNameById.TryGetValue(singleFastPmId.Value, out var sName))
+                {
+                    oneClickMethodName = sName;
+                }
+                bool isOneClickEnabled = GetBoolOrDefault(item, "use_fast_payment", fastPmIds.Count > 0 || singleFastPmId.HasValue);
+                if (string.IsNullOrWhiteSpace(oneClickMethodName))
+                {
+                    oneClickMethodName = pmNames.FirstOrDefault() ?? "Cash";
+                }
+
+                // 3. Restrict Categories (limit_categories + iface_available_categ_ids)
+                bool isRestrictCategoriesEnabled = GetBoolOrDefault(item, "limit_categories", false);
+                var availCatIds = GetIdArray(item, "iface_available_categ_ids");
+                var availCatNames = availCatIds
+                    .Select(id => categoryNameById.TryGetValue(id, out var cn) ? cn : null)
+                    .Where(cn => !string.IsNullOrWhiteSpace(cn))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                string restrictedCategoriesCsv = string.Join(",", availCatNames);
+
+                // 4. Variants (product_configurator / group_product_variant)
+                bool isVariantsEnabled = item.TryGetProperty("product_configurator", out _)
+                    ? GetBoolOrDefault(item, "product_configurator", true)
+                    : GetBoolOrDefault(item, "group_product_variant", true);
+
+                // 5. Automatic Receipt Printing (iface_print_auto)
+                bool isAutoPrintEnabled = GetBoolOrDefault(item, "iface_print_auto", false);
 
                 decimal openingBal = 0.00m;
                 int? activeUserId = null;
@@ -2588,7 +2668,14 @@ public class OdooSyncService
                         activeUserId,
                         activeUserName,
                         activeUserAvatar,
-                        salesJson
+                        salesJson,
+                        selectedPaymentMethodsCsv,
+                        isOneClickEnabled,
+                        oneClickMethodName!,
+                        isRestrictCategoriesEnabled,
+                        restrictedCategoriesCsv,
+                        isVariantsEnabled,
+                        isAutoPrintEnabled
                     ));
                 }
             }
@@ -2668,7 +2755,7 @@ public class OdooSyncService
         await SqliteDatabaseService.Instance.UpdateSessionSyncStatusAsync(now, $"Sessions: {sessions.Count}");
 
         Report(10, "POS Shops", "Fetching & reconciling POS Configurations (pos.config)...");
-        var posConfigs = await FetchOdooPosConfigsInternalAsync(config, uid, sessions);
+        var posConfigs = await FetchOdooPosConfigsInternalAsync(config, uid, sessions, paymentMethods, categories);
         await SqliteDatabaseService.Instance.UpsertOdooPosConfigsAsync(posConfigs);
         await SqliteDatabaseService.Instance.UpdatePosConfigSyncStatusAsync(now, $"POS Shops: {posConfigs.Count}");
 

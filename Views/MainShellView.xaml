@@ -722,11 +722,11 @@
                             </Grid>
                         </Button>
 
-                        <!-- 13.5 POS SETTINGS & RECEIPT DESIGNS -->
+                        <!-- 13.5 POS SETTINGS -->
                         <Button x:Name="NavPosSettingsBtn"
                                 Style="{StaticResource SidebarItemButtonStyle}"
                                 Click="NavPosSettings_Click"
-                                ToolTip="Point of Sale Settings &amp; Receipt Designs">
+                                ToolTip="Point of Sale Settings">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="40"/>
@@ -741,6 +741,26 @@
                                     </Canvas>
                                 </Viewbox>
                                 <TextBlock Grid.Column="1" x:Name="PosSettingsLabel" Text="PoS Settings" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- 13.6 RECEIPT DESIGNS -->
+                        <Button x:Name="NavReceiptDesignsBtn"
+                                Style="{StaticResource SidebarItemButtonStyle}"
+                                Click="NavReceiptDesigns_Click"
+                                ToolTip="Receipt Designs">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Viewbox Grid.Column="0" Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M 6,3 H 18 V 21 L 15,19 L 12,21 L 9,19 L 6,21 Z" Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="{StaticResource OdooPurpleSoftBrush}"/>
+                                        <Path Data="M 9,8 H 15 M 9,12 H 15 M 9,16 H 13" Stroke="{StaticResource OdooTealBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Grid.Column="1" x:Name="ReceiptDesignsLabel" Text="Receipt Designs" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" Margin="4,0,0,0"/>
                             </Grid>
                         </Button>
 
@@ -827,6 +847,7 @@
                         </StackPanel>
 
                         <Border Grid.Column="1"
+                                Visibility="Collapsed"
                                 Background="#F9FAFB"
                                 BorderBrush="{StaticResource SubtleBorderBrush}"
                                 BorderThickness="1"
@@ -856,12 +877,6 @@
                         Padding="28,0">
                     <StackPanel Orientation="Horizontal">
                         <Button x:Name="TabGeneral" Style="{StaticResource OdooActiveTabButtonStyle}" Content="Odoo Connection &amp; Sync" Click="TabButton_Click" Tag="General"/>
-                        <Button x:Name="TabPosSettings" Style="{StaticResource OdooTabButtonStyle}" Content="Point of Sale Settings" Click="TabButton_Click" Tag="PosSettings"/>
-                        <Button x:Name="TabReceiptDesigns" Style="{StaticResource OdooTabButtonStyle}" Content="Receipt Designs" Click="TabButton_Click" Tag="ReceiptDesigns"/>
-                        <Button x:Name="TabLocale" Style="{StaticResource OdooTabButtonStyle}" Content="Locale" Click="TabButton_Click" Tag="Locale"/>
-                        <Button x:Name="TabPaymentMethod" Style="{StaticResource OdooTabButtonStyle}" Content="Payment Method" Click="TabButton_Click" Tag="PaymentMethod"/>
-                        <Button x:Name="TabPeripherals" Style="{StaticResource OdooTabButtonStyle}" Content="Peripherals" Click="TabButton_Click" Tag="Peripherals"/>
-                        <Button x:Name="TabSystemOptions" Style="{StaticResource OdooTabButtonStyle}" Content="System Options" Click="TabButton_Click" Tag="SystemOptions"/>
                     </StackPanel>
                 </Border>
 

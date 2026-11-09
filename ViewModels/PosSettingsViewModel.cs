@@ -17,9 +17,10 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     // 1. Payment Methods
     private string? _paymentMethodToAdd;
 
-    // 2. One-click Payment
+    // 2. One-click Payment (Single Select, Synced from Odoo)
     private bool _isOneClickPaymentEnabled;
     private string? _oneClickMethodToAdd;
+    private string _selectedOneClickPaymentMethod = "Cash";
 
     // 3. Restrict Categories
     private bool _isRestrictCategoriesEnabled;
@@ -64,6 +65,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
     public ObservableCollection<string> SelectedOneClickPaymentTags { get; } = [];
     public ObservableCollection<string> AvailableOneClickMethodsToAdd { get; } = [];
+    public ObservableCollection<string> AvailableOneClickMethods { get; } = [];
 
     public ObservableCollection<string> SelectedCategoryTags { get; } = [];
     public ObservableCollection<string> AvailableCategoriesToAdd { get; } = [];
@@ -73,6 +75,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     public event Action? NavigateToPaymentMethodsRequested;
     public event Action? NavigateToCategoriesRequested;
     public event Action? NavigateToAttributesRequested;
+    public event Action? NavigateToReceiptDesignsRequested;
     public event Action? SettingsSaved;
 
     public ICommand SaveSettingsCommand { get; }
@@ -167,7 +170,11 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         OpenPaymentMethodsLinkCommand = new RelayCommand(_ => NavigateToPaymentMethodsRequested?.Invoke());
         OpenCategoriesLinkCommand = new RelayCommand(_ => NavigateToCategoriesRequested?.Invoke());
         OpenAttributesLinkCommand = new RelayCommand(_ => NavigateToAttributesRequested?.Invoke());
-        OpenReceiptDesignsTabCommand = new RelayCommand(_ => IsReceiptDesignsSubTabSelected = true);
+        OpenReceiptDesignsTabCommand = new RelayCommand(_ =>
+        {
+            IsReceiptDesignsSubTabSelected = true;
+            NavigateToReceiptDesignsRequested?.Invoke();
+        });
         OpenPosSettingsTabCommand = new RelayCommand(_ => IsReceiptDesignsSubTabSelected = false);
 
         SelectReceiptDesignCommand = new RelayCommand(p =>
@@ -272,6 +279,19 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     }
 
     public Visibility OneClickPaymentDetailsVisibility => _isOneClickPaymentEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+    public string SelectedOneClickPaymentMethod
+    {
+        get => _selectedOneClickPaymentMethod;
+        set
+        {
+            if (_selectedOneClickPaymentMethod != value)
+            {
+                _selectedOneClickPaymentMethod = value ?? "Cash";
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public string? OneClickMethodToAdd
     {
@@ -643,22 +663,13 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             var oneClickMethods = config.OneClickPaymentMethodsList;
             if (oneClickMethods.Count == 0)
                 oneClickMethods = ["Cash"];
-            foreach (var ocm in oneClickMethods)
-                SelectedOneClickPaymentTags.Add(ocm);
+            SelectedOneClickPaymentTags.Add(oneClickMethods[0]);
+            SelectedOneClickPaymentMethod = oneClickMethods[0];
 
             IsRestrictCategoriesEnabled = config.IsRestrictCategoriesEnabled;
             var restrictedCats = config.RestrictedCategoriesList;
-            if (restrictedCats.Count == 0 && _allCategoryNames.Count > 0)
-            {
-                // Populate sample categories when user first enables or inspects
-                foreach (var c in _allCategoryNames.Take(3))
-                    SelectedCategoryTags.Add(c);
-            }
-            else
-            {
-                foreach (var rc in restrictedCats)
-                    SelectedCategoryTags.Add(rc);
-            }
+            foreach (var rc in restrictedCats)
+                SelectedCategoryTags.Add(rc);
 
             IsVariantsEnabled = config.IsVariantsEnabled;
             IsAutomaticReceiptPrintingEnabled = config.IsAutomaticReceiptPrintingEnabled;
@@ -696,11 +707,18 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         }
 
         AvailableOneClickMethodsToAdd.Clear();
+        AvailableOneClickMethods.Clear();
         var pool = SelectedPaymentMethodTags.Count > 0 ? SelectedPaymentMethodTags.ToList() : _allPaymentMethodNames;
         foreach (var m in pool)
         {
+            AvailableOneClickMethods.Add(m);
             if (!SelectedOneClickPaymentTags.Any(x => string.Equals(x, m, StringComparison.OrdinalIgnoreCase)))
                 AvailableOneClickMethodsToAdd.Add(m);
+        }
+        if (!string.IsNullOrWhiteSpace(SelectedOneClickPaymentMethod) &&
+            !AvailableOneClickMethods.Any(x => string.Equals(x, SelectedOneClickPaymentMethod, StringComparison.OrdinalIgnoreCase)))
+        {
+            AvailableOneClickMethods.Insert(0, SelectedOneClickPaymentMethod);
         }
 
         AvailableCategoriesToAdd.Clear();
@@ -715,13 +733,8 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     {
         if (_selectedConfig == null) return;
 
-        _selectedConfig.SelectedPaymentMethodsCsv = string.Join(",", SelectedPaymentMethodTags);
-        _selectedConfig.IsOneClickPaymentEnabled = IsOneClickPaymentEnabled;
-        _selectedConfig.OneClickPaymentMethodsCsv = string.Join(",", SelectedOneClickPaymentTags);
-        _selectedConfig.IsRestrictCategoriesEnabled = IsRestrictCategoriesEnabled;
-        _selectedConfig.RestrictedCategoriesCsv = string.Join(",", SelectedCategoryTags);
-        _selectedConfig.IsVariantsEnabled = IsVariantsEnabled;
-        _selectedConfig.IsAutomaticReceiptPrintingEnabled = IsAutomaticReceiptPrintingEnabled;
+        // Settings 1, 2, 3, 4, 5 are synced with Odoo and read-only in the program.
+        // Only local settings (6, 7, 8, 9, 10) are persisted from the program.
         _selectedConfig.IsPreventLineMergingEnabled = IsPreventLineMergingEnabled;
         _selectedConfig.IsPrintLastReceiptEnabled = IsPrintLastReceiptEnabled;
         _selectedConfig.IsCustomOrderReceiptsEnabled = IsCustomOrderReceiptsEnabled;

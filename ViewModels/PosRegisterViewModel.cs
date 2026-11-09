@@ -310,6 +310,9 @@ public partial class PosRegisterViewModel : ViewModelBase
     private ObservableCollection<ProductRecord> _filteredProducts = [];
 
     [ObservableProperty]
+    private double _productCardWidth = 172.0;
+
+    [ObservableProperty]
     private PosCategoryRecord? _selectedCategory;
 
     [ObservableProperty]
@@ -832,6 +835,12 @@ public partial class PosRegisterViewModel : ViewModelBase
             var fresh = freshConfigs.FirstOrDefault(c => c.OdooId == config.OdooId || c.Id == config.Id);
             if (fresh != null)
             {
+                config.CurrentSessionId = fresh.CurrentSessionId;
+                config.CurrentSessionName = fresh.CurrentSessionName;
+                config.CurrentSessionState = fresh.CurrentSessionState;
+                config.OpeningBalance = fresh.OpeningBalance;
+                config.LastClosingDate = fresh.LastClosingDate;
+                config.LastClosingBalance = fresh.LastClosingBalance;
                 config.SelectedPaymentMethodsCsv = fresh.SelectedPaymentMethodsCsv;
                 config.IsOneClickPaymentEnabled = fresh.IsOneClickPaymentEnabled;
                 config.OneClickPaymentMethodsCsv = fresh.OneClickPaymentMethodsCsv;
@@ -855,6 +864,11 @@ public partial class PosRegisterViewModel : ViewModelBase
         ActiveShopName = config.Name;
         CashierName = !string.IsNullOrWhiteSpace(config.ActiveUserName) ? config.ActiveUserName! : "Mitchell Admin";
         CashierAvatarBitmap = config.ActiveUserAvatarBitmap;
+
+        // Always reset category selection and search text so products display immediately on open
+        SelectedCategory = null;
+        _productSearchText = string.Empty;
+        OnPropertyChanged(nameof(ProductSearchText));
 
         try
         {
@@ -905,11 +919,9 @@ public partial class PosRegisterViewModel : ViewModelBase
         _nextOrderSeq = nextSeq;
         _deviceDigit = deviceDigit;
 
-        DraftOrders.Clear();
-        CreateNewDraftOrderInternal(persistPrevious: false);
-
         await ReloadCatalogAsync();
         await ReloadPaymentMethodsForShopAsync();
+        await RestoreDraftOrdersForShopAsync();
         await ReloadInPosOrdersAsync();
         await RefreshPendingSyncCountAsync();
 
@@ -934,6 +946,10 @@ public partial class PosRegisterViewModel : ViewModelBase
             {
                 await EnterPosFromLandingAsync();
             }
+            else
+            {
+                await EnsureLocalSessionExistsForConfigAsync(config);
+            }
             return;
         }
 
@@ -946,18 +962,51 @@ public partial class PosRegisterViewModel : ViewModelBase
         {
             IsPosLandingScreenOpen = false;
             IsOpeningControlModalOpen = false;
+            await EnsureLocalSessionExistsForConfigAsync(config);
         }
+    }
+
+    private async Task EnsureLocalSessionExistsForConfigAsync(PosConfigRecord? config)
+    {
+        if (config == null) return;
+        try
+        {
+            var (_, resolvedSessOdooId, resolvedSessName) = await SqliteDatabaseService.Instance.UpdateSessionOpeningControlAsync(
+                config.OdooId,
+                config.CurrentSessionId,
+                config.OpeningBalance,
+                string.Empty,
+                config.Name,
+                config.ActiveUserId,
+                CashierName,
+                enqueueForOdooSync: false
+            );
+
+            if (resolvedSessOdooId.HasValue)
+                config.CurrentSessionId = resolvedSessOdooId.Value;
+            if (!string.IsNullOrWhiteSpace(resolvedSessName))
+                config.CurrentSessionName = resolvedSessName;
+        }
+        catch { }
     }
 
     [RelayCommand]
     public async Task EnterPosFromLandingAsync()
     {
-        IsPosLandingScreenOpen = false;
-        IsOpeningControlModalOpen = false;
         ActivePosView = "Register";
 
         if (CurrentConfig != null && (CurrentConfig.IsClosed || CurrentConfig.IsOpeningControl))
         {
+            // When "Hide Opening Cash Control" is NOT active in PoS Settings, show the Opening Cash Control modal!
+            if (!CurrentConfig.IsHideOpeningCashControlEnabled)
+            {
+                IsPosLandingScreenOpen = false;
+                IsOpeningControlModalOpen = true;
+                return;
+            }
+
+            IsPosLandingScreenOpen = false;
+            IsOpeningControlModalOpen = false;
             CurrentConfig.CurrentSessionState = "opened";
             UpdateLandingState();
             int cfgId = CurrentConfig.OdooId;
@@ -980,8 +1029,22 @@ public partial class PosRegisterViewModel : ViewModelBase
                 if (resolvedSessOdooId.HasValue)
                     CurrentConfig.CurrentSessionId = resolvedSessOdooId.Value;
                 CurrentConfig.CurrentSessionName = resolvedSessName;
+                OdooSyncService.Instance.NotifyQueueUpdated();
+
+                _ = Task.Run(async () =>
+                {
+                    await OdooSyncService.Instance.ProcessPendingQueueAsync();
+                    await RefreshBoundConfigSessionAsync();
+                    await RefreshPendingSyncCountAsync();
+                });
             }
             catch { }
+        }
+        else
+        {
+            IsPosLandingScreenOpen = false;
+            IsOpeningControlModalOpen = false;
+            await EnsureLocalSessionExistsForConfigAsync(CurrentConfig);
         }
     }
 
@@ -992,14 +1055,20 @@ public partial class PosRegisterViewModel : ViewModelBase
             var allMethods = await SqliteDatabaseService.Instance.LoadAllPaymentMethodsAsync();
             AvailablePaymentMethods.Clear();
 
-            // Setting 1: Filter by SelectedPaymentMethodsList from PoS Settings
+            string shopName = CurrentConfig?.Name ?? "";
             var configuredNames = CurrentConfig?.SelectedPaymentMethodsList ?? [];
             if (configuredNames.Count > 0)
             {
                 int fallbackOdooId = 10;
                 foreach (var name in configuredNames)
                 {
-                    var match = allMethods.FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+                    // Prefer payment method explicitly linked to this shop first, then any payment method with matching name
+                    var match = allMethods.FirstOrDefault(m =>
+                                    string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                                    m.LinkedShopsList.Any(s => string.Equals(s, shopName, StringComparison.OrdinalIgnoreCase)))
+                                ?? allMethods.FirstOrDefault(m =>
+                                    string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+
                     if (match != null)
                     {
                         AvailablePaymentMethods.Add(match);
@@ -1022,7 +1091,6 @@ public partial class PosRegisterViewModel : ViewModelBase
             }
             else
             {
-                string shopName = CurrentConfig?.Name ?? "";
                 var shopMethods = allMethods.Where(m =>
                     string.IsNullOrWhiteSpace(m.LinkedPosConfigs) ||
                     m.LinkedShopsList.Any(s => string.Equals(s, shopName, StringComparison.OrdinalIgnoreCase))).ToList();
@@ -1058,10 +1126,34 @@ public partial class PosRegisterViewModel : ViewModelBase
         catch { }
     }
 
+    private static bool CategoryNameMatches(string? productCatName, string? targetCatName)
+    {
+        if (string.IsNullOrWhiteSpace(productCatName) || string.IsNullOrWhiteSpace(targetCatName))
+            return false;
+
+        string pCat = productCatName.Trim();
+        string tCat = targetCatName.Trim();
+
+        if (string.Equals(pCat, tCat, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var pSegments = pCat.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var tSegments = tCat.Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (pSegments.Any(s => string.Equals(s, tCat, StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        if (tSegments.Length > 0 && pSegments.Any(s => string.Equals(s, tSegments[^1], StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        return false;
+    }
+
     public async Task ReloadCatalogAsync()
     {
         try
         {
+            SelectedCategory = null;
             var cats = await SqliteDatabaseService.Instance.LoadAllCategoriesAsync();
             _allCategories.Clear();
 
@@ -1080,11 +1172,16 @@ public partial class PosRegisterViewModel : ViewModelBase
             if (restrictedCats.Count > 0)
             {
                 var filteredCats = shopCats.Where(c =>
-                    restrictedCats.Any(rc => string.Equals(rc, c.Name, StringComparison.OrdinalIgnoreCase))).ToList();
+                    restrictedCats.Any(rc => CategoryNameMatches(c.Name, rc) || CategoryNameMatches(c.ParentCategoryName, rc))).ToList();
                 if (filteredCats.Count > 0)
                 {
                     shopCats = filteredCats;
                 }
+            }
+
+            foreach (var c in shopCats)
+            {
+                c.IsSelected = false;
             }
 
             _allCategories.AddRange(shopCats);
@@ -1098,11 +1195,22 @@ public partial class PosRegisterViewModel : ViewModelBase
             var prods = await SqliteDatabaseService.Instance.LoadAllProductsAsync();
             _allProducts.Clear();
             var availableProds = prods.Where(p => p.AvailableInPos).ToList();
+            if (availableProds.Count == 0 && prods.Count > 0)
+            {
+                availableProds = prods;
+            }
 
             if (restrictedCats.Count > 0)
             {
+                var allowedCatIds = shopCats
+                    .Where(c => c.OdooId.HasValue && c.OdooId.Value > 0)
+                    .Select(c => c.OdooId!.Value)
+                    .ToHashSet();
+
                 var restrictedProds = availableProds.Where(p =>
-                    restrictedCats.Any(rc => string.Equals(rc, p.PosCategoryName, StringComparison.OrdinalIgnoreCase))).ToList();
+                    (p.PosCategoryId.HasValue && allowedCatIds.Contains(p.PosCategoryId.Value)) ||
+                    restrictedCats.Any(rc => CategoryNameMatches(p.PosCategoryName, rc))).ToList();
+
                 if (restrictedProds.Count > 0)
                 {
                     availableProds = restrictedProds;
@@ -1140,15 +1248,119 @@ public partial class PosRegisterViewModel : ViewModelBase
     // =========================================================================
     // DRAFT ORDER MANAGEMENT & ONGOING DRAFT PERSISTENCE
     // =========================================================================
+    private async Task RestoreDraftOrdersForShopAsync()
+    {
+        DraftOrders.Clear();
+        int cfgOdooId = CurrentConfig?.OdooId ?? 1;
+        string shopName = CurrentConfig?.Name ?? ActiveShopName;
+
+        try
+        {
+            var shopOrders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync(shopName);
+            var draftRecords = shopOrders
+                .Where(o => o.IsDraft &&
+                            (string.Equals(o.PosConfigName, shopName, StringComparison.OrdinalIgnoreCase) || OrderMatchesCurrentSession(o)))
+                .OrderBy(o => o.Id)
+                .ToList();
+
+            foreach (var rec in draftRecords)
+            {
+                int seqNum = ExtractDraftSequenceNumber(rec, cfgOdooId);
+                if (seqNum >= _nextOrderSeq)
+                {
+                    _nextOrderSeq = seqNum + 1;
+                }
+
+                string tabNumber = !string.IsNullOrWhiteSpace(rec.TrackingNumber)
+                    ? rec.TrackingNumber
+                    : $"{(cfgOdooId % 10 == 0 ? 1 : cfgOdooId % 10)}{seqNum:D3}";
+
+                var draft = new PosDraftOrder(tabNumber, cfgOdooId, seqNum, _deviceDigit)
+                {
+                    DatabaseOrderId = rec.Id,
+                    Uuid = !string.IsNullOrWhiteSpace(rec.Uuid) ? rec.Uuid : Guid.NewGuid().ToString(),
+                    OrderRef = !string.IsNullOrWhiteSpace(rec.PosReference)
+                        ? rec.PosReference
+                        : $"{DateTime.Now.Year % 100:D2}{_deviceDigit}-{cfgOdooId}-{seqNum:D6}",
+                    CustomerName = rec.CustomerName ?? string.Empty,
+                    Note = rec.Note ?? string.Empty,
+                    CreatedAt = rec.DateOrder ?? DateTime.Now
+                };
+
+                foreach (var l in rec.Lines)
+                {
+                    var prod = _allProducts.FirstOrDefault(p =>
+                                   (l.ProductId.HasValue && p.OdooId == l.ProductId.Value) ||
+                                   string.Equals(p.Name, l.ProductName, StringComparison.OrdinalIgnoreCase))
+                               ?? new ProductRecord
+                               {
+                                   OdooId = l.ProductId,
+                                   Name = l.ProductName,
+                                   ListPrice = l.PriceUnit,
+                                   SalesTaxRate = l.PriceSubtotal > 0
+                                       ? Math.Round(((l.PriceSubtotalIncl - l.PriceSubtotal) / l.PriceSubtotal) * 100m, 1)
+                                       : 15.0m
+                               };
+
+                    var item = new PosCartItem(prod, l.Qty, unitPriceIsTaxIncluded: false, customProductName: l.ProductName, customUnitPrice: l.PriceUnit)
+                    {
+                        Discount = l.Discount
+                    };
+                    draft.CartItems.Add(item);
+                }
+
+                draft.NotifyTotalsChanged();
+                DraftOrders.Add(draft);
+            }
+        }
+        catch { }
+
+        if (DraftOrders.Count > 0)
+        {
+            SelectDraftOrder(DraftOrders.First());
+        }
+        else
+        {
+            CreateNewDraftOrderInternal(persistPrevious: false);
+        }
+    }
+
+    private int ExtractDraftSequenceNumber(PosOrderRecord rec, int cfgOdooId)
+    {
+        if (!string.IsNullOrWhiteSpace(rec.PosReference))
+        {
+            var dashParts = rec.PosReference.Split('-', StringSplitOptions.RemoveEmptyEntries);
+            if (dashParts.Length > 0 && int.TryParse(dashParts[^1], out int parsedRefSeq) && parsedRefSeq > 0)
+            {
+                return parsedRefSeq;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(rec.TrackingNumber) && rec.TrackingNumber.Length >= 2)
+        {
+            string suffix = rec.TrackingNumber.Length > 3 ? rec.TrackingNumber[1..] : rec.TrackingNumber;
+            if (int.TryParse(suffix, out int parsedTrackSeq) && parsedTrackSeq > 0)
+            {
+                return parsedTrackSeq;
+            }
+        }
+
+        return _nextOrderSeq;
+    }
+
     [RelayCommand]
     public async Task CreateNewDraftOrderAsync()
     {
-        if (CurrentOrder != null && CurrentOrder.HasItems)
+        if (CurrentOrder != null)
         {
-            await PersistDraftOrderToDatabaseAsync(CurrentOrder);
+            await PersistDraftOrderToDatabaseAsync(CurrentOrder, allowEmpty: true);
         }
 
         CreateNewDraftOrderInternal(persistPrevious: false);
+        if (CurrentOrder != null)
+        {
+            await PersistDraftOrderToDatabaseAsync(CurrentOrder, allowEmpty: true);
+        }
     }
 
     private void CreateNewDraftOrderInternal(bool persistPrevious = false)
@@ -1218,11 +1430,11 @@ public partial class PosRegisterViewModel : ViewModelBase
         await ReloadInPosOrdersAsync();
     }
 
-    private async Task PersistDraftOrderToDatabaseAsync(PosDraftOrder draft)
+    private async Task PersistDraftOrderToDatabaseAsync(PosDraftOrder draft, bool allowEmpty = false)
     {
         try
         {
-            if (!draft.HasItems)
+            if (!draft.HasItems && !allowEmpty && DraftOrders.Count <= 1)
             {
                 if (draft.DatabaseOrderId.HasValue)
                 {
@@ -1781,9 +1993,18 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         if (SelectedCategory != null)
         {
+            var cat = SelectedCategory;
+            var childCatIds = _allCategories
+                .Where(c => (cat.OdooId.HasValue && c.ParentCategoryId == cat.OdooId.Value) ||
+                            CategoryNameMatches(c.ParentCategoryName, cat.Name))
+                .Where(c => c.OdooId.HasValue)
+                .Select(c => c.OdooId!.Value)
+                .ToHashSet();
+
             source = source.Where(p =>
-                p.PosCategoryId == SelectedCategory.OdooId ||
-                string.Equals(p.PosCategoryName, SelectedCategory.Name, StringComparison.OrdinalIgnoreCase));
+                (cat.OdooId.HasValue && p.PosCategoryId == cat.OdooId.Value) ||
+                (p.PosCategoryId.HasValue && childCatIds.Contains(p.PosCategoryId.Value)) ||
+                CategoryNameMatches(p.PosCategoryName, cat.Name));
         }
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -1801,7 +2022,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     }
 
     // =========================================================================
-    // IN-POS ORDERS FILTERING & ACTIONS (Screenshot 3)
+    // IN-POS ORDERS FILTERING & ACTIONS (Paid Orders in Current Session Only)
     // =========================================================================
     [RelayCommand]
     public void SwitchToRegisterView()
@@ -1827,12 +2048,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public void CycleOrderStatusFilter()
     {
-        OrderStatusFilter = OrderStatusFilter switch
-        {
-            "Active" => "Paid",
-            "Paid" => "All",
-            _ => "Active"
-        };
+        OrderStatusFilter = "Paid";
     }
 
     private void FilterInPosOrders()
@@ -1840,22 +2056,9 @@ public partial class PosRegisterViewModel : ViewModelBase
         string query = OrderSearchText.Trim();
         FilteredInPosOrders.Clear();
 
-        IEnumerable<PosOrderRecord> source = _allInPosOrders;
-
-        // In POS register, default to orders of the active session when not searching
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            source = source.Where(OrderMatchesCurrentSession);
-        }
-
-        if (OrderStatusFilter is "Active" or "Ongoing")
-        {
-            source = source.Where(o => o.IsDraft);
-        }
-        else if (OrderStatusFilter == "Paid")
-        {
-            source = source.Where(o => !o.IsDraft && !o.IsCancelled);
-        }
+        // Always show only PAID orders belonging to the current session
+        IEnumerable<PosOrderRecord> source = _allInPosOrders.Where(o =>
+            OrderMatchesCurrentSession(o) && !o.IsDraft && !o.IsCancelled);
 
         if (!string.IsNullOrWhiteSpace(query))
         {
@@ -2586,10 +2789,12 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public async Task ReturnToBackendAsync()
     {
-        if (CurrentOrder != null && CurrentOrder.HasItems)
+        bool multipleTabs = DraftOrders.Count > 1;
+        foreach (var draft in DraftOrders.ToList())
         {
-            await PersistDraftOrderToDatabaseAsync(CurrentOrder);
+            await PersistDraftOrderToDatabaseAsync(draft, allowEmpty: multipleTabs);
         }
+
         IsHamburgerMenuOpen = false;
         IsPosLandingScreenOpen = false;
         ReturnToDashboardRequested?.Invoke();

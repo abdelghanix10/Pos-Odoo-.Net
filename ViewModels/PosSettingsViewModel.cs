@@ -661,15 +661,27 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
             IsOneClickPaymentEnabled = config.IsOneClickPaymentEnabled;
             var oneClickMethods = config.OneClickPaymentMethodsList;
-            if (oneClickMethods.Count == 0)
+            if (oneClickMethods.Count == 0 || string.IsNullOrWhiteSpace(oneClickMethods[0]))
                 oneClickMethods = ["Cash"];
-            SelectedOneClickPaymentTags.Add(oneClickMethods[0]);
-            SelectedOneClickPaymentMethod = oneClickMethods[0];
+            string chosenOneClick = oneClickMethods[0].Trim();
+            SelectedOneClickPaymentTags.Add(chosenOneClick);
 
             IsRestrictCategoriesEnabled = config.IsRestrictCategoriesEnabled;
             var restrictedCats = config.RestrictedCategoriesList;
             foreach (var rc in restrictedCats)
                 SelectedCategoryTags.Add(rc);
+
+            RefreshAvailableDropdowns();
+
+            var matchedMethod = AvailableOneClickMethods.FirstOrDefault(x =>
+                string.Equals(x, chosenOneClick, StringComparison.OrdinalIgnoreCase));
+            if (matchedMethod == null)
+            {
+                AvailableOneClickMethods.Insert(0, chosenOneClick);
+                matchedMethod = chosenOneClick;
+            }
+            _selectedOneClickPaymentMethod = matchedMethod;
+            OnPropertyChanged(nameof(SelectedOneClickPaymentMethod));
 
             IsVariantsEnabled = config.IsVariantsEnabled;
             IsAutomaticReceiptPrintingEnabled = config.IsAutomaticReceiptPrintingEnabled;
@@ -688,8 +700,6 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             SelectedSecondReceiptDesign = config.SecondReceiptDesignId.HasValue
                 ? ReceiptDesigns.FirstOrDefault(d => d.Id == config.SecondReceiptDesignId.Value) ?? ReceiptDesigns.Skip(1).FirstOrDefault() ?? ReceiptDesigns.FirstOrDefault()
                 : ReceiptDesigns.Skip(1).FirstOrDefault() ?? ReceiptDesigns.FirstOrDefault();
-
-            RefreshAvailableDropdowns();
         }
         finally
         {

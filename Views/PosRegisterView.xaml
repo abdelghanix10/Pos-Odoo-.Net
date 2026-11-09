@@ -1132,10 +1132,12 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <!-- Product Cards Grid (Matching Odoo 20: 163x171, 6px bottom category accent bar, 4:3 photo ratio) -->
-                    <ScrollViewer Grid.Row="1"
+                    <!-- Product Cards Grid (Responsive width filling available space) -->
+                    <ScrollViewer x:Name="ProductsScrollViewer"
+                                  Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
+                                  SizeChanged="ProductsScrollViewer_SizeChanged"
                                   Padding="8,4,8,8">
                         <ItemsControl ItemsSource="{Binding FilteredProducts}">
                             <ItemsControl.ItemsPanel>
@@ -1147,8 +1149,8 @@
                                 <DataTemplate DataType="{x:Type local:ProductRecord}">
                                     <Button Command="{Binding DataContext.AddProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
-                                            Width="163"
-                                            Height="171"
+                                            Width="{Binding DataContext.ProductCardWidth, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=163}"
+                                            Height="175"
                                             Margin="4"
                                             Cursor="Hand"
                                             Background="Transparent"
@@ -1157,11 +1159,11 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Grid x:Name="CardGrid">
                                                     <Grid.RowDefinitions>
-                                                        <RowDefinition Height="165"/>
+                                                        <RowDefinition Height="169"/>
                                                         <RowDefinition Height="6"/>
                                                     </Grid.RowDefinitions>
 
-                                                    <!-- Top Card Area (163x165, border top/left/right 1px #CCCCCC, rounded top 6) -->
+                                                    <!-- Top Card Area (border top/left/right 1px #CCCCCC, rounded top 6) -->
                                                     <Border Grid.Row="0"
                                                             x:Name="CardBdr"
                                                             Background="#FFFFFF"
@@ -1173,11 +1175,11 @@
                                                             <!-- LAYOUT WITH IMAGE -->
                                                             <Grid Visibility="{Binding HasImage, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                                                                 <Grid.RowDefinitions>
-                                                                    <RowDefinition Height="121"/>
+                                                                    <RowDefinition Height="125"/>
                                                                     <RowDefinition Height="44"/>
                                                                 </Grid.RowDefinitions>
 
-                                                                <!-- Row 0: Image with 4:3 ratio (161x121) -->
+                                                                <!-- Row 0: Image -->
                                                                 <Border Grid.Row="0"
                                                                         Background="#E9ECEF"
                                                                         CornerRadius="5,5,0,0"
@@ -1262,258 +1264,185 @@
             </Grid>
 
             <!-- =================================================================== -->
-            <!-- 3. IN-POS ORDERS VIEW (Screenshot 3)                                -->
+            <!-- 3. IN-POS ORDERS VIEW (Paid Orders in Current Session Only)         -->
             <!-- =================================================================== -->
             <Grid Grid.Row="1"
                   Background="#FFFFFF"
                   Visibility="{Binding IsOrdersViewActive, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="450" MaxWidth="450"/>
-                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="54"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-                <!-- LEFT: ORDERS LIST & SEARCH/FILTER TOOLBAR -->
-                <Grid Grid.Column="0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="54"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+                <!-- Top Search + Pager Bar (Full Width, No Right Sidebar) -->
+                <Border Grid.Row="0" Padding="12,8" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-                    <!-- Top Search + "Active ▾" + Pager Bar -->
-                    <Border Grid.Row="0" Padding="8,8">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0"
+                                Height="36"
+                                Background="#FFFFFF"
+                                BorderBrush="{StaticResource BorderMidBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Margin="0,0,12,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="34"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                            <Border Grid.Column="0"
-                                    Height="36"
-                                    Background="#FFFFFF"
-                                    BorderBrush="{StaticResource BorderMidBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="4"
-                                    Margin="0,0,10,0">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="34"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,0,1,0">
+                                    <Viewbox Width="13" Height="13">
+                                        <Canvas Width="24" Height="24">
+                                            <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"/>
+                                            <Path Data="M 14,14 L 20,20" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Border>
 
-                                    <Border Grid.Column="0" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,0,1,0">
-                                        <Viewbox Width="13" Height="13">
-                                            <Canvas Width="24" Height="24">
-                                                <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"/>
-                                                <Path Data="M 14,14 L 20,20" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                    </Border>
-
-                                    <TextBox Grid.Column="1"
-                                             Text="{Binding OrderSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                             BorderThickness="0"
-                                             Background="Transparent"
-                                             FontSize="13.5"
-                                             Padding="10,0"
-                                             VerticalContentAlignment="Center"/>
-                                    <TextBlock Grid.Column="1"
-                                               Text="Search Orders..."
-                                               FontSize="13.5"
-                                               Foreground="{StaticResource TextPlaceholderBrush}"
-                                               Margin="12,0,0,0"
-                                               VerticalAlignment="Center"
-                                               IsHitTestVisible="False"
-                                               Visibility="{Binding OrderSearchText, Converter={x:Static local:StringEmptyToVisibilityConverter.Instance}}"/>
-
-                                    <Button Grid.Column="2"
-                                            Command="{Binding CycleOrderStatusFilterCommand}"
-                                            Background="#F3F4F6"
-                                            BorderBrush="{StaticResource BorderLightBrush}"
-                                            BorderThickness="1,0,0,0"
-                                            Padding="12,0"
-                                            Cursor="Hand">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding OrderStatusFilter}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            <TextBlock Text=" ▾" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-                                </Grid>
-                            </Border>
-
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding OrdersPagerText}"
-                                           FontSize="13"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding OrderSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         FontSize="13.5"
+                                         Padding="10,0"
+                                         VerticalContentAlignment="Center"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="Search Paid Orders in this Session..."
+                                           FontSize="13.5"
+                                           Foreground="{StaticResource TextPlaceholderBrush}"
+                                           Margin="12,0,0,0"
                                            VerticalAlignment="Center"
-                                           Margin="0,0,8,0"/>
+                                           IsHitTestVisible="False"
+                                           Visibility="{Binding OrderSearchText, Converter={x:Static local:StringEmptyToVisibilityConverter.Instance}}"/>
+                            </Grid>
+                        </Border>
 
-                                <Button Width="32" Height="34" Background="#F3F4F6" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1" Margin="0,0,2,0">
-                                    <TextBlock Text="◀" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                </Button>
-                                <Button Width="32" Height="34" Background="#F3F4F6" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1">
-                                    <TextBlock Text="▶" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                </Button>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding OrdersPagerText}"
+                                       FontSize="13"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"/>
 
-                    <!-- Orders List Rows -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding FilteredInPosOrders}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type local:PosOrderRecord}">
-                                    <Button Command="{Binding DataContext.SelectInPosOrderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"
-                                            Cursor="Hand"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            HorizontalContentAlignment="Stretch">
-                                        <Button.Template>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="OrdRowBdr"
-                                                        Height="54"
-                                                        Padding="12,0"
-                                                        Background="#FFFFFF"
-                                                        BorderBrush="{StaticResource BorderLightBrush}"
-                                                        BorderThickness="0,0,0,1">
-                                                    <Grid VerticalAlignment="Center">
+                            <Button Width="32" Height="34" Background="#F3F4F6" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1" Margin="0,0,2,0">
+                                <TextBlock Text="◀" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </Button>
+                            <Button Width="32" Height="34" Background="#F3F4F6" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1">
+                                <TextBlock Text="▶" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Paid Orders List with Order Products (Lines) Below Each Order -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding FilteredInPosOrders}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type local:PosOrderRecord}">
+                                <Button Command="{Binding DataContext.SelectInPosOrderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}"
+                                        Cursor="Hand"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        HorizontalContentAlignment="Stretch">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="OrdRowBdr"
+                                                    Background="#FFFFFF"
+                                                    BorderBrush="{StaticResource BorderLightBrush}"
+                                                    BorderThickness="0,0,0,1">
+                                                <StackPanel>
+                                                    <!-- Order Header Row -->
+                                                    <Grid Height="54" Margin="16,0">
                                                         <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="120"/>
-                                                            <ColumnDefinition Width="260"/>
-                                                            <ColumnDefinition Width="160"/>
+                                                            <ColumnDefinition Width="150"/>
+                                                            <ColumnDefinition Width="280"/>
+                                                            <ColumnDefinition Width="180"/>
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="38"/>
-                                                            <ColumnDefinition Width="34"/>
                                                         </Grid.ColumnDefinitions>
 
                                                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding InPosDayDisplay}" FontSize="12.5" FontWeight="Bold" Foreground="#4C4268"/>
+                                                            <TextBlock Text="{Binding InPosDayDisplay}" FontSize="13" FontWeight="Bold" Foreground="#4C4268"/>
                                                             <TextBlock Text="{Binding InPosTimeDisplay}" FontSize="11.5" Foreground="#6B7280"/>
                                                         </StackPanel>
 
                                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding TrackingNumberDisplay}" FontSize="12.5" FontWeight="Bold" Foreground="#4C4268"/>
+                                                            <TextBlock Text="{Binding TrackingNumberDisplay}" FontSize="13" FontWeight="Bold" Foreground="#4C4268"/>
                                                             <TextBlock Text="{Binding PosReference}" FontSize="11.5" Foreground="#6B7280"/>
                                                         </StackPanel>
 
                                                         <TextBlock Grid.Column="2"
                                                                    Text="{Binding TotalDisplay}"
-                                                                   FontSize="13"
+                                                                   FontSize="13.5"
                                                                    FontWeight="Bold"
                                                                    Foreground="#4C4268"
                                                                    VerticalAlignment="Center"/>
 
                                                         <Border Grid.Column="4"
-                                                                Background="{Binding InPosStatusBackground}"
+                                                                Background="#198754"
                                                                 CornerRadius="9"
-                                                                Padding="12,2.5"
-                                                                Margin="0,0,18,0"
+                                                                Padding="14,3"
                                                                 VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding InPosStatusText}"
+                                                            <TextBlock Text="Paid"
                                                                        FontSize="11.5"
                                                                        FontWeight="Bold"
                                                                        Foreground="#FFFFFF"/>
                                                         </Border>
-
-                                                        <Border Grid.Column="5"
-                                                                Width="18" Height="18"
-                                                                CornerRadius="9"
-                                                                Background="#212529"
-                                                                HorizontalAlignment="Center"
-                                                                VerticalAlignment="Center">
-                                                            <TextBlock Text="i" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                        </Border>
-
-                                                        <Button Grid.Column="6"
-                                                                Command="{Binding DataContext.DeleteInPosOrderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                CommandParameter="{Binding}"
-                                                                Background="Transparent"
-                                                                BorderThickness="0"
-                                                                Cursor="Hand"
-                                                                ToolTip="Delete Ongoing Order"
-                                                                Visibility="{Binding IsDraft, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                                                            <Viewbox Width="15" Height="15">
-                                                                <Canvas Width="24" Height="24">
-                                                                    <Path Data="M 4,7 H 20 M 9,7 V 4 H 15 V 7 M 6,7 L 7,20 H 17 L 18,7 M 10,11 V 17 M 14,11 V 17"
-                                                                          Stroke="#212529"
-                                                                          StrokeThickness="2"
-                                                                          StrokeStartLineCap="Round"
-                                                                          StrokeLineJoin="Round"/>
-                                                                </Canvas>
-                                                            </Viewbox>
-                                                        </Button>
                                                     </Grid>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <DataTrigger Binding="{Binding IsSelectedInPos}" Value="True">
-                                                        <Setter TargetName="OrdRowBdr" Property="Background" Value="{StaticResource OdooPurpleRowBrush}"/>
-                                                    </DataTrigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Button.Template>
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Grid>
 
-                <!-- RIGHT: SELECTED ORDER CART PREVIEW & [Load Order] BUTTON -->
-                <Border Grid.Column="1"
-                        Background="#FFFFFF"
-                        BorderBrush="{StaticResource BorderLightBrush}"
-                        BorderThickness="1,0,0,0">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="10,8">
-                            <ItemsControl ItemsSource="{Binding SelectedInPosOrder.Lines}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type local:PosOrderLineRecord}">
-                                        <Grid Margin="0,5">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="22"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding QtyShortDisplay}" FontWeight="Bold" FontSize="13.5" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding ProductName}" FontSize="13.5" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            <TextBlock Grid.Column="2" Text="{Binding PriceSubtotalInclDisplay}" FontWeight="Bold" FontSize="13.5" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-
-                        <Border Grid.Row="1" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,1,0,0" Padding="10,8">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,2">
-                                    <TextBlock Text="Taxes" FontSize="12.5" Foreground="#4B5563"/>
-                                    <TextBlock Text="{Binding SelectedInPosOrder.TaxDisplay, FallbackValue='$ 0.00'}" FontSize="12.5" Foreground="#4B5563" HorizontalAlignment="Right"/>
-                                </Grid>
-                                <Grid>
-                                    <TextBlock Text="Total" FontSize="16.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="{Binding SelectedInPosOrder.TotalDisplay, FallbackValue='$ 0.00'}" FontSize="16.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <Button Grid.Row="2"
-                                Content="Load Order"
-                                Command="{Binding LoadOrderIntoRegisterCommand}"
-                                CommandParameter="{Binding SelectedInPosOrder}"
-                                Style="{StaticResource PosPrimaryButtonStyle}"
-                                Height="58"
-                                Margin="6"
-                                FontSize="15"/>
-                    </Grid>
-                </Border>
+                                                    <!-- Order Products (Lines) Directly Below the Order -->
+                                                    <Border Background="#F9FAFB"
+                                                            BorderBrush="#E5E7EB"
+                                                            BorderThickness="0,1,0,0"
+                                                            Padding="32,8,24,10">
+                                                        <ItemsControl ItemsSource="{Binding Lines}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate DataType="{x:Type local:PosOrderLineRecord}">
+                                                                    <Grid Margin="0,3">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="36"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <TextBlock Grid.Column="0"
+                                                                                   Text="{Binding QtyShortDisplay}"
+                                                                                   FontWeight="Bold"
+                                                                                   FontSize="13"
+                                                                                   Foreground="#374151"/>
+                                                                        <TextBlock Grid.Column="1"
+                                                                                   Text="{Binding ProductName}"
+                                                                                   FontSize="13"
+                                                                                   Foreground="#111827"/>
+                                                                        <TextBlock Grid.Column="2"
+                                                                                   Text="{Binding PriceSubtotalInclDisplay}"
+                                                                                   FontWeight="Bold"
+                                                                                   FontSize="13"
+                                                                                   Foreground="#374151"/>
+                                                                    </Grid>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelectedInPos}" Value="True">
+                                                    <Setter TargetName="OrdRowBdr" Property="Background" Value="{StaticResource OdooPurpleRowBrush}"/>
+                                                </DataTrigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
             </Grid>
 
             <!-- =================================================================== -->

@@ -1140,20 +1140,163 @@ public class OdooSyncService
         if (createdOrderId <= 0)
             throw new InvalidOperationException("Failed to create pos.order in Odoo.");
 
-        // 6. Create payments in Odoo and mark the order as Paid
-        foreach (var pay in payload.Payments)
+        // 6. Resolve allowed payment_method_ids for this POS session's config in Odoo so pos.payment.create never fails
+        var allowedSessionMethods = new List<(int Id, string Name, string Type, bool IsCash)>();
+        try
         {
-            int? methodOdooId = pay.PaymentMethodOdooId;
-            if (!methodOdooId.HasValue || methodOdooId.Value <= 0)
+            var allowedIds = new List<int>();
+            int resolvedConfigId = payload.ConfigOdooId;
+
+            var sessPmFields = await FilterValidFieldsAsync(config, uid, "pos.session", "id", "config_id", "payment_method_ids");
+            using (var sessPmDoc = await SearchReadAsync(
+                config,
+                uid,
+                "pos.session",
+                [new object[] { "id", "=", activeSessionId }],
+                sessPmFields))
             {
-                var matchedMethod = paymentMethods.FirstOrDefault(m =>
-                    string.Equals(m.Name, pay.PaymentMethodName, StringComparison.OrdinalIgnoreCase));
-                methodOdooId = matchedMethod?.OdooId;
+                if (sessPmDoc.RootElement.TryGetProperty("result", out var sArr) &&
+                    sArr.ValueKind == JsonValueKind.Array &&
+                    sArr.GetArrayLength() > 0)
+                {
+                    var sEl = sArr[0];
+                    var (cId, _) = GetMany2One(sEl, "config_id");
+                    if (cId.HasValue && cId.Value > 0)
+                        resolvedConfigId = cId.Value;
+
+                    allowedIds = GetIdArray(sEl, "payment_method_ids");
+                }
             }
 
-            if (!methodOdooId.HasValue || methodOdooId.Value <= 0)
+            if (allowedIds.Count == 0 && resolvedConfigId > 0)
             {
-                methodOdooId = paymentMethods.FirstOrDefault()?.OdooId ?? 1;
+                var cfgPmFields = await FilterValidFieldsAsync(config, uid, "pos.config", "id", "payment_method_ids");
+                using var cfgPmDoc = await SearchReadAsync(
+                    config,
+                    uid,
+                    "pos.config",
+                    [new object[] { "id", "=", resolvedConfigId }],
+                    cfgPmFields);
+                if (cfgPmDoc.RootElement.TryGetProperty("result", out var cArr) &&
+                    cArr.ValueKind == JsonValueKind.Array &&
+                    cArr.GetArrayLength() > 0)
+                {
+                    allowedIds = GetIdArray(cArr[0], "payment_method_ids");
+                }
+            }
+
+            if (allowedIds.Count > 0)
+            {
+                var pmFields = await FilterValidFieldsAsync(config, uid, "pos.payment.method", "id", "name", "type", "is_cash_count");
+                using var pmDoc = await SearchReadAsync(
+                    config,
+                    uid,
+                    "pos.payment.method",
+                    [new object[] { "id", "in", allowedIds.ToArray() }],
+                    pmFields);
+                if (pmDoc.RootElement.TryGetProperty("result", out var pmArr) &&
+                    pmArr.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var pmEl in pmArr.EnumerateArray())
+                    {
+                        int pmId = GetIntOrDefault(pmEl, "id");
+                        string pmName = GetStringOrDefault(pmEl, "name", "Cash");
+                        string pmType = GetStringOrDefault(pmEl, "type", "cash");
+                        bool isCash = GetBoolOrDefault(pmEl, "is_cash_count", pmType == "cash");
+                        if (pmId > 0)
+                            allowedSessionMethods.Add((pmId, pmName, pmType, isCash));
+                    }
+                }
+            }
+        }
+        catch { }
+
+        // Create payments in Odoo and mark the order as Paid
+        bool hasPartner = payload.PartnerId.HasValue && payload.PartnerId.Value > 0;
+        foreach (var pay in payload.Payments)
+        {
+            int? methodOdooId = null;
+            string reqName = pay.PaymentMethodName?.Trim() ?? "Cash";
+            bool wantsCash = reqName.Contains("Cash", StringComparison.OrdinalIgnoreCase);
+            bool wantsCard = reqName.Contains("Card", StringComparison.OrdinalIgnoreCase) || reqName.Contains("Bank", StringComparison.OrdinalIgnoreCase);
+            bool wantsAccount = reqName.Contains("Customer", StringComparison.OrdinalIgnoreCase) || reqName.Contains("Account", StringComparison.OrdinalIgnoreCase);
+
+            if (allowedSessionMethods.Count > 0)
+            {
+                // 1. Check if the requested ID is already in the session's allowed payment methods
+                if (pay.PaymentMethodOdooId.HasValue)
+                {
+                    var exactIdMatch = allowedSessionMethods.FirstOrDefault(m => m.Id == pay.PaymentMethodOdooId.Value);
+                    if (exactIdMatch.Id > 0 && (hasPartner || !string.Equals(exactIdMatch.Type, "pay_later", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        methodOdooId = exactIdMatch.Id;
+                    }
+                }
+
+                // 2. Match by exact payment method name among allowed methods for this session
+                if (!methodOdooId.HasValue)
+                {
+                    var nameMatch = allowedSessionMethods.FirstOrDefault(m =>
+                        string.Equals(m.Name, reqName, StringComparison.OrdinalIgnoreCase) &&
+                        (hasPartner || !string.Equals(m.Type, "pay_later", StringComparison.OrdinalIgnoreCase)));
+                    if (nameMatch.Id > 0)
+                        methodOdooId = nameMatch.Id;
+                }
+
+                // 3. Match by payment method category/type (Cash / Card / Customer Account) among allowed methods
+                if (!methodOdooId.HasValue)
+                {
+                    if (wantsCash)
+                    {
+                        var cashMatch = allowedSessionMethods.FirstOrDefault(m =>
+                            m.IsCash ||
+                            string.Equals(m.Type, "cash", StringComparison.OrdinalIgnoreCase) ||
+                            m.Name.Contains("Cash", StringComparison.OrdinalIgnoreCase));
+                        if (cashMatch.Id > 0)
+                            methodOdooId = cashMatch.Id;
+                    }
+                    else if (wantsCard)
+                    {
+                        var cardMatch = allowedSessionMethods.FirstOrDefault(m =>
+                            string.Equals(m.Type, "bank", StringComparison.OrdinalIgnoreCase) ||
+                            m.Name.Contains("Card", StringComparison.OrdinalIgnoreCase) ||
+                            m.Name.Contains("Bank", StringComparison.OrdinalIgnoreCase));
+                        if (cardMatch.Id > 0)
+                            methodOdooId = cardMatch.Id;
+                    }
+                    else if (wantsAccount && hasPartner)
+                    {
+                        var accMatch = allowedSessionMethods.FirstOrDefault(m =>
+                            string.Equals(m.Type, "pay_later", StringComparison.OrdinalIgnoreCase) ||
+                            m.Name.Contains("Customer", StringComparison.OrdinalIgnoreCase) ||
+                            m.Name.Contains("Account", StringComparison.OrdinalIgnoreCase));
+                        if (accMatch.Id > 0)
+                            methodOdooId = accMatch.Id;
+                    }
+                }
+
+                // 4. Fallback to first allowed non-pay_later method (or first allowed method) of the session
+                if (!methodOdooId.HasValue)
+                {
+                    var fallbackAllowed = allowedSessionMethods.FirstOrDefault(m =>
+                        !string.Equals(m.Type, "pay_later", StringComparison.OrdinalIgnoreCase));
+                    methodOdooId = fallbackAllowed.Id > 0 ? fallbackAllowed.Id : allowedSessionMethods[0].Id;
+                }
+            }
+            else
+            {
+                methodOdooId = pay.PaymentMethodOdooId;
+                if (!methodOdooId.HasValue || methodOdooId.Value <= 0)
+                {
+                    var matchedMethod = paymentMethods.FirstOrDefault(m =>
+                        string.Equals(m.Name, reqName, StringComparison.OrdinalIgnoreCase));
+                    methodOdooId = matchedMethod?.OdooId;
+                }
+
+                if (!methodOdooId.HasValue || methodOdooId.Value <= 0)
+                {
+                    methodOdooId = paymentMethods.FirstOrDefault()?.OdooId ?? 1;
+                }
             }
 
             var payVals = new Dictionary<string, object>

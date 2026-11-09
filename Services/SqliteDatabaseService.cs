@@ -2476,6 +2476,35 @@ public class SqliteDatabaseService
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
 
+        // Ensure any active session on PosConfigs has a corresponding row in PosSessions
+        try
+        {
+            await using var syncCfgSessCmd = connection.CreateCommand();
+            syncCfgSessCmd.CommandText = """
+                INSERT INTO PosSessions (OdooId, Name, PosConfigId, PosConfigName, UserId, UserName, StartAt, State, OpeningBalance, IsSynced)
+                SELECT c.CurrentSessionId,
+                       COALESCE(NULLIF(c.CurrentSessionName, ''), c.Name || '/00001'),
+                       c.OdooId,
+                       c.Name,
+                       c.ActiveUserId,
+                       COALESCE(NULLIF(c.ActiveUserName, ''), 'Mitchell Admin'),
+                       COALESCE(c.UpdatedAt, CURRENT_TIMESTAMP),
+                       COALESCE(NULLIF(c.CurrentSessionState, ''), 'opened'),
+                       COALESCE(c.OpeningBalance, 0.0),
+                       0
+                FROM PosConfigs c
+                WHERE LOWER(COALESCE(c.CurrentSessionState, 'closed')) != 'closed'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM PosSessions s
+                      WHERE (c.CurrentSessionId IS NOT NULL AND (s.OdooId = c.CurrentSessionId OR s.Id = c.CurrentSessionId))
+                         OR (s.PosConfigId = c.OdooId AND LOWER(COALESCE(s.State, 'opened')) != 'closed')
+                         OR (c.CurrentSessionName IS NOT NULL AND c.CurrentSessionName != '' AND s.Name = c.CurrentSessionName)
+                  );
+                """;
+            await syncCfgSessCmd.ExecuteNonQueryAsync();
+        }
+        catch { }
+
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = """
             SELECT s.Id, s.OdooId, s.Name, s.PosConfigId, s.PosConfigName, s.UserId, s.UserName,
@@ -2487,28 +2516,64 @@ public class SqliteDatabaseService
             ORDER BY COALESCE(s.OdooId, s.Id) DESC;
             """;
 
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using (var reader = await cmd.ExecuteReaderAsync())
         {
-            result.Add(new PosSessionRecord
+            while (await reader.ReadAsync())
             {
-                Id = reader.GetInt64(0),
-                OdooId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
-                Name = reader.GetString(2),
-                PosConfigId = reader.IsDBNull(3) ? null : reader.GetInt32(3),
-                PosConfigName = reader.IsDBNull(4) ? "" : reader.GetString(4),
-                UserId = reader.IsDBNull(5) ? null : reader.GetInt32(5),
-                UserName = reader.IsDBNull(6) ? "" : reader.GetString(6),
-                UserAvatarBase64 = reader.IsDBNull(7) ? null : reader.GetString(7),
-                StartAt = reader.IsDBNull(8) ? null : (DateTime.TryParse(reader.GetString(8), out var st) ? st : null),
-                StopAt = reader.IsDBNull(9) ? null : (DateTime.TryParse(reader.GetString(9), out var sp) ? sp : null),
-                State = reader.IsDBNull(10) ? "opened" : reader.GetString(10),
-                OpeningBalance = reader.IsDBNull(11) ? 0.00m : Convert.ToDecimal(reader.GetDouble(11)),
-                ClosingBalance = reader.IsDBNull(12) ? 0.00m : Convert.ToDecimal(reader.GetDouble(12)),
-                OrdersCount = reader.IsDBNull(13) ? 0 : reader.GetInt32(13),
-                TotalPaymentsAmount = reader.IsDBNull(14) ? 0.00m : Convert.ToDecimal(reader.GetDouble(14)),
-                Employees = reader.IsDBNull(15) ? "" : reader.GetString(15)
-            });
+                result.Add(new PosSessionRecord
+                {
+                    Id = reader.GetInt64(0),
+                    OdooId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    Name = reader.GetString(2),
+                    PosConfigId = reader.IsDBNull(3) ? null : reader.GetInt32(3),
+                    PosConfigName = reader.IsDBNull(4) ? "" : reader.GetString(4),
+                    UserId = reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                    UserName = reader.IsDBNull(6) ? "" : reader.GetString(6),
+                    UserAvatarBase64 = reader.IsDBNull(7) ? null : reader.GetString(7),
+                    StartAt = reader.IsDBNull(8) ? null : (DateTime.TryParse(reader.GetString(8), out var st) ? st : null),
+                    StopAt = reader.IsDBNull(9) ? null : (DateTime.TryParse(reader.GetString(9), out var sp) ? sp : null),
+                    State = reader.IsDBNull(10) ? "opened" : reader.GetString(10),
+                    OpeningBalance = reader.IsDBNull(11) ? 0.00m : Convert.ToDecimal(reader.GetDouble(11)),
+                    ClosingBalance = reader.IsDBNull(12) ? 0.00m : Convert.ToDecimal(reader.GetDouble(12)),
+                    OrdersCount = reader.IsDBNull(13) ? 0 : reader.GetInt32(13),
+                    TotalPaymentsAmount = reader.IsDBNull(14) ? 0.00m : Convert.ToDecimal(reader.GetDouble(14)),
+                    Employees = reader.IsDBNull(15) ? "" : reader.GetString(15)
+                });
+            }
+        }
+
+        // Compute live paid orders count and total payments from PosOrders for each session
+        foreach (var sess in result)
+        {
+            try
+            {
+                await using var statCmd = connection.CreateCommand();
+                statCmd.CommandText = """
+                    SELECT COUNT(*), COALESCE(SUM(AmountTotal), 0.0)
+                    FROM PosOrders
+                    WHERE LOWER(COALESCE(State, 'paid')) NOT IN ('draft', 'ongoing', 'new', 'cancel', 'cancelled')
+                      AND (
+                          (@odooId IS NOT NULL AND (SessionOdooId = @odooId OR SessionId = @odooId))
+                          OR SessionId = @localId
+                          OR (@sessName != '' AND LOWER(SessionName) = LOWER(@sessName))
+                      );
+                    """;
+                statCmd.Parameters.AddWithValue("@odooId", (object?)sess.OdooId ?? DBNull.Value);
+                statCmd.Parameters.AddWithValue("@localId", sess.Id);
+                statCmd.Parameters.AddWithValue("@sessName", sess.Name ?? "");
+
+                await using var sr = await statCmd.ExecuteReaderAsync();
+                if (await sr.ReadAsync())
+                {
+                    int liveCount = sr.IsDBNull(0) ? 0 : sr.GetInt32(0);
+                    decimal liveTotal = sr.IsDBNull(1) ? 0.00m : Convert.ToDecimal(sr.GetDouble(1));
+                    if (liveCount > sess.OrdersCount)
+                        sess.OrdersCount = liveCount;
+                    if (liveTotal > sess.TotalPaymentsAmount)
+                        sess.TotalPaymentsAmount = liveTotal;
+                }
+            }
+            catch { }
         }
 
         return result;
@@ -2603,7 +2668,8 @@ public class SqliteDatabaseService
                 long id = reader.GetInt64(0);
                 int? oId = reader.IsDBNull(1) ? null : reader.GetInt32(1);
                 bool isSynced = reader.GetInt32(2) != 0;
-                if (isSynced && (!oId.HasValue || !odooIds.Contains(oId.Value)))
+                // Keep local sessions (where OdooId is null); only delete synced Odoo sessions that no longer exist on the server
+                if (isSynced && oId.HasValue && !odooIds.Contains(oId.Value))
                     delIds.Add(id);
             }
         }

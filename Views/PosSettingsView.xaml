@@ -269,9 +269,17 @@
                       Visibility="{Binding PosSettingsSubTabVisibility}">
             <StackPanel MaxWidth="1180" Margin="28,22,28,48" HorizontalAlignment="Stretch">
 
-                <!-- SECTION 1: PAYMENT & REGISTER -->
-                <TextBlock Text="Payment &amp; Cash Control" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,0,0,12"/>
-                <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="28,24" Margin="0,0,0,24">
+                <!-- ========================================================================= -->
+                <!-- CARD 1: SETTINGS SYNCED WITH ODOO (CANNOT EDIT IN PROGRAM)                -->
+                <!-- ========================================================================= -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
+                    <TextBlock Text="Odoo Synced Settings (Cannot Edit)" FontSize="16" FontWeight="Bold" Foreground="#111827" VerticalAlignment="Center"/>
+                    <Border Background="#F3ECF1" BorderBrush="#E2D4E0" BorderThickness="1" CornerRadius="5" Padding="10,2" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Read-Only • Managed in Odoo" FontSize="11.5" FontWeight="SemiBold" Foreground="#714B67"/>
+                    </Border>
+                </StackPanel>
+
+                <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="28,24" Margin="0,0,0,28">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -282,82 +290,16 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="28"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- ========================================================= -->
-                        <!-- 1. ONE-CLICK PAYMENT (Synced with Odoo - Read-Only)       -->
+                        <!-- 1. PAYMENT METHODS (Synced with Odoo - Read-Only)         -->
                         <!-- ========================================================= -->
-                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsOneClickPaymentEnabled, Mode=OneWay}"
-                                      IsHitTestVisible="False"
-                                      Focusable="False"
-                                      Cursor="Arrow"
-                                      ToolTip="Synced with Odoo (Read-only)"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" HorizontalAlignment="Stretch" Width="440">
-                                <StackPanel>
-                                    <TextBlock Text="One-click Payment" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Shortcut to skip payment screen" FontSize="13" Foreground="#6B7280" Margin="0,3,0,12"/>
-
-                                    <!-- Single-select Payment Method when enabled (Synced with Odoo - Read-Only) -->
-                                    <Grid Visibility="{Binding OneClickPaymentDetailsVisibility}" Margin="0,2,20,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <TextBlock Grid.Column="0" Text="Payment Methods" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
-                                                   VerticalAlignment="Center" Margin="0,0,14,0"/>
-
-                                        <ComboBox Grid.Column="1"
-                                                  Style="{StaticResource OdooFilterComboBoxStyle}"
-                                                  ItemsSource="{Binding AvailableOneClickMethods}"
-                                                  SelectedItem="{Binding SelectedOneClickPaymentMethod, Mode=OneWay}"
-                                                  IsHitTestVisible="False"
-                                                  Focusable="False"
-                                                  Height="36"
-                                                  ToolTip="Synced with Odoo (Read-only)"/>
-                                    </Grid>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-
-                        <!-- ========================================================= -->
-                        <!-- 9 HIDE OPENING CASH CONTROL                              -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsHideOpeningCashControlEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
-                                <StackPanel>
-                                    <TextBlock Text="Hide Opening Cash Control" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Automatically hide the opening cash control popup and set cash to the default amount"
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
-
-                                    <StackPanel Orientation="Horizontal" Visibility="{Binding HideOpeningCashControlDetailsVisibility}" Margin="0,2,0,0">
-                                        <TextBlock Text="Default Opening Cash" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
-                                                   VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                        <Border Background="White" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="10,5">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="$" FontSize="13.5" FontWeight="SemiBold" Foreground="#6B7280" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                <TextBox Text="{Binding DefaultOpeningCashAmountText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         Width="110" BorderThickness="0" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-
-
-                         <!-- ========================================================= -->
-                        <!-- 3. PAYMENT METHODS (Synced with Odoo - Read-Only)         -->
-                        <!-- ========================================================= -->
-                        <Border Grid.Row="0" Grid.Column="2" BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="18,2,0,2">
+                        <Border Grid.Row="0" Grid.Column="0" BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="18,2,0,2">
                             <StackPanel>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="Payment Methods" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                </StackPanel>
+                                <TextBlock Text="Payment Methods" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
                                 <TextBlock Text="Payment methods available" FontSize="13" Foreground="#6B7280" Margin="0,3,0,12"/>
 
                                 <!-- Read-only Tag Pills (Synced with Odoo) -->
@@ -384,28 +326,68 @@
                                         Content="→ Payment Methods"/>
                             </StackPanel>
                         </Border>
-                    </Grid>
-                </Border>
 
-                <!-- SECTION 2: PRODUCT & POS CATALOG -->
-                <TextBlock Text="Product &amp; PoS Catalog" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,0,0,12"/>
-                <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="28,24" Margin="0,0,0,24">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="36"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                        <!-- ========================================================= -->
+                        <!-- 2. ONE-CLICK PAYMENT (Synced with Odoo - Read-Only)       -->
+                        <!-- ========================================================= -->
+                        <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
+                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
+                                      IsChecked="{Binding IsOneClickPaymentEnabled, Mode=OneWay}"
+                                      IsHitTestVisible="False"
+                                      Focusable="False"
+                                      Cursor="Arrow"
+                                      ToolTip="Synced with Odoo (Read-only)"/>
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" HorizontalAlignment="Stretch" Width="440">
+                                <StackPanel>
+                                    <TextBlock Text="One-click Payment" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <TextBlock Text="Shortcut to skip payment screen" FontSize="13" Foreground="#6B7280" Margin="0,3,0,12"/>
+
+                                    <!-- Single-select Payment Method when enabled (Synced with Odoo - Read-Only) -->
+                                    <Grid Visibility="{Binding OneClickPaymentDetailsVisibility}" Margin="0,2,20,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="Payment Methods" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
+                                                   VerticalAlignment="Center" Margin="0,0,14,0"/>
+
+                                        <Border Grid.Column="1"
+                                                Background="#FFFFFF"
+                                                BorderBrush="#D1D5DB"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Height="36"
+                                                Padding="12,0"
+                                                ToolTip="Synced with Odoo (Read-only)">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding SelectedOneClickPaymentMethod, FallbackValue=Cash, TargetNullValue=Cash}"
+                                                           FontSize="13.5"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#111827"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="▾"
+                                                           FontSize="11"
+                                                           Foreground="#6B7280"
+                                                           VerticalAlignment="Center"
+                                                           Margin="8,0,0,0"/>
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
 
                         <!-- ========================================================= -->
                         <!-- 3. RESTRICT CATEGORIES (Synced with Odoo - Read-Only)     -->
                         <!-- ========================================================= -->
-                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
+                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
                             <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
                                       IsChecked="{Binding IsRestrictCategoriesEnabled, Mode=OneWay}"
                                       IsHitTestVisible="False"
@@ -447,7 +429,7 @@
                         <!-- ========================================================= -->
                         <!-- 4. VARIANTS (Synced with Odoo - Read-Only)                -->
                         <!-- ========================================================= -->
-                        <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
+                        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal">
                             <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
                                       IsChecked="{Binding IsVariantsEnabled, Mode=OneWay}"
                                       IsHitTestVisible="False"
@@ -469,41 +451,9 @@
                         </StackPanel>
 
                         <!-- ========================================================= -->
-                        <!-- 6. PREVENT LINE MERGING                                   -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsPreventLineMergingEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
-                                <StackPanel>
-                                    <TextBlock Text="Prevent Line Merging" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Always create new order lines instead of merging quantities"
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,0"/>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <!-- SECTION 3: BILLS & RECEIPTS -->
-                <TextBlock Text="Bills &amp; Receipts" FontSize="16" FontWeight="Bold" Foreground="#111827" Margin="0,0,0,12"/>
-                <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="28,24">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="36"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- ========================================================= -->
                         <!-- 5. AUTOMATIC RECEIPT PRINTING (Synced with Odoo-Read-Only)-->
                         <!-- ========================================================= -->
-                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
+                        <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal">
                             <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
                                       IsChecked="{Binding IsAutomaticReceiptPrintingEnabled, Mode=OneWay}"
                                       IsHitTestVisible="False"
@@ -518,11 +468,80 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ========================================================================= -->
+                <!-- CARD 2: LOCAL POINT OF SALE SETTINGS (CAN EDIT IN PROGRAM)                -->
+                <!-- ========================================================================= -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
+                    <TextBlock Text="Local Point of Sale Settings (Can Edit)" FontSize="16" FontWeight="Bold" Foreground="#111827" VerticalAlignment="Center"/>
+                    <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="5" Padding="10,2" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Editable in Program" FontSize="11.5" FontWeight="SemiBold" Foreground="#047857"/>
+                    </Border>
+                </StackPanel>
+
+                <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="28,24">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="36"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
                         <!-- ========================================================= -->
-                        <!-- 7. PRINT LAST RECEIPT                                     -->
+                        <!-- 9. HIDE OPENING CASH CONTROL (Editable)                   -->
+                        <!-- ========================================================= -->
+                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
+                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
+                                      IsChecked="{Binding IsHideOpeningCashControlEnabled, Mode=TwoWay}"/>
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Opening Cash Control" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <TextBlock Text="Automatically hide the opening cash control popup and set cash to the default amount"
+                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding HideOpeningCashControlDetailsVisibility}" Margin="0,2,0,0">
+                                        <TextBlock Text="Default Opening Cash" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
+                                                   VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                        <Border Background="White" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="10,5">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="$" FontSize="13.5" FontWeight="SemiBold" Foreground="#6B7280" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBox Text="{Binding DefaultOpeningCashAmountText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         Width="110" BorderThickness="0" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ========================================================= -->
+                        <!-- 6. PREVENT LINE MERGING (Editable)                        -->
                         <!-- ========================================================= -->
                         <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
+                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
+                                      IsChecked="{Binding IsPreventLineMergingEnabled, Mode=TwoWay}"/>
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                                <StackPanel>
+                                    <TextBlock Text="Prevent Line Merging" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <TextBlock Text="Always create new order lines instead of merging quantities"
+                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ========================================================= -->
+                        <!-- 7. PRINT LAST RECEIPT (Editable)                          -->
+                        <!-- ========================================================= -->
+                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
                             <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
                                       IsChecked="{Binding IsPrintLastReceiptEnabled, Mode=TwoWay}"/>
                             <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
@@ -535,9 +554,9 @@
                         </StackPanel>
 
                         <!-- ========================================================= -->
-                        <!-- 8. CUSTOM ORDER RECEIPTS                                  -->
+                        <!-- 8. CUSTOM ORDER RECEIPTS (Editable)                       -->
                         <!-- ========================================================= -->
-                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
+                        <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal">
                             <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
                                       IsChecked="{Binding IsCustomOrderReceiptsEnabled, Mode=TwoWay}"/>
                             <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
@@ -570,9 +589,9 @@
                         </StackPanel>
 
                         <!-- ========================================================= -->
-                        <!-- 10. SECOND RECEIPT                                        -->
+                        <!-- 10. SECOND RECEIPT (Editable)                             -->
                         <!-- ========================================================= -->
-                        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal">
+                        <StackPanel Grid.Row="4" Grid.Column="2" Orientation="Horizontal">
                             <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
                                       IsChecked="{Binding IsSecondReceiptEnabled, Mode=TwoWay}"/>
                             <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">

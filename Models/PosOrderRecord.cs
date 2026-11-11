@@ -609,7 +609,7 @@ public class PosOrderRecord : INotifyPropertyChanged
     {
         "draft" or "ongoing" or "new" => "New",
         "paid" => "Paid",
-        "done" or "invoiced" => "Posted",
+        "done" or "invoiced" or "posted" => "Posted",
         "cancel" => "Cancelled",
         _ => "Posted"
     };

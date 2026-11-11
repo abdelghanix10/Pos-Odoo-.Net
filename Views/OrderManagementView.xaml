@@ -314,14 +314,166 @@
                               Margin="0,0,8,0"
                               ToolTip="Filter Orders by Point of Sale Shop"/>
 
-                    <!-- Filter by Session -->
-                    <ComboBox ItemsSource="{Binding AvailableSessions}"
-                              SelectedItem="{Binding SelectedSessionFilter, Mode=TwoWay}"
-                              Style="{StaticResource OdooFilterComboBoxStyle}"
-                              Width="160"
-                              Height="32"
-                              Margin="0,0,8,0"
-                              ToolTip="Filter Orders by POS Session"/>
+                    <!-- Filter by Session (Searchable Google Autocomplete with Top 3 Sessions per POS) -->
+                    <Grid x:Name="SessionFilterRoot" Width="200" Height="32" Margin="0,0,8,0">
+                        <Border x:Name="SessionFilterBorder"
+                                Background="#FFFFFF"
+                                BorderBrush="{StaticResource InputBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="8,0,4,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Session Icon -->
+                                <TextBlock Grid.Column="0"
+                                           Text="📋"
+                                           FontSize="11"
+                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,6,0"/>
+
+                                <!-- Placeholder / Current Selection Display -->
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding SessionPlaceholderText}"
+                                           Foreground="{StaticResource PrimaryTextBrush}"
+                                           FontSize="12"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           IsHitTestVisible="False"
+                                           Visibility="{Binding SessionSearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
+
+                                <!-- Autocomplete TextBox -->
+                                <TextBox x:Name="SessionSearchInput"
+                                         Grid.Column="1"
+                                         Text="{Binding SessionSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         FontSize="12"
+                                         Foreground="{StaticResource PrimaryTextBrush}"
+                                         VerticalAlignment="Center"
+                                         GotFocus="SessionTextBox_GotFocus"
+                                         PreviewMouseDown="SessionTextBox_PreviewMouseDown"
+                                         KeyDown="SessionTextBox_KeyDown"/>
+
+                                <!-- Clear Button ✕ -->
+                                <Button Grid.Column="2"
+                                        Command="{Binding ClearSessionFilterCommand}"
+                                        Visibility="{Binding IsSessionFilterActive, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="3,0"
+                                        Cursor="Hand"
+                                        ToolTip="Reset to All Sessions">
+                                    <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                </Button>
+
+                                <!-- Dropdown Toggle Button ▾ -->
+                                <Button Grid.Column="3"
+                                        Command="{Binding ToggleSessionDropdownCommand}"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="4,0"
+                                        Cursor="Hand"
+                                        ToolTip="Browse sessions">
+                                    <TextBlock Text="▾" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- Google-Style Autocomplete Suggestions Popup -->
+                        <Popup PlacementTarget="{Binding ElementName=SessionFilterBorder}"
+                               Placement="Bottom"
+                               IsOpen="{Binding IsSessionDropdownOpen, Mode=TwoWay}"
+                               StaysOpen="False"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               PopupAnimation="Slide">
+                            <Grid SnapsToDevicePixels="True" MinWidth="260" MaxWidth="320">
+                                <Border Background="#FFFFFF"
+                                        BorderBrush="{StaticResource SubtleBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="3,4"
+                                        Margin="0,3,0,6">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="12" Opacity="0.14" ShadowDepth="2" Direction="270" Color="#000000"/>
+                                    </Border.Effect>
+                                    <ScrollViewer MaxHeight="300" SnapsToDevicePixels="True" VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding FilteredSessionSuggestions}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type local:PosSessionSuggestionItem}">
+                                                    <Button Command="{Binding DataContext.SelectSessionSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            IsEnabled="{Binding IsEmptyPlaceholder, Converter={StaticResource InverseBooleanConverter}}"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            Padding="8,6"
+                                                            HorizontalContentAlignment="Stretch"
+                                                            Cursor="Hand">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Template">
+                                                                    <Setter.Value>
+                                                                        <ControlTemplate TargetType="Button">
+                                                                            <Border x:Name="SuggBorder"
+                                                                                    Background="{TemplateBinding Background}"
+                                                                                    CornerRadius="4"
+                                                                                    Margin="1"
+                                                                                    Padding="{TemplateBinding Padding}">
+                                                                                <ContentPresenter/>
+                                                                            </Border>
+                                                                            <ControlTemplate.Triggers>
+                                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                                    <Setter TargetName="SuggBorder" Property="Background" Value="#F3ECF1"/>
+                                                                                </Trigger>
+                                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                    <Setter TargetName="SuggBorder" Property="Background" Value="#F3ECF1"/>
+                                                                                </DataTrigger>
+                                                                            </ControlTemplate.Triggers>
+                                                                        </ControlTemplate>
+                                                                    </Setter.Value>
+                                                                </Setter>
+                                                            </Style>
+                                                        </Button.Style>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           FontSize="12.5"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                                <TextBlock Text="{Binding Subtitle}"
+                                                                           FontSize="11"
+                                                                           Foreground="{StaticResource SecondaryTextBrush}"
+                                                                           Margin="0,1,0,0"/>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="✓"
+                                                                       FontSize="12"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="{StaticResource OdooPurpleBrush}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="6,0,2,0"
+                                                                       Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </Grid>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </Grid>
+                        </Popup>
+                    </Grid>
 
                     <!-- Filter by Date Preset -->
                     <ComboBox ItemsSource="{Binding DatePresets}"

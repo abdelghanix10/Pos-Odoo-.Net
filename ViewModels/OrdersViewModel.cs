@@ -48,6 +48,23 @@ public partial class OrdersViewModel : ViewModelBase
     private string _selectedSessionFilter = AllSessionsOption;
 
     [ObservableProperty]
+    private string _sessionSearchText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isSessionDropdownOpen;
+
+    [ObservableProperty]
+    private ObservableCollection<PosSessionSuggestionItem> _filteredSessionSuggestions = [];
+
+    public string SessionPlaceholderText =>
+        string.IsNullOrWhiteSpace(SelectedSessionFilter) || SelectedSessionFilter == AllSessionsOption
+            ? AllSessionsOption
+            : SelectedSessionFilter;
+
+    public bool IsSessionFilterActive =>
+        !string.IsNullOrWhiteSpace(SelectedSessionFilter) && SelectedSessionFilter != AllSessionsOption;
+
+    [ObservableProperty]
     private string _selectedDatePreset = AllDatesOption;
 
     [ObservableProperty]
@@ -153,6 +170,18 @@ public partial class OrdersViewModel : ViewModelBase
         if (!_suppressFilterRefresh) RefreshFilter();
     }
 
+    partial void OnSessionSearchTextChanged(string value)
+    {
+        if (!_suppressFilterRefresh)
+        {
+            UpdateSessionSuggestions();
+            if (!IsSessionDropdownOpen)
+            {
+                IsSessionDropdownOpen = true;
+            }
+        }
+    }
+
     partial void OnSessionFilterChanged(string? value)
     {
         if (!_suppressFilterRefresh) RefreshFilter();
@@ -167,6 +196,8 @@ public partial class OrdersViewModel : ViewModelBase
 
     partial void OnSelectedSessionFilterChanged(string value)
     {
+        OnPropertyChanged(nameof(SessionPlaceholderText));
+        OnPropertyChanged(nameof(IsSessionFilterActive));
         if (_suppressFilterRefresh) return;
         RefreshFilter();
     }
@@ -302,40 +333,247 @@ public partial class OrdersViewModel : ViewModelBase
         }
     }
 
+    private List<PosSessionRecord> GetTopSessionsPerPos(string activeShop, int countPerShop = 3)
+    {
+        bool filterByShop = !string.IsNullOrWhiteSpace(activeShop) && activeShop != AllShopsOption;
+
+        var query = _allSessions
+            .Where(s => !string.IsNullOrWhiteSpace(s.Name) && s.Name != "/");
+
+        if (filterByShop)
+        {
+            query = query.Where(s =>
+                string.Equals(s.PosConfigName, activeShop, StringComparison.OrdinalIgnoreCase) ||
+                s.Name.StartsWith(activeShop + "/", StringComparison.OrdinalIgnoreCase));
+        }
+
+        var grouped = query
+            .GroupBy(s => string.IsNullOrWhiteSpace(s.PosConfigName)
+                ? (s.Name.Contains('/') ? s.Name.Split('/')[0].Trim() : "Other")
+                : s.PosConfigName.Trim(),
+                StringComparer.OrdinalIgnoreCase);
+
+        var result = new List<PosSessionRecord>();
+        foreach (var group in grouped.OrderBy(g => g.Key))
+        {
+            var topForShop = group
+                .OrderByDescending(s => s.StartAt ?? DateTime.MinValue)
+                .ThenByDescending(s => s.Id)
+                .Take(countPerShop);
+
+            result.AddRange(topForShop);
+        }
+
+        return result;
+    }
+
+    public void UpdateSessionSuggestions()
+    {
+        FilteredSessionSuggestions.Clear();
+        string query = SessionSearchText.Trim();
+        string activeShop = SelectedShopFilter;
+        bool filterByShop = !string.IsNullOrWhiteSpace(activeShop) && activeShop != AllShopsOption;
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            FilteredSessionSuggestions.Add(new PosSessionSuggestionItem
+            {
+                Name = AllSessionsOption,
+                ShopName = "All",
+                Subtitle = "Show all transactions",
+                IsAllSessions = true,
+                IsSelected = string.IsNullOrWhiteSpace(SelectedSessionFilter) || SelectedSessionFilter == AllSessionsOption
+            });
+
+            var topSessions = GetTopSessionsPerPos(activeShop, 3);
+            foreach (var s in topSessions)
+            {
+                string shop = string.IsNullOrWhiteSpace(s.PosConfigName)
+                    ? (s.Name.Contains('/') ? s.Name.Split('/')[0].Trim() : "POS")
+                    : s.PosConfigName.Trim();
+                string dateStr = s.StartAt?.ToString("MMM d, yyyy, h:mm tt") ?? "Recent";
+                string stateStr = string.Equals(s.State, "closed", StringComparison.OrdinalIgnoreCase) ? "Closed" : "Active";
+
+                FilteredSessionSuggestions.Add(new PosSessionSuggestionItem
+                {
+                    Name = s.Name.Trim(),
+                    ShopName = shop,
+                    Subtitle = $"{shop} • {stateStr} • {dateStr}",
+                    IsSelected = string.Equals(SelectedSessionFilter, s.Name.Trim(), StringComparison.OrdinalIgnoreCase)
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(SelectedSessionFilter) &&
+                SelectedSessionFilter != AllSessionsOption &&
+                !FilteredSessionSuggestions.Any(item => string.Equals(item.Name, SelectedSessionFilter, StringComparison.OrdinalIgnoreCase)))
+            {
+                var existing = _allSessions.FirstOrDefault(s => string.Equals(s.Name, SelectedSessionFilter, StringComparison.OrdinalIgnoreCase));
+                string shop = existing != null && !string.IsNullOrWhiteSpace(existing.PosConfigName)
+                    ? existing.PosConfigName
+                    : (SelectedSessionFilter.Contains('/') ? SelectedSessionFilter.Split('/')[0].Trim() : "POS");
+                string dateStr = existing?.StartAt?.ToString("MMM d, yyyy, h:mm tt") ?? "Session";
+                string stateStr = existing != null && string.Equals(existing.State, "closed", StringComparison.OrdinalIgnoreCase) ? "Closed" : "Active";
+
+                FilteredSessionSuggestions.Add(new PosSessionSuggestionItem
+                {
+                    Name = SelectedSessionFilter,
+                    ShopName = shop,
+                    Subtitle = $"{shop} • {stateStr} • {dateStr} (Selected)",
+                    IsSelected = true
+                });
+            }
+        }
+        else
+        {
+            var matchingSessions = _allSessions
+                .Where(s => !string.IsNullOrWhiteSpace(s.Name) && s.Name != "/")
+                .Where(s => !filterByShop || string.Equals(s.PosConfigName, activeShop, StringComparison.OrdinalIgnoreCase) ||
+                            s.Name.StartsWith(activeShop + "/", StringComparison.OrdinalIgnoreCase))
+                .Where(s => s.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                            (!string.IsNullOrWhiteSpace(s.PosConfigName) && s.PosConfigName.Contains(query, StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(s => s.StartAt ?? DateTime.MinValue)
+                .ThenByDescending(s => s.Id)
+                .Take(25)
+                .ToList();
+
+            if (matchingSessions.Count == 0)
+            {
+                var orderSessions = _allOrders
+                    .Where(o => !string.IsNullOrWhiteSpace(o.SessionName) && o.SessionName != "/")
+                    .Where(o => o.SessionName.Contains(query, StringComparison.OrdinalIgnoreCase))
+                    .Select(o => o.SessionName.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(10);
+
+                foreach (var sessName in orderSessions)
+                {
+                    FilteredSessionSuggestions.Add(new PosSessionSuggestionItem
+                    {
+                        Name = sessName,
+                        ShopName = sessName.Contains('/') ? sessName.Split('/')[0].Trim() : "POS",
+                        Subtitle = "From order records",
+                        IsSelected = string.Equals(SelectedSessionFilter, sessName, StringComparison.OrdinalIgnoreCase)
+                    });
+                }
+
+                if (FilteredSessionSuggestions.Count == 0)
+                {
+                    FilteredSessionSuggestions.Add(new PosSessionSuggestionItem
+                    {
+                        Name = $"No sessions found matching \"{query}\"",
+                        Subtitle = "Try another search term or session number",
+                        IsEmptyPlaceholder = true
+                    });
+                }
+            }
+            else
+            {
+                foreach (var s in matchingSessions)
+                {
+                    string shop = string.IsNullOrWhiteSpace(s.PosConfigName)
+                        ? (s.Name.Contains('/') ? s.Name.Split('/')[0].Trim() : "POS")
+                        : s.PosConfigName.Trim();
+                    string dateStr = s.StartAt?.ToString("MMM d, yyyy, h:mm tt") ?? "Unknown Date";
+                    string stateStr = string.Equals(s.State, "closed", StringComparison.OrdinalIgnoreCase) ? "Closed" : "Active";
+
+                    FilteredSessionSuggestions.Add(new PosSessionSuggestionItem
+                    {
+                        Name = s.Name.Trim(),
+                        ShopName = shop,
+                        Subtitle = $"{shop} • {stateStr} • {dateStr}",
+                        IsSelected = string.Equals(SelectedSessionFilter, s.Name.Trim(), StringComparison.OrdinalIgnoreCase)
+                    });
+                }
+            }
+        }
+    }
+
+    [RelayCommand]
+    public void SelectSessionSuggestion(PosSessionSuggestionItem? item)
+    {
+        if (item == null || item.IsEmptyPlaceholder) return;
+        SelectSession(item.Name);
+    }
+
+    public void SelectSession(string sessionName)
+    {
+        _suppressFilterRefresh = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(sessionName) || sessionName == AllSessionsOption)
+            {
+                SelectedSessionFilter = AllSessionsOption;
+                SessionSearchText = string.Empty;
+            }
+            else
+            {
+                if (!AvailableSessions.Contains(sessionName))
+                {
+                    AvailableSessions.Add(sessionName);
+                }
+                SelectedSessionFilter = sessionName;
+                SessionSearchText = string.Empty;
+            }
+        }
+        finally
+        {
+            _suppressFilterRefresh = false;
+        }
+
+        IsSessionDropdownOpen = false;
+        OnPropertyChanged(nameof(SessionPlaceholderText));
+        OnPropertyChanged(nameof(IsSessionFilterActive));
+        UpdateSessionSuggestions();
+        RefreshFilter();
+    }
+
+    [RelayCommand]
+    public void ToggleSessionDropdown()
+    {
+        IsSessionDropdownOpen = !IsSessionDropdownOpen;
+        if (IsSessionDropdownOpen)
+        {
+            UpdateSessionSuggestions();
+        }
+    }
+
+    [RelayCommand]
+    public void CommitSessionSearch()
+    {
+        var firstSelectable = FilteredSessionSuggestions.FirstOrDefault(s => !s.IsEmptyPlaceholder);
+        if (firstSelectable != null)
+        {
+            SelectSession(firstSelectable.Name);
+        }
+        else
+        {
+            IsSessionDropdownOpen = false;
+        }
+    }
+
     private void RebuildAvailableSessions(string? preferredSession = null)
     {
         string targetSession = preferredSession ?? SelectedSessionFilter;
         string activeShop = SelectedShopFilter;
-        bool filterByShop = !string.IsNullOrWhiteSpace(activeShop) && activeShop != AllShopsOption;
 
-        var sessionNames = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in _allSessions)
-        {
-            if (string.IsNullOrWhiteSpace(s.Name) || s.Name == "/") continue;
-            if (!filterByShop || string.Equals(s.PosConfigName, activeShop, StringComparison.OrdinalIgnoreCase) ||
-                s.Name.StartsWith(activeShop + "/", StringComparison.OrdinalIgnoreCase))
-            {
-                sessionNames.Add(s.Name.Trim());
-            }
-        }
-        foreach (var o in _allOrders)
-        {
-            if (string.IsNullOrWhiteSpace(o.SessionName) || o.SessionName == "/") continue;
-            if (!filterByShop || string.Equals(o.PosConfigName, activeShop, StringComparison.OrdinalIgnoreCase) ||
-                o.SessionName.StartsWith(activeShop + "/", StringComparison.OrdinalIgnoreCase))
-            {
-                sessionNames.Add(o.SessionName.Trim());
-            }
-        }
+        var topSessions = GetTopSessionsPerPos(activeShop, 3);
 
         _suppressFilterRefresh = true;
         try
         {
             AvailableSessions.Clear();
             AvailableSessions.Add(AllSessionsOption);
-            foreach (var sess in sessionNames)
+            foreach (var sess in topSessions)
             {
-                AvailableSessions.Add(sess);
+                if (!AvailableSessions.Contains(sess.Name.Trim()))
+                {
+                    AvailableSessions.Add(sess.Name.Trim());
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(targetSession) && targetSession != AllSessionsOption && !AvailableSessions.Contains(targetSession))
+            {
+                AvailableSessions.Add(targetSession);
             }
 
             SelectedSessionFilter = AvailableSessions.Contains(targetSession) ? targetSession : AllSessionsOption;
@@ -344,6 +582,10 @@ public partial class OrdersViewModel : ViewModelBase
         {
             _suppressFilterRefresh = false;
         }
+
+        UpdateSessionSuggestions();
+        OnPropertyChanged(nameof(SessionPlaceholderText));
+        OnPropertyChanged(nameof(IsSessionFilterActive));
     }
 
     public void SetSessionFilter(string? sessionName)
@@ -380,13 +622,17 @@ public partial class OrdersViewModel : ViewModelBase
         {
             _suppressFilterRefresh = false;
         }
+
+        UpdateSessionSuggestions();
+        OnPropertyChanged(nameof(SessionPlaceholderText));
+        OnPropertyChanged(nameof(IsSessionFilterActive));
         RefreshFilter();
     }
 
     [RelayCommand]
     public void ClearSessionFilter()
     {
-        ClearFilters();
+        SelectSession(AllSessionsOption);
     }
 
     [RelayCommand]
@@ -403,11 +649,16 @@ public partial class OrdersViewModel : ViewModelBase
             EndDate = null;
             IsCustomDateRange = false;
             SearchText = string.Empty;
+            SessionSearchText = string.Empty;
         }
         finally
         {
             _suppressFilterRefresh = false;
         }
+
+        UpdateSessionSuggestions();
+        OnPropertyChanged(nameof(SessionPlaceholderText));
+        OnPropertyChanged(nameof(IsSessionFilterActive));
         RefreshFilter();
     }
 

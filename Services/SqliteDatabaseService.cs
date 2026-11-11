@@ -3229,11 +3229,21 @@ public class SqliteDatabaseService
         if (!string.IsNullOrWhiteSpace(sessionFilter))
         {
             cmd.CommandText = """
-                SELECT Id, OdooId, OrderId, OrderOdooId, OrderName, SessionId, SessionOdooId, SessionName, CashierName,
-                       PaymentMethodId, PaymentMethodName, Amount, CurrencyName, ForeignCurrency, PaymentDate
-                FROM PosPayments
-                WHERE SessionName = @filter OR CAST(SessionOdooId AS TEXT) = @filter OR OrderName LIKE @likeFilter
-                ORDER BY COALESCE(OdooId, Id) DESC;
+                SELECT p.Id, p.OdooId, p.OrderId, p.OrderOdooId, p.OrderName,
+                       p.SessionId,
+                       COALESCE(s.OdooId, o.SessionOdooId, p.SessionOdooId),
+                       COALESCE(s.Name, o.SessionName, p.SessionName),
+                       p.CashierName, p.PaymentMethodId, p.PaymentMethodName,
+                       p.Amount, p.CurrencyName, p.ForeignCurrency, p.PaymentDate
+                FROM PosPayments p
+                LEFT JOIN PosOrders o ON o.Id = p.OrderId
+                LEFT JOIN PosSessions s ON s.Id = p.SessionId
+                WHERE p.SessionName = @filter
+                   OR o.SessionName = @filter
+                   OR s.Name = @filter
+                   OR CAST(p.SessionOdooId AS TEXT) = @filter
+                   OR p.OrderName LIKE @likeFilter
+                ORDER BY p.PaymentDate DESC, p.Id DESC;
                 """;
             cmd.Parameters.AddWithValue("@filter", sessionFilter.Trim());
             cmd.Parameters.AddWithValue("@likeFilter", $"{sessionFilter.Trim()}%");
@@ -3241,10 +3251,16 @@ public class SqliteDatabaseService
         else
         {
             cmd.CommandText = """
-                SELECT Id, OdooId, OrderId, OrderOdooId, OrderName, SessionId, SessionOdooId, SessionName, CashierName,
-                       PaymentMethodId, PaymentMethodName, Amount, CurrencyName, ForeignCurrency, PaymentDate
-                FROM PosPayments
-                ORDER BY COALESCE(OdooId, Id) DESC;
+                SELECT p.Id, p.OdooId, p.OrderId, p.OrderOdooId, p.OrderName,
+                       p.SessionId,
+                       COALESCE(s.OdooId, o.SessionOdooId, p.SessionOdooId),
+                       COALESCE(s.Name, o.SessionName, p.SessionName),
+                       p.CashierName, p.PaymentMethodId, p.PaymentMethodName,
+                       p.Amount, p.CurrencyName, p.ForeignCurrency, p.PaymentDate
+                FROM PosPayments p
+                LEFT JOIN PosOrders o ON o.Id = p.OrderId
+                LEFT JOIN PosSessions s ON s.Id = p.SessionId
+                ORDER BY p.PaymentDate DESC, p.Id DESC;
                 """;
         }
 
@@ -4155,6 +4171,23 @@ public class SqliteDatabaseService
             await cmdConfig.ExecuteNonQueryAsync();
         }
 
+        // Switch all paid orders for this session from 'paid' to 'posted'
+        await using (var cmdOrders = connection.CreateCommand())
+        {
+            cmdOrders.Transaction = transaction;
+            cmdOrders.CommandText = """
+                UPDATE PosOrders
+                SET State = 'posted',
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE ((@localId IS NOT NULL AND SessionId = @localId)
+                    OR (@sessId IS NOT NULL AND (SessionOdooId = @sessId OR SessionId = @sessId)))
+                  AND LOWER(State) = 'paid';
+                """;
+            cmdOrders.Parameters.AddWithValue("@localId", (object?)localSessId ?? DBNull.Value);
+            cmdOrders.Parameters.AddWithValue("@sessId", sessionId);
+            await cmdOrders.ExecuteNonQueryAsync();
+        }
+
         if (enqueueForOdooSync)
         {
             var payload = new CloseSessionSyncPayload(
@@ -4647,6 +4680,21 @@ public class SqliteDatabaseService
             updOrders.Parameters.AddWithValue("@name", (object?)odooSessionName ?? DBNull.Value);
             updOrders.Parameters.AddWithValue("@localId", localSessionId);
             await updOrders.ExecuteNonQueryAsync();
+        }
+
+        await using (var updPays = connection.CreateCommand())
+        {
+            updPays.Transaction = transaction;
+            updPays.CommandText = """
+                UPDATE PosPayments
+                SET SessionOdooId = @odooId,
+                    SessionName = COALESCE(@name, SessionName)
+                WHERE SessionId = @localId;
+                """;
+            updPays.Parameters.AddWithValue("@odooId", odooSessionId);
+            updPays.Parameters.AddWithValue("@name", (object?)odooSessionName ?? DBNull.Value);
+            updPays.Parameters.AddWithValue("@localId", localSessionId);
+            await updPays.ExecuteNonQueryAsync();
         }
 
         await using (var updQueue = connection.CreateCommand())

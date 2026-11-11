@@ -867,8 +867,7 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         // Always reset category selection and search text so products display immediately on open
         SelectedCategory = null;
-        _productSearchText = string.Empty;
-        OnPropertyChanged(nameof(ProductSearchText));
+        ProductSearchText = string.Empty;
 
         try
         {
@@ -1007,18 +1006,17 @@ public partial class PosRegisterViewModel : ViewModelBase
 
             IsPosLandingScreenOpen = false;
             IsOpeningControlModalOpen = false;
-            CurrentConfig.CurrentSessionState = "opened";
-            UpdateLandingState();
             int cfgId = CurrentConfig.OdooId;
-            int? sessId = CurrentConfig.CurrentSessionId;
+            int? sessId = CurrentConfig.IsClosed ? null : CurrentConfig.CurrentSessionId;
             string cfgName = CurrentConfig.Name;
+            decimal openBal = CurrentConfig.OpeningBalance;
 
             try
             {
-                var (_, resolvedSessOdooId, resolvedSessName) = await SqliteDatabaseService.Instance.UpdateSessionOpeningControlAsync(
+                var (localSessId, resolvedSessOdooId, resolvedSessName) = await SqliteDatabaseService.Instance.UpdateSessionOpeningControlAsync(
                     cfgId,
                     sessId,
-                    CurrentConfig.OpeningBalance,
+                    openBal,
                     string.Empty,
                     cfgName,
                     CurrentConfig.ActiveUserId,
@@ -1026,16 +1024,52 @@ public partial class PosRegisterViewModel : ViewModelBase
                     enqueueForOdooSync: true
                 );
 
-                if (resolvedSessOdooId.HasValue)
-                    CurrentConfig.CurrentSessionId = resolvedSessOdooId.Value;
+                CurrentConfig.CurrentSessionState = "opened";
+                CurrentConfig.CurrentSessionId = resolvedSessOdooId ?? (int)localSessId;
                 CurrentConfig.CurrentSessionName = resolvedSessName;
+                CurrentSessionNameDisplay = resolvedSessName;
+                CurrentSession = new PosSessionRecord
+                {
+                    Id = localSessId,
+                    OdooId = resolvedSessOdooId,
+                    Name = resolvedSessName,
+                    PosConfigId = cfgId,
+                    PosConfigName = cfgName,
+                    UserId = CurrentConfig.ActiveUserId,
+                    UserName = CashierName,
+                    StartAt = DateTime.Now,
+                    State = "opened",
+                    OpeningBalance = openBal
+                };
+
+                // Reset session statistics immediately so 3-dots hamburger menu shows 0 orders and $0.00
+                SessionTotalOrdersCount = 0;
+                SessionTotalPaymentsAmount = 0.00m;
+                CashOpening = openBal;
+                CashPayments = 0.00m;
+                CashInOut = 0.00m;
+                CashCounted = openBal;
+                ClosingCashCount = openBal.ToString("0.00", CultureInfo.InvariantCulture);
+
+                _allInPosOrders.Clear();
+                FilterInPosOrders();
+                await UpdateSessionBreakdownAsync();
+
+                UpdateLandingState();
                 OdooSyncService.Instance.NotifyQueueUpdated();
 
                 _ = Task.Run(async () =>
                 {
-                    await OdooSyncService.Instance.ProcessPendingQueueAsync();
-                    await RefreshBoundConfigSessionAsync();
-                    await RefreshPendingSyncCountAsync();
+                    try
+                    {
+                        await OdooSyncService.Instance.ProcessPendingQueueAsync();
+                        await RefreshBoundConfigSessionAsync();
+                        await RefreshPendingSyncCountAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[PosRegister] Background auto-open sync error: {ex.Message}");
+                    }
                 });
             }
             catch { }
@@ -2198,12 +2232,12 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
 
         int cfgId = CurrentConfig?.OdooId ?? 1;
-        int? sessId = CurrentConfig?.CurrentSessionId;
+        int? sessId = (CurrentConfig != null && CurrentConfig.IsClosed) ? null : CurrentConfig?.CurrentSessionId;
         string cfgName = CurrentConfig?.Name ?? ActiveShopName;
 
         try
         {
-            var (_, resolvedSessOdooId, resolvedSessName) = await SqliteDatabaseService.Instance.UpdateSessionOpeningControlAsync(
+            var (localSessId, resolvedSessOdooId, resolvedSessName) = await SqliteDatabaseService.Instance.UpdateSessionOpeningControlAsync(
                 cfgId,
                 sessId,
                 cash,
@@ -2218,21 +2252,56 @@ public partial class PosRegisterViewModel : ViewModelBase
             {
                 CurrentConfig.CurrentSessionState = "opened";
                 CurrentConfig.OpeningBalance = cash;
-                if (resolvedSessOdooId.HasValue)
-                    CurrentConfig.CurrentSessionId = resolvedSessOdooId.Value;
+                CurrentConfig.CurrentSessionId = resolvedSessOdooId ?? (int)localSessId;
                 CurrentConfig.CurrentSessionName = resolvedSessName;
             }
 
+            CurrentSessionNameDisplay = resolvedSessName;
+            CurrentSession = new PosSessionRecord
+            {
+                Id = localSessId,
+                OdooId = resolvedSessOdooId,
+                Name = resolvedSessName,
+                PosConfigId = cfgId,
+                PosConfigName = cfgName,
+                UserId = CurrentConfig?.ActiveUserId ?? 2,
+                UserName = CashierName,
+                StartAt = DateTime.Now,
+                State = "opened",
+                OpeningBalance = cash
+            };
+
+            // Reset session statistics immediately so 3-dots hamburger menu shows 0 orders and $0.00
+            SessionTotalOrdersCount = 0;
+            SessionTotalPaymentsAmount = 0.00m;
+            CashOpening = cash;
+            CashPayments = 0.00m;
+            CashInOut = 0.00m;
+            CashCounted = cash;
+            ClosingCashCount = cash.ToString("0.00", CultureInfo.InvariantCulture);
+
+            _allInPosOrders.Clear();
+            FilterInPosOrders();
+            await UpdateSessionBreakdownAsync();
+
             IsOpeningControlModalOpen = false;
             IsPosLandingScreenOpen = false;
+            UpdateLandingState();
             OdooSyncService.Instance.NotifyQueueUpdated();
 
-            // Push session open to Odoo immediately
+            // Push session open to Odoo immediately in background
             _ = Task.Run(async () =>
             {
-                await OdooSyncService.Instance.ProcessPendingQueueAsync();
-                await RefreshBoundConfigSessionAsync();
-                await RefreshPendingSyncCountAsync();
+                try
+                {
+                    await OdooSyncService.Instance.ProcessPendingQueueAsync();
+                    await RefreshBoundConfigSessionAsync();
+                    await RefreshPendingSyncCountAsync();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[PosRegister] Background open sync error: {ex.Message}");
+                }
             });
         }
         catch (Exception ex)
@@ -3032,11 +3101,22 @@ public partial class PosRegisterViewModel : ViewModelBase
             IsDraftOrdersWarningModalOpen = false;
             OdooSyncService.Instance.NotifyQueueUpdated();
 
-            // Flush all pending orders and the close-session operation to Odoo in sequential order
-            await OdooSyncService.Instance.ProcessPendingQueueAsync();
-            await RefreshPendingSyncCountAsync();
-
+            // Exit POS mode immediately without freezing UI on network calls
             ReturnToDashboardRequested?.Invoke();
+
+            // Flush all pending orders and the close-session operation to Odoo in background
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await OdooSyncService.Instance.ProcessPendingQueueAsync();
+                    await RefreshPendingSyncCountAsync();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[PosRegister] Background close sync error: {ex.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {

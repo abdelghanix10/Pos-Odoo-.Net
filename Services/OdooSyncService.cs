@@ -791,13 +791,44 @@ public class OdooSyncService
                 uid,
                 "pos.session",
                 [new object[] { "id", "=", odooSessionId }],
-                ["id", "name", "state"]
+                ["id", "name", "state", "bank_statement_id"]
             );
             if (sessDoc.RootElement.TryGetProperty("result", out var arr) &&
                 arr.ValueKind == JsonValueKind.Array &&
                 arr.GetArrayLength() > 0)
             {
-                odooSessionName = GetStringOrDefault(arr[0], "name");
+                var el = arr[0];
+                odooSessionName = GetStringOrDefault(el, "name");
+
+                if (payload.OpeningBalance > 0m && el.TryGetProperty("bank_statement_id", out var bVal))
+                {
+                    int stmtId = 0;
+                    if (bVal.ValueKind == JsonValueKind.Array && bVal.GetArrayLength() > 0)
+                        stmtId = bVal[0].GetInt32();
+                    else if (bVal.ValueKind == JsonValueKind.Number)
+                        stmtId = bVal.GetInt32();
+
+                    if (stmtId > 0)
+                    {
+                        try
+                        {
+                            using var _ = await ExecuteKwAsync(
+                                config,
+                                uid,
+                                "account.bank.statement",
+                                "write",
+                                [
+                                    new[] { stmtId },
+                                    new Dictionary<string, object>
+                                    {
+                                        ["balance_start"] = (double)payload.OpeningBalance
+                                    }
+                                ]
+                            );
+                        }
+                        catch { }
+                    }
+                }
             }
         }
         catch { }
@@ -982,9 +1013,19 @@ public class OdooSyncService
                 string st = GetStringOrDefault(sArr[0], "state", "opened");
                 if (string.Equals(st, "opening_control", StringComparison.OrdinalIgnoreCase))
                 {
+                    decimal openBal = 0m;
+                    if (payload.LocalSessionId.HasValue)
+                    {
+                        openBal = await SqliteDatabaseService.Instance.GetSessionOpeningBalanceAsync((int)payload.LocalSessionId.Value);
+                    }
+                    if (openBal == 0m && payload.SessionOdooId.HasValue)
+                    {
+                        openBal = await SqliteDatabaseService.Instance.GetSessionOpeningBalanceAsync(payload.SessionOdooId.Value);
+                    }
+
                     try
                     {
-                        using var _ = await ExecuteKwAsync(config, uid, "pos.session", "set_opening_control", [new[] { activeSessionId }, 0.0, ""]);
+                        using var _ = await ExecuteKwAsync(config, uid, "pos.session", "set_opening_control", [new[] { activeSessionId }, (double)openBal, ""]);
                     }
                     catch
                     {
@@ -1437,7 +1478,7 @@ public class OdooSyncService
         {
             try
             {
-                using var _ = await ExecuteKwAsync(config, uid, "pos.session", "set_opening_control", [new[] { targetSessionId }, 0.0, ""]);
+                using var _ = await ExecuteKwAsync(config, uid, "pos.session", "set_opening_control", [new[] { targetSessionId }, (double)payload.OpeningBalance, ""]);
             }
             catch
             {
@@ -1449,7 +1490,56 @@ public class OdooSyncService
             }
         }
 
-        // 3. Post closing cash details
+        // 3. Post closing cash details and ensure account.bank.statement has correct balance_start and balance_end_real
+        try
+        {
+            using var sessDoc = await SearchReadAsync(
+                config,
+                uid,
+                "pos.session",
+                [new object[] { "id", "=", targetSessionId }],
+                ["id", "bank_statement_id"]
+            );
+            if (sessDoc.RootElement.TryGetProperty("result", out var sArr) &&
+                sArr.ValueKind == JsonValueKind.Array &&
+                sArr.GetArrayLength() > 0)
+            {
+                var el = sArr[0];
+                int stmtId = 0;
+                if (el.TryGetProperty("bank_statement_id", out var bVal))
+                {
+                    if (bVal.ValueKind == JsonValueKind.Array && bVal.GetArrayLength() > 0)
+                        stmtId = bVal[0].GetInt32();
+                    else if (bVal.ValueKind == JsonValueKind.Number)
+                        stmtId = bVal.GetInt32();
+                }
+
+                if (stmtId > 0)
+                {
+                    var stmtVals = new Dictionary<string, object>
+                    {
+                        ["balance_end_real"] = (double)payload.ClosingCashCount
+                    };
+                    if (payload.OpeningBalance > 0m)
+                    {
+                        stmtVals["balance_start"] = (double)payload.OpeningBalance;
+                    }
+
+                    using var _ = await ExecuteKwAsync(
+                        config,
+                        uid,
+                        "account.bank.statement",
+                        "write",
+                        [new[] { stmtId }, stmtVals]
+                    );
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PushCloseSession] Could not write bank_statement_id balance: {ex.Message}");
+        }
+
         try
         {
             using var _ = await ExecuteKwAsync(
@@ -1460,26 +1550,7 @@ public class OdooSyncService
                 [new[] { targetSessionId }, (double)payload.ClosingCashCount]
             );
         }
-        catch
-        {
-            try
-            {
-                using var _ = await ExecuteKwAsync(
-                    config,
-                    uid,
-                    "pos.session",
-                    "write",
-                    [
-                        new[] { targetSessionId },
-                        new Dictionary<string, object>
-                        {
-                            ["cash_register_balance_end_real"] = (double)payload.ClosingCashCount
-                        }
-                    ]
-                );
-            }
-            catch { }
-        }
+        catch { }
 
         // 4. Update closing notes if present
         if (!string.IsNullOrWhiteSpace(payload.ClosingNote))

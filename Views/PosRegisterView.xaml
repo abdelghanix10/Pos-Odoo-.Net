@@ -519,6 +519,10 @@
     </UserControl.Resources>
 
     <Grid>
+        <Grid.LayoutTransform>
+            <ScaleTransform ScaleX="{Binding PosZoomScale}" ScaleY="{Binding PosZoomScale}"/>
+        </Grid.LayoutTransform>
+
         <!-- ======================================================================= -->
         <!-- BASE POS TERMINAL WORKSPACE                                             -->
         <!-- ======================================================================= -->
@@ -950,7 +954,22 @@
                                 CornerRadius="4"
                                 ClipToBounds="True"
                                 Visibility="{Binding ShowExpandedNumpad, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                            <Grid Height="216" Background="{StaticResource BorderLightBrush}">
+                            <StackPanel>
+                                <!-- Numbers First Pending Quantity Indicator -->
+                                <Border Background="#F3F0F8"
+                                        BorderBrush="#DDDBE8"
+                                        BorderThickness="0,0,0,1"
+                                        Padding="10,6"
+                                        Visibility="{Binding CurrentConfig.IsNumbersFirst, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                    <Grid>
+                                        <TextBlock Text="Next Product Quantity:" FontSize="12" FontWeight="SemiBold" Foreground="#71639E" VerticalAlignment="Center"/>
+                                        <Border HorizontalAlignment="Right" Background="#71639E" CornerRadius="4" Padding="8,2">
+                                            <TextBlock Text="{Binding NumbersFirstDisplayText}" FontSize="12.5" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <Grid Height="216" Background="{StaticResource BorderLightBrush}">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="1"/>
@@ -1004,6 +1023,7 @@
                                     </Viewbox>
                                 </Button>
                             </Grid>
+                            </StackPanel>
                         </Border>
 
                         <!-- ROW 3: PAYMENT BUTTON + OPTIONAL ONE-CLICK PAYMENT BUTTON (Matches Image 3) -->
@@ -2415,6 +2435,68 @@
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
+                    </Border>
+
+                    <!-- Chrome-style Zoom Control ([-] 100% [+]) -->
+                    <Border Background="#F8F9FA"
+                            BorderBrush="#DEE2E6"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="16,10"
+                            Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Viewbox Width="18" Height="18" Margin="0,0,10,0">
+                                    <Canvas Width="24" Height="24">
+                                        <Ellipse Canvas.Left="3" Canvas.Top="3" Width="12" Height="12" Stroke="#495057" StrokeThickness="2"/>
+                                        <Line X1="12" Y1="12" X2="19" Y2="19" Stroke="#495057" StrokeThickness="2.5" StrokeStartLineCap="Round"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Text="Zoom" FontSize="14.5" FontWeight="SemiBold" Foreground="#212529" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Zoom Out Button [-] -->
+                                <Button Command="{Binding ZoomOutCommand}"
+                                        Width="34" Height="34"
+                                        Background="#FFFFFF"
+                                        BorderBrush="#CED4DA"
+                                        BorderThickness="1"
+                                        Cursor="Hand"
+                                        ToolTip="Zoom Out">
+                                    <TextBlock Text="−" FontSize="18" FontWeight="Bold" Foreground="#212529" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                                </Button>
+
+                                <!-- Zoom Percentage Display / Click to reset -->
+                                <Button Command="{Binding ResetZoomCommand}"
+                                        MinWidth="64" Height="34"
+                                        Background="#FFFFFF"
+                                        BorderBrush="#CED4DA"
+                                        BorderThickness="1"
+                                        Margin="4,0"
+                                        Cursor="Hand"
+                                        ToolTip="Click to reset zoom to 100%">
+                                    <TextBlock Text="{Binding PosZoomPercentageText}" FontSize="13" FontWeight="Bold" Foreground="#495057" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Button>
+
+                                <!-- Zoom In Button [+] -->
+                                <Button Command="{Binding ZoomInCommand}"
+                                        Width="34" Height="34"
+                                        Background="#FFFFFF"
+                                        BorderBrush="#CED4DA"
+                                        BorderThickness="1"
+                                        Cursor="Hand"
+                                        ToolTip="Zoom In">
+                                    <TextBlock Text="+" FontSize="17" FontWeight="Bold" Foreground="#212529" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0"/>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
                     </Border>
 
                     <!-- Opening Control Action -->

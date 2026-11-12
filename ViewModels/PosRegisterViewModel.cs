@@ -15,6 +15,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     private readonly List<PosOrderRecord> _allInPosOrders = [];
     private readonly List<ProductAttributeRecord> _allProductAttributes = [];
     private readonly List<ReceiptDesignRecord> _allReceiptDesigns = [];
+    private readonly List<CompanyRecord> _allCompanies = [];
     private PosOrderRecord? _lastPaidOrder;
 
     // ==================== SESSION & CONFIG CONTEXT ====================
@@ -288,7 +289,47 @@ public partial class PosRegisterViewModel : ViewModelBase
     private bool _isCartNumpadVisible = true;
 
     public bool HasCurrentOrderItems => CurrentOrder != null && CurrentOrder.HasItems;
-    public bool ShowExpandedNumpad => HasCurrentOrderItems && IsCartNumpadVisible && !IsClosingRegisterModalOpen;
+    public bool ShowExpandedNumpad => (HasCurrentOrderItems || (CurrentConfig?.IsNumbersFirst == true)) && IsCartNumpadVisible && !IsClosingRegisterModalOpen;
+
+    // ==================== CHROME-STYLE ZOOM CONTROLS ====================
+    [ObservableProperty]
+    private double _posZoomScale = 1.0;
+
+    public string PosZoomPercentageText => $"{Math.Round(PosZoomScale * 100)}%";
+
+    partial void OnPosZoomScaleChanged(double value)
+    {
+        OnPropertyChanged(nameof(PosZoomPercentageText));
+    }
+
+    [RelayCommand]
+    public void ZoomIn()
+    {
+        PosZoomScale = Math.Min(1.8, Math.Round(PosZoomScale + 0.1, 2));
+    }
+
+    [RelayCommand]
+    public void ZoomOut()
+    {
+        PosZoomScale = Math.Max(0.6, Math.Round(PosZoomScale - 0.1, 2));
+    }
+
+    [RelayCommand]
+    public void ResetZoom()
+    {
+        PosZoomScale = 1.0;
+    }
+
+    // ==================== NUMBERS FIRST MODE ====================
+    [ObservableProperty]
+    private decimal _pendingProductQuantity = 1m;
+
+    [ObservableProperty]
+    private bool _hasPendingProductQuantity = false;
+
+    private string _numbersFirstBuffer = string.Empty;
+
+    public string NumbersFirstDisplayText => HasPendingProductQuantity ? $"{PendingProductQuantity:G29}" : "1";
 
     private int _nextOrderSeq = 1;
     private int _deviceDigit = 2;
@@ -902,6 +943,9 @@ public partial class PosRegisterViewModel : ViewModelBase
             var designs = await SqliteDatabaseService.Instance.LoadAllReceiptDesignsAsync();
             _allReceiptDesigns.Clear();
             _allReceiptDesigns.AddRange(designs);
+
+            _allCompanies.Clear();
+            _allCompanies.AddRange(companies);
         }
         catch { }
 
@@ -1564,6 +1608,17 @@ public partial class PosRegisterViewModel : ViewModelBase
         string targetName = !string.IsNullOrWhiteSpace(customName) ? customName : product.Name;
         decimal targetPrice = customPrice ?? product.ListPrice;
 
+        // Setting 13: Numbers First mode - use typed pending quantity if set
+        decimal qtyToAdd = 1m;
+        if (CurrentConfig?.IsNumbersFirst == true && HasPendingProductQuantity && PendingProductQuantity > 0m)
+        {
+            qtyToAdd = PendingProductQuantity;
+            _numbersFirstBuffer = string.Empty;
+            PendingProductQuantity = 1m;
+            HasPendingProductQuantity = false;
+            OnPropertyChanged(nameof(NumbersFirstDisplayText));
+        }
+
         // Setting 6: Prevent Line Merging (Always create new order lines instead of merging quantities)
         bool preventMerging = CurrentConfig?.IsPreventLineMergingEnabled ?? false;
 
@@ -1577,12 +1632,12 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         if (existing != null)
         {
-            existing.Quantity += 1m;
+            existing.Quantity += qtyToAdd;
             SelectCartLine(existing);
         }
         else
         {
-            var newItem = new PosCartItem(product, 1m, unitPriceIsTaxIncluded: false, customProductName: customName, customUnitPrice: customPrice);
+            var newItem = new PosCartItem(product, qtyToAdd, unitPriceIsTaxIncluded: false, customProductName: customName, customUnitPrice: customPrice);
             CurrentOrder.CartItems.Add(newItem);
             SelectCartLine(newItem);
         }
@@ -1772,6 +1827,67 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public void NumpadKey(string key)
     {
+        // Setting 13: Numbers First mode handling (cashier selects quantity before product)
+        if (CurrentConfig?.IsNumbersFirst == true)
+        {
+            if (key == "⌫" || key == "Back")
+            {
+                if (_numbersFirstBuffer.Length > 1)
+                {
+                    _numbersFirstBuffer = _numbersFirstBuffer[..^1];
+                    if (decimal.TryParse(_numbersFirstBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
+                    {
+                        PendingProductQuantity = val;
+                        HasPendingProductQuantity = true;
+                    }
+                }
+                else
+                {
+                    _numbersFirstBuffer = string.Empty;
+                    PendingProductQuantity = 1m;
+                    HasPendingProductQuantity = false;
+                }
+                OnPropertyChanged(nameof(NumbersFirstDisplayText));
+                return;
+            }
+            else if (key == "+" || key == "Plus")
+            {
+                PendingProductQuantity += 1m;
+                _numbersFirstBuffer = PendingProductQuantity.ToString("G29", CultureInfo.InvariantCulture);
+                HasPendingProductQuantity = true;
+                OnPropertyChanged(nameof(NumbersFirstDisplayText));
+                return;
+            }
+            else if (key == "-" || key == "Minus")
+            {
+                PendingProductQuantity = Math.Max(1m, PendingProductQuantity - 1m);
+                _numbersFirstBuffer = PendingProductQuantity.ToString("G29", CultureInfo.InvariantCulture);
+                HasPendingProductQuantity = true;
+                OnPropertyChanged(nameof(NumbersFirstDisplayText));
+                return;
+            }
+            else if (key == "Delete" || key == "ClearAll" || key == "C")
+            {
+                _numbersFirstBuffer = string.Empty;
+                PendingProductQuantity = 1m;
+                HasPendingProductQuantity = false;
+                OnPropertyChanged(nameof(NumbersFirstDisplayText));
+                return;
+            }
+            else if (!string.IsNullOrEmpty(key) && (char.IsDigit(key[0]) || key == "."))
+            {
+                if (key == "." && _numbersFirstBuffer.Contains('.')) return;
+                _numbersFirstBuffer += key;
+                if (decimal.TryParse(_numbersFirstBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
+                {
+                    PendingProductQuantity = val;
+                    HasPendingProductQuantity = true;
+                }
+                OnPropertyChanged(nameof(NumbersFirstDisplayText));
+                return;
+            }
+        }
+
         if (SelectedCartLine == null || CurrentOrder == null) return;
 
         if (key == "⌫" || key == "Back")
@@ -2785,6 +2901,35 @@ public partial class PosRegisterViewModel : ViewModelBase
         ShowPosToast(isAutoPrint
             ? (HasSecondReceiptPreview ? "Main & Second Receipts printed automatically." : "Receipt printed automatically.")
             : "Receipt printed.");
+
+        // Physical print output via PosPrinterService
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var gen = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+                PosPrinterService.PrintReceiptText(
+                    gen.DefaultPrinterName,
+                    ReceiptPreviewMainText,
+                    cashDrawerPulse: gen.CashDrawerPulse || (mainDesign?.OpenCashDrawerOnly == true),
+                    encodingName: gen.PrinterEncoding
+                );
+
+                if (secondDesign != null && !secondDesign.OpenCashDrawerOnly && !string.IsNullOrWhiteSpace(ReceiptPreviewSecondText))
+                {
+                    PosPrinterService.PrintReceiptText(
+                        gen.DefaultPrinterName,
+                        ReceiptPreviewSecondText,
+                        cashDrawerPulse: false,
+                        encodingName: gen.PrinterEncoding
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PosRegister] Printer send error: {ex.Message}");
+            }
+        });
     }
 
     private string BuildFormattedReceiptText(PosOrderRecord order, ReceiptDesignRecord? design, bool isSimplified)
@@ -2794,49 +2939,13 @@ public partial class PosRegisterViewModel : ViewModelBase
             return $"[PULSE SIGNAL] Cash Drawer Opened via \"{design.Name}\".\n(Open Cash Drawer Only = Yes)";
         }
 
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"========================================");
-        sb.AppendLine($"            {ActiveShopName.ToUpperInvariant()}");
-        sb.AppendLine($"========================================");
-        sb.AppendLine($"Order:   {(!string.IsNullOrWhiteSpace(order.PosReference) ? order.PosReference : order.Name)}");
-        sb.AppendLine($"Date:    {(order.DateOrder ?? DateTime.Now):yyyy-MM-dd HH:mm:ss}");
-        sb.AppendLine($"Cashier: {order.CashierName}");
-        if (!string.IsNullOrWhiteSpace(order.CustomerName))
-            sb.AppendLine($"Customer: {order.CustomerName}");
-        sb.AppendLine($"----------------------------------------");
-
-        foreach (var line in order.Lines)
+        CompanyRecord? company = null;
+        if (design?.CompanyId != null)
         {
-            if (isSimplified)
-            {
-                sb.AppendLine($"{line.Qty:0.##} x  {line.ProductName}");
-            }
-            else
-            {
-                sb.AppendLine($"{line.Qty:0.##} x {line.ProductName,-22} $ {line.PriceSubtotalIncl,7:N2}");
-                if (line.Discount > 0)
-                    sb.AppendLine($"   Discount: {line.Discount:0.#}%");
-            }
+            company = _allCompanies.FirstOrDefault(c => c.Id == design.CompanyId.Value);
         }
 
-        sb.AppendLine($"----------------------------------------");
-        if (!isSimplified)
-        {
-            sb.AppendLine($"Taxes:                       $ {order.AmountTax,8:N2}");
-            sb.AppendLine($"TOTAL:                       $ {order.AmountTotal,8:N2}");
-            foreach (var p in order.Payments)
-            {
-                sb.AppendLine($"{p.PaymentMethodName,-28} $ {p.Amount,8:N2}");
-            }
-        }
-
-        if (design != null && !string.IsNullOrWhiteSpace(design.ReceiptXml))
-        {
-            sb.AppendLine($"----------------------------------------");
-            sb.AppendLine($"[Template: {design.Name}]");
-        }
-
-        return sb.ToString().TrimEnd();
+        return ReceiptTemplateService.FormatOrderReceiptText(order, design, company, ActiveShopName, isSimplified);
     }
 
     [RelayCommand]
@@ -2937,8 +3046,23 @@ public partial class PosRegisterViewModel : ViewModelBase
         int dbDraftCount = await SqliteDatabaseService.Instance.GetSessionDraftOrdersCountAsync(sessId, shopName);
         int localDraftCount = DraftOrders.Count(d => d.HasItems);
 
+        bool hideReviewOrders = CurrentConfig?.IsHideReviewOrdersEnabled ?? false;
+        bool hideClosingRegister = CurrentConfig?.IsHideClosingRegisterEnabled ?? false;
+
+        // Setting 11: Hide Closing Register - bypass modal, auto close and exit directly
+        if (hideClosingRegister)
+        {
+            if (hideReviewOrders && (dbDraftCount > 0 || localDraftCount > 0))
+            {
+                await CancelDraftOrdersAndCloseAsync();
+            }
+            await SubmitCloseRegisterAsync();
+            return;
+        }
+
         IsClosingRegisterModalOpen = true;
-        IsDraftOrdersWarningModalOpen = (dbDraftCount > 0 || localDraftCount > 0);
+        // Setting 12: Hide Review Orders - do not block with review warning popup
+        IsDraftOrdersWarningModalOpen = !hideReviewOrders && (dbDraftCount > 0 || localDraftCount > 0);
     }
 
     private async Task UpdateSessionBreakdownAsync()
@@ -3068,10 +3192,20 @@ public partial class PosRegisterViewModel : ViewModelBase
         int dbDraftCount = await SqliteDatabaseService.Instance.GetSessionDraftOrdersCountAsync(sessId, shopName);
         int localDraftCount = DraftOrders.Count(d => d.HasItems);
 
-        if (dbDraftCount > 0 || localDraftCount > 0)
+        bool hideReviewOrders = CurrentConfig?.IsHideReviewOrdersEnabled ?? false;
+        if (!hideReviewOrders && (dbDraftCount > 0 || localDraftCount > 0))
         {
             IsDraftOrdersWarningModalOpen = true;
             return;
+        }
+        else if (hideReviewOrders && (dbDraftCount > 0 || localDraftCount > 0))
+        {
+            try
+            {
+                await SqliteDatabaseService.Instance.CancelAllSessionDraftOrdersAsync(sessId, shopName);
+                DraftOrders.Clear();
+            }
+            catch { }
         }
 
         if (!decimal.TryParse(ClosingCashCount, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal counted))
@@ -3085,6 +3219,9 @@ public partial class PosRegisterViewModel : ViewModelBase
         {
             await RefreshBoundConfigSessionAsync();
             sessId = CurrentConfig?.CurrentSessionId ?? sessId;
+
+            // Automatically print report_saledetails.xml on closing
+            TriggerSalesDetailsReportPrint();
 
             await SqliteDatabaseService.Instance.CloseSessionAsync(
                 cfgId,
@@ -3136,6 +3273,74 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         IsDraftOrdersWarningModalOpen = false;
         IsClosingRegisterModalOpen = false;
+    }
+
+    private void TriggerSalesDetailsReportPrint()
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var genSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+                var sessOrders = _allInPosOrders.Where(o => OrderMatchesCurrentSession(o) && !o.IsCancelled && !o.IsDraft).ToList();
+                var session = CurrentSession ?? new PosSessionRecord
+                {
+                    OdooId = CurrentConfig?.CurrentSessionId ?? 1,
+                    Name = CurrentConfig?.CurrentSessionName ?? $"{ActiveShopName}/00001",
+                    PosConfigId = CurrentConfig?.OdooId ?? 1,
+                    PosConfigName = ActiveShopName,
+                    UserName = CashierName,
+                    State = "closed",
+                    StartAt = CurrentSession?.StartAt ?? DateTime.Now,
+                    StopAt = DateTime.Now,
+                    OrdersCount = sessOrders.Count,
+                    TotalPaymentsAmount = sessOrders.Sum(o => o.AmountTotal),
+                    OpeningBalance = CurrentConfig?.OpeningBalance ?? 0m,
+                    ClosingBalance = decimal.TryParse(ClosingCashCount, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal cb) ? cb : CashCounted
+                };
+
+                var config = CurrentConfig ?? new PosConfigRecord { Name = ActiveShopName };
+
+                ReceiptDesignRecord? design = null;
+                if (config.CustomSalesReceiptDesignId.HasValue)
+                {
+                    design = _allReceiptDesigns.FirstOrDefault(d => d.Id == config.CustomSalesReceiptDesignId.Value);
+                }
+                if (design == null)
+                {
+                    design = _allReceiptDesigns.FirstOrDefault(d => d.Name == ReceiptTemplateService.SaleDetailsReportName);
+                }
+
+                CompanyRecord? company = null;
+                if (design?.CompanyId != null)
+                {
+                    company = _allCompanies.FirstOrDefault(c => c.Id == design.CompanyId.Value);
+                }
+                if (company == null && genSettings.DefaultCompanyId != null)
+                {
+                    company = _allCompanies.FirstOrDefault(c => c.Id == genSettings.DefaultCompanyId.Value);
+                }
+
+                string reportText = ReceiptTemplateService.FormatSaleDetailsReportText(
+                    session,
+                    config,
+                    design,
+                    company,
+                    sessOrders
+                );
+
+                PosPrinterService.PrintReceiptText(
+                    genSettings.DefaultPrinterName,
+                    reportText,
+                    cashDrawerPulse: genSettings.CashDrawerPulse,
+                    encodingName: genSettings.PrinterEncoding
+                );
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PosRegister] Auto print sales details report error: {ex.Message}");
+            }
+        });
     }
 
     [RelayCommand]

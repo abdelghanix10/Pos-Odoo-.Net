@@ -548,6 +548,7 @@ public partial class MainShellView : UserControl
         SettingsViewPanel.Visibility = Visibility.Visible;
         SetActiveSidebarButton(NavSettingsBtn, SettingsLabel);
         _ = RefreshConfigAndCountsAsync();
+        _ = LoadGeneralAndPrinterSettingsAsync();
     }
 
     private void LogoutItem_Click(object sender, RoutedEventArgs e)
@@ -556,18 +557,252 @@ public partial class MainShellView : UserControl
     }
 
     // =========================================================================
-    // 3. CONFIGURATION TAB STRIP SWITCHING
+    // 3. CONFIGURATION TAB STRIP SWITCHING & GENERAL / PRINTER SETTINGS
     // =========================================================================
     private void TabButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button clickedTab) return;
 
         Style activeStyle = (Style)FindResource("OdooActiveTabButtonStyle");
-        TabGeneral.Style = activeStyle;
+        Style inactiveStyle = (Style)FindResource("OdooInactiveTabButtonStyle");
+
+        TabGeneralSettings.Style = inactiveStyle;
+        TabOdooSync.Style = inactiveStyle;
+        TabPrinter.Style = inactiveStyle;
+
         clickedTab.Style = activeStyle;
 
-        GeneralSettingsScrollViewer.Visibility = Visibility.Visible;
-        OtherTabsEmptyContainer.Visibility = Visibility.Collapsed;
+        string tabTag = clickedTab.Tag?.ToString() ?? "GeneralSettings";
+
+        GeneralSettingsScrollViewer.Visibility = Visibility.Collapsed;
+        OdooSyncScrollViewer.Visibility = Visibility.Collapsed;
+        PrinterSettingsScrollViewer.Visibility = Visibility.Collapsed;
+
+        switch (tabTag)
+        {
+            case "GeneralSettings":
+                GeneralSettingsScrollViewer.Visibility = Visibility.Visible;
+                _ = LoadGeneralAndPrinterSettingsAsync();
+                break;
+            case "OdooSync":
+            case "General":
+                OdooSyncScrollViewer.Visibility = Visibility.Visible;
+                break;
+            case "Printer":
+                PrinterSettingsScrollViewer.Visibility = Visibility.Visible;
+                _ = LoadGeneralAndPrinterSettingsAsync();
+                break;
+        }
+    }
+
+    public async Task LoadGeneralAndPrinterSettingsAsync()
+    {
+        try
+        {
+            // 1. Load Companies for Company Dropdown
+            var companies = await SqliteDatabaseService.Instance.LoadAllCompaniesAsync();
+            GeneralCompanyComboBox.ItemsSource = companies;
+
+            // 2. Load Installed Printers for Printer Dropdown
+            var printers = PosPrinterService.GetInstalledPrinters();
+            PrinterDeviceComboBox.ItemsSource = printers;
+
+            // 3. Load Saved Settings from SQLite
+            var settings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+
+            // Set Screen Mode
+            if (string.Equals(settings.ScreenMode, "Fullscreen", StringComparison.OrdinalIgnoreCase))
+            {
+                GeneralScreenModeComboBox.SelectedIndex = 1; // Fullscreen
+            }
+            else
+            {
+                GeneralScreenModeComboBox.SelectedIndex = 0; // Window
+            }
+
+            // Set Default Company
+            if (settings.DefaultCompanyId.HasValue && settings.DefaultCompanyId.Value > 0)
+            {
+                GeneralCompanyComboBox.SelectedValue = settings.DefaultCompanyId.Value;
+            }
+            else if (companies.Count > 0)
+            {
+                GeneralCompanyComboBox.SelectedIndex = 0;
+            }
+
+            // Set Default Printer
+            if (!string.IsNullOrWhiteSpace(settings.DefaultPrinterName) && printers.Contains(settings.DefaultPrinterName))
+            {
+                PrinterDeviceComboBox.SelectedItem = settings.DefaultPrinterName;
+            }
+            else if (printers.Count > 0)
+            {
+                var receiptP = printers.FirstOrDefault(p => p.Contains("80", StringComparison.OrdinalIgnoreCase) || p.Contains("POS", StringComparison.OrdinalIgnoreCase));
+                PrinterDeviceComboBox.SelectedItem = receiptP ?? printers[0];
+            }
+
+            // Set Paper Width
+            if (string.Equals(settings.PaperWidth, "58mm", StringComparison.OrdinalIgnoreCase))
+            {
+                PrinterPaperWidthComboBox.SelectedIndex = 1;
+            }
+            else
+            {
+                PrinterPaperWidthComboBox.SelectedIndex = 0;
+            }
+
+            // Set Encoding
+            int encIndex = 0;
+            for (int i = 0; i < PrinterEncodingComboBox.Items.Count; i++)
+            {
+                if (PrinterEncodingComboBox.Items[i] is ComboBoxItem item &&
+                    item.Content?.ToString()?.Contains(settings.PrinterEncoding, StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    encIndex = i;
+                    break;
+                }
+            }
+            PrinterEncodingComboBox.SelectedIndex = encIndex;
+
+            // Set Checkboxes
+            PrinterAutoPrintCheckBox.IsChecked = settings.AutoPrintReceipt;
+            PrinterCashDrawerCheckBox.IsChecked = settings.CashDrawerPulse;
+            PrinterHeaderLogoCheckBox.IsChecked = settings.PrintHeaderLogo;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainShellView] Error loading general settings: {ex.Message}");
+        }
+    }
+
+    private async void SaveGeneralSettingsBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string screenMode = (GeneralScreenModeComboBox.SelectedItem is ComboBoxItem item &&
+                                 item.Content?.ToString() == "Fullscreen")
+                                 ? "Fullscreen" : "Window";
+
+            int? compId = null;
+            string? compName = null;
+            if (GeneralCompanyComboBox.SelectedItem is CompanyRecord comp)
+            {
+                compId = (int)comp.Id;
+                compName = comp.Name;
+            }
+
+            var current = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            current.ScreenMode = screenMode;
+            current.DefaultCompanyId = compId;
+            current.DefaultCompanyName = compName;
+
+            await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
+
+            // Apply screen mode immediately to MainWindow
+            ApplyCurrentScreenMode(screenMode);
+
+            ShowToast("General settings saved successfully!");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Failed to save general settings: {ex.Message}", isError: true);
+        }
+    }
+
+    private void RefreshPrintersBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var printers = PosPrinterService.GetInstalledPrinters();
+        PrinterDeviceComboBox.ItemsSource = printers;
+        if (printers.Count > 0 && PrinterDeviceComboBox.SelectedItem == null)
+        {
+            PrinterDeviceComboBox.SelectedIndex = 0;
+        }
+        ShowToast($"Found {printers.Count} installed printer(s).");
+    }
+
+    private async void SavePrinterSettingsBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string printerName = PrinterDeviceComboBox.SelectedItem?.ToString() ?? "";
+            string paperWidth = (PrinterPaperWidthComboBox.SelectedItem is ComboBoxItem widthItem &&
+                                 widthItem.Content?.ToString()?.Contains("58mm") == true)
+                                 ? "58mm" : "80mm";
+
+            string encoding = "UTF-8";
+            if (PrinterEncodingComboBox.SelectedItem is ComboBoxItem encItem && encItem.Content != null)
+            {
+                string text = encItem.Content.ToString()!;
+                if (text.Contains("CP437")) encoding = "CP437";
+                else if (text.Contains("CP864")) encoding = "CP864";
+                else if (text.Contains("Windows-1256")) encoding = "Windows-1256";
+                else if (text.Contains("Windows-1252")) encoding = "Windows-1252";
+                else encoding = "UTF-8";
+            }
+
+            bool autoPrint = PrinterAutoPrintCheckBox.IsChecked ?? false;
+            bool cashDrawer = PrinterCashDrawerCheckBox.IsChecked ?? true;
+            bool headerLogo = PrinterHeaderLogoCheckBox.IsChecked ?? true;
+
+            var current = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            current.DefaultPrinterName = printerName;
+            current.PaperWidth = paperWidth;
+            current.PrinterEncoding = encoding;
+            current.AutoPrintReceipt = autoPrint;
+            current.CashDrawerPulse = cashDrawer;
+            current.PrintHeaderLogo = headerLogo;
+
+            await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
+
+            ShowToast("Printer settings saved successfully!");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Failed to save printer settings: {ex.Message}", isError: true);
+        }
+    }
+
+    private async void PrintTestReceiptBtn_Click(object sender, RoutedEventArgs e)
+    {
+        string printerName = PrinterDeviceComboBox.SelectedItem?.ToString() ?? "";
+        if (string.IsNullOrWhiteSpace(printerName))
+        {
+            ShowToast("Please select a printer first.", isError: true);
+            return;
+        }
+
+        string paperWidth = (PrinterPaperWidthComboBox.SelectedItem is ComboBoxItem widthItem &&
+                             widthItem.Content?.ToString()?.Contains("58mm") == true)
+                             ? "58mm" : "80mm";
+
+        try
+        {
+            ShowToast($"Sending test receipt to '{printerName}'...");
+            bool ok = await Task.Run(() => PosPrinterService.PrintTestReceipt(printerName, paperWidth));
+            if (ok)
+            {
+                ShowToast("Test receipt printed successfully!");
+            }
+            else
+            {
+                ShowToast("Printer print command failed. Check printer connection.", isError: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Print error: {ex.Message}", isError: true);
+        }
+    }
+
+    public static void ApplyCurrentScreenMode(string screenMode)
+    {
+        if (Application.Current?.MainWindow != null)
+        {
+            if (Application.Current.MainWindow is MainWindow mw)
+            {
+                mw.ApplyScreenMode(screenMode);
+            }
+        }
     }
 
     // =========================================================================

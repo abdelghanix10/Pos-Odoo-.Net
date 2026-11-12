@@ -75,6 +75,38 @@ public partial class MainWindow : Window
         _connectivityTimer.Tick += async (_, _) => await OdooSyncService.Instance.CheckConnectivityAsync();
         _connectivityTimer.Start();
         _ = OdooSyncService.Instance.CheckConnectivityAsync();
+
+        // Load General Application Settings (Screen mode, etc.)
+        _ = InitializeGeneralSettingsAsync();
+    }
+
+    private async Task InitializeGeneralSettingsAsync()
+    {
+        try
+        {
+            var settings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            ApplyScreenMode(settings.ScreenMode);
+        }
+        catch { }
+    }
+
+    public void ApplyScreenMode(string screenMode)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (string.Equals(screenMode, "Fullscreen", StringComparison.OrdinalIgnoreCase))
+            {
+                WindowStyle = WindowStyle.None;
+                WindowState = WindowState.Maximized;
+                ResizeMode = ResizeMode.NoResize;
+            }
+            else
+            {
+                WindowStyle = WindowStyle.SingleBorderWindow;
+                WindowState = WindowState.Normal;
+                ResizeMode = ResizeMode.CanResize;
+            }
+        });
     }
 
     private void UpdateDateTimeDisplay()

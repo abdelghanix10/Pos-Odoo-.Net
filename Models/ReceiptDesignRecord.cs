@@ -9,6 +9,8 @@ public class ReceiptDesignRecord : INotifyPropertyChanged
     private string _name = string.Empty;
     private bool _openCashDrawerOnly;
     private string _receiptXml = string.Empty;
+    private long? _companyId;
+    private string? _companyName;
     private string _updatedAt = string.Empty;
     private bool _isSelected;
 
@@ -51,6 +53,18 @@ public class ReceiptDesignRecord : INotifyPropertyChanged
     {
         get => _receiptXml;
         set { if (_receiptXml != value) { _receiptXml = value; OnPropertyChanged(); } }
+    }
+
+    public long? CompanyId
+    {
+        get => _companyId;
+        set { if (_companyId != value) { _companyId = value; OnPropertyChanged(); } }
+    }
+
+    public string? CompanyName
+    {
+        get => _companyName;
+        set { if (_companyName != value) { _companyName = value; OnPropertyChanged(); } }
     }
 
     public string UpdatedAt

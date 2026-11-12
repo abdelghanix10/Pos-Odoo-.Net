@@ -70,6 +70,10 @@ public class PosConfigRecord : INotifyPropertyChanged
     private decimal _defaultOpeningCashAmount = 0.00m;
     private bool _isSecondReceiptEnabled = false;
     private long? _secondReceiptDesignId = null;
+    private bool _isHideClosingRegisterEnabled = false;
+    private long? _customSalesReceiptDesignId = null;
+    private bool _isHideReviewOrdersEnabled = false;
+    private string _numbersFirstOrProducts = "products"; // "products" or "numbers"
 
     public string SelectedPaymentMethodsCsv
     {
@@ -199,6 +203,40 @@ public class PosConfigRecord : INotifyPropertyChanged
         get => _secondReceiptDesignId;
         set { if (_secondReceiptDesignId != value) { _secondReceiptDesignId = value; OnPropertyChanged(); } }
     }
+
+    public bool IsHideClosingRegisterEnabled
+    {
+        get => _isHideClosingRegisterEnabled;
+        set { if (_isHideClosingRegisterEnabled != value) { _isHideClosingRegisterEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public long? CustomSalesReceiptDesignId
+    {
+        get => _customSalesReceiptDesignId;
+        set { if (_customSalesReceiptDesignId != value) { _customSalesReceiptDesignId = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsHideReviewOrdersEnabled
+    {
+        get => _isHideReviewOrdersEnabled;
+        set { if (_isHideReviewOrdersEnabled != value) { _isHideReviewOrdersEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public string NumbersFirstOrProducts
+    {
+        get => _numbersFirstOrProducts;
+        set
+        {
+            if (_numbersFirstOrProducts != value)
+            {
+                _numbersFirstOrProducts = string.IsNullOrWhiteSpace(value) ? "products" : value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsNumbersFirst));
+            }
+        }
+    }
+
+    public bool IsNumbersFirst => string.Equals(_numbersFirstOrProducts, "numbers", StringComparison.OrdinalIgnoreCase);
 
     public ObservableCollection<SparklineDataPoint> SparklinePoints { get; } = [];
 

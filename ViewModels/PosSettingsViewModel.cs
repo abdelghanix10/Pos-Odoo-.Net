@@ -50,11 +50,22 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     private bool _isSecondReceiptEnabled;
     private ReceiptDesignRecord? _selectedSecondReceiptDesign;
 
+    // 11. Hide Closing Register & Custom Sales Receipt
+    private bool _isHideClosingRegisterEnabled;
+    private ReceiptDesignRecord? _selectedCustomSalesReceiptDesign;
+
+    // 12. Hide Review Orders
+    private bool _isHideReviewOrdersEnabled;
+
+    // 13. Numbers first, or products
+    private string _numbersFirstOrProducts = "products";
+
     // Receipt Designs Editor
     private ReceiptDesignRecord? _editingReceiptDesign;
     private string _designEditorName = string.Empty;
     private bool _designEditorOpenCashDrawerOnly;
     private string _designEditorReceiptXml = string.Empty;
+    private CompanyRecord? _selectedDesignCompany;
 
     private List<string> _allPaymentMethodNames = [];
     private List<string> _allCategoryNames = [];
@@ -71,6 +82,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     public ObservableCollection<string> AvailableCategoriesToAdd { get; } = [];
 
     public ObservableCollection<ReceiptDesignRecord> ReceiptDesigns { get; } = [];
+    public ObservableCollection<CompanyRecord> AvailableCompanies { get; } = [];
 
     public event Action? NavigateToPaymentMethodsRequested;
     public event Action? NavigateToCategoriesRequested;
@@ -512,9 +524,99 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsHideClosingRegisterEnabled
+    {
+        get => _isHideClosingRegisterEnabled;
+        set
+        {
+            if (_isHideClosingRegisterEnabled != value)
+            {
+                _isHideClosingRegisterEnabled = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CustomSalesReceiptDetailsVisibility));
+                if (_isHideClosingRegisterEnabled && _selectedCustomSalesReceiptDesign == null && ReceiptDesigns.Count > 0)
+                {
+                    SelectedCustomSalesReceiptDesign = ReceiptDesigns.FirstOrDefault(d => d.Name.Contains("Sales Details", StringComparison.OrdinalIgnoreCase)) ?? ReceiptDesigns[0];
+                }
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
+    public Visibility CustomSalesReceiptDetailsVisibility => _isHideClosingRegisterEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+    public ReceiptDesignRecord? SelectedCustomSalesReceiptDesign
+    {
+        get => _selectedCustomSalesReceiptDesign;
+        set
+        {
+            if (_selectedCustomSalesReceiptDesign != value)
+            {
+                _selectedCustomSalesReceiptDesign = value;
+                OnPropertyChanged();
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
+    public bool IsHideReviewOrdersEnabled
+    {
+        get => _isHideReviewOrdersEnabled;
+        set
+        {
+            if (_isHideReviewOrdersEnabled != value)
+            {
+                _isHideReviewOrdersEnabled = value;
+                OnPropertyChanged();
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
+    public string NumbersFirstOrProducts
+    {
+        get => _numbersFirstOrProducts;
+        set
+        {
+            if (_numbersFirstOrProducts != value)
+            {
+                _numbersFirstOrProducts = string.IsNullOrWhiteSpace(value) ? "products" : value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsProductsFirst));
+                OnPropertyChanged(nameof(IsNumbersFirst));
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
+    public bool IsProductsFirst
+    {
+        get => string.Equals(_numbersFirstOrProducts, "products", StringComparison.OrdinalIgnoreCase);
+        set { if (value) NumbersFirstOrProducts = "products"; }
+    }
+
+    public bool IsNumbersFirst
+    {
+        get => string.Equals(_numbersFirstOrProducts, "numbers", StringComparison.OrdinalIgnoreCase);
+        set { if (value) NumbersFirstOrProducts = "numbers"; }
+    }
+
     // =========================================================================
     // RECEIPT DESIGNS EDITOR PROPERTIES
     // =========================================================================
+    public CompanyRecord? SelectedDesignCompany
+    {
+        get => _selectedDesignCompany;
+        set
+        {
+            if (_selectedDesignCompany != value)
+            {
+                _selectedDesignCompany = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public ReceiptDesignRecord? EditingReceiptDesign
     {
         get => _editingReceiptDesign;
@@ -532,6 +634,8 @@ public class PosSettingsViewModel : INotifyPropertyChanged
                     DesignEditorName = value.Name;
                     DesignEditorOpenCashDrawerOnly = value.OpenCashDrawerOnly;
                     DesignEditorReceiptXml = value.ReceiptXml;
+                    SelectedDesignCompany = AvailableCompanies.FirstOrDefault(c =>
+                        (value.CompanyId.HasValue && (c.OdooId == value.CompanyId.Value || c.Id == value.CompanyId.Value)));
                 }
             }
         }
@@ -599,6 +703,14 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             if (_allCategoryNames.Count == 0)
             {
                 _allCategoryNames = ["Upper body", "Lower body", "Others", "Desks", "Chairs"];
+            }
+
+            // Load Companies for Receipt Designs
+            var companies = await db.LoadAllCompaniesAsync();
+            AvailableCompanies.Clear();
+            foreach (var c in companies)
+            {
+                AvailableCompanies.Add(c);
             }
 
             // Load Receipt Designs
@@ -700,6 +812,14 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             SelectedSecondReceiptDesign = config.SecondReceiptDesignId.HasValue
                 ? ReceiptDesigns.FirstOrDefault(d => d.Id == config.SecondReceiptDesignId.Value) ?? ReceiptDesigns.Skip(1).FirstOrDefault() ?? ReceiptDesigns.FirstOrDefault()
                 : ReceiptDesigns.Skip(1).FirstOrDefault() ?? ReceiptDesigns.FirstOrDefault();
+
+            IsHideClosingRegisterEnabled = config.IsHideClosingRegisterEnabled;
+            SelectedCustomSalesReceiptDesign = config.CustomSalesReceiptDesignId.HasValue
+                ? ReceiptDesigns.FirstOrDefault(d => d.Id == config.CustomSalesReceiptDesignId.Value) ?? ReceiptDesigns.FirstOrDefault(d => d.Name.Contains("Sales Details", StringComparison.OrdinalIgnoreCase)) ?? ReceiptDesigns.FirstOrDefault()
+                : ReceiptDesigns.FirstOrDefault(d => d.Name.Contains("Sales Details", StringComparison.OrdinalIgnoreCase)) ?? ReceiptDesigns.FirstOrDefault();
+
+            IsHideReviewOrdersEnabled = config.IsHideReviewOrdersEnabled;
+            NumbersFirstOrProducts = string.IsNullOrWhiteSpace(config.NumbersFirstOrProducts) ? "products" : config.NumbersFirstOrProducts;
         }
         finally
         {
@@ -756,6 +876,10 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         }
         _selectedConfig.IsSecondReceiptEnabled = IsSecondReceiptEnabled;
         _selectedConfig.SecondReceiptDesignId = SelectedSecondReceiptDesign?.Id;
+        _selectedConfig.IsHideClosingRegisterEnabled = IsHideClosingRegisterEnabled;
+        _selectedConfig.CustomSalesReceiptDesignId = SelectedCustomSalesReceiptDesign?.Id;
+        _selectedConfig.IsHideReviewOrdersEnabled = IsHideReviewOrdersEnabled;
+        _selectedConfig.NumbersFirstOrProducts = NumbersFirstOrProducts;
 
         await SqliteDatabaseService.Instance.SavePosConfigSettingsAsync(_selectedConfig);
         SettingsSaved?.Invoke();
@@ -793,6 +917,8 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         EditingReceiptDesign.Name = string.IsNullOrWhiteSpace(DesignEditorName) ? "Custom Receipt" : DesignEditorName.Trim();
         EditingReceiptDesign.OpenCashDrawerOnly = DesignEditorOpenCashDrawerOnly;
         EditingReceiptDesign.ReceiptXml = DesignEditorReceiptXml ?? string.Empty;
+        EditingReceiptDesign.CompanyId = SelectedDesignCompany != null ? (SelectedDesignCompany.OdooId > 0 ? SelectedDesignCompany.OdooId : SelectedDesignCompany.Id) : null;
+        EditingReceiptDesign.CompanyName = SelectedDesignCompany?.Name;
         EditingReceiptDesign.UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
 
         await SqliteDatabaseService.Instance.SaveReceiptDesignAsync(EditingReceiptDesign);

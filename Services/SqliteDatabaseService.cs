@@ -626,6 +626,10 @@ public class SqliteDatabaseService
                 DefaultOpeningCashAmount REAL DEFAULT 0.0,
                 IsSecondReceiptEnabled INTEGER DEFAULT 0,
                 SecondReceiptDesignId INTEGER,
+                IsHideClosingRegisterEnabled INTEGER DEFAULT 0,
+                CustomSalesReceiptDesignId INTEGER,
+                IsHideReviewOrdersEnabled INTEGER DEFAULT 0,
+                NumbersFirstOrProducts TEXT DEFAULT 'products',
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -634,6 +638,20 @@ public class SqliteDatabaseService
                 Name TEXT NOT NULL,
                 OpenCashDrawerOnly INTEGER DEFAULT 0,
                 ReceiptXml TEXT DEFAULT '',
+                CompanyId INTEGER,
+                UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS GeneralSettings (
+                Id INTEGER PRIMARY KEY,
+                ScreenMode TEXT DEFAULT 'Window',
+                DefaultCompanyId INTEGER,
+                DefaultPrinterName TEXT DEFAULT '',
+                PaperWidth TEXT DEFAULT '80mm',
+                AutoPrintReceipt INTEGER DEFAULT 0,
+                CashDrawerPulse INTEGER DEFAULT 0,
+                PrintHeaderLogo INTEGER DEFAULT 1,
+                PrinterEncoding TEXT DEFAULT 'UTF-8',
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -707,7 +725,12 @@ public class SqliteDatabaseService
             "ALTER TABLE PosConfigs ADD COLUMN IsHideOpeningCashControlEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN DefaultOpeningCashAmount REAL DEFAULT 0.0;",
             "ALTER TABLE PosConfigs ADD COLUMN IsSecondReceiptEnabled INTEGER DEFAULT 0;",
-            "ALTER TABLE PosConfigs ADD COLUMN SecondReceiptDesignId INTEGER;"
+            "ALTER TABLE PosConfigs ADD COLUMN SecondReceiptDesignId INTEGER;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsHideClosingRegisterEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN CustomSalesReceiptDesignId INTEGER;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsHideReviewOrdersEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN NumbersFirstOrProducts TEXT DEFAULT 'products';",
+            "ALTER TABLE PosReceiptDesigns ADD COLUMN CompanyId INTEGER;"
         ];
 
         foreach (string sql in migrations)
@@ -756,6 +779,31 @@ public class SqliteDatabaseService
                 seedDesignCmd.ExecuteNonQuery();
             }
         }
+
+        // Ensure Pastry Receipt, Cafe Receipt, and Sales Details Report exist in PosReceiptDesigns
+        void EnsureDesignSeeded(string name, string xml)
+        {
+            try
+            {
+                using var chkCmd = connection.CreateCommand();
+                chkCmd.CommandText = "SELECT COUNT(*) FROM PosReceiptDesigns WHERE LOWER(Name) = LOWER(@name);";
+                chkCmd.Parameters.AddWithValue("@name", name);
+                long exists = Convert.ToInt64(chkCmd.ExecuteScalar() ?? 0L);
+                if (exists == 0)
+                {
+                    using var insCmd = connection.CreateCommand();
+                    insCmd.CommandText = "INSERT INTO PosReceiptDesigns (Name, OpenCashDrawerOnly, ReceiptXml) VALUES (@name, 0, @xml);";
+                    insCmd.Parameters.AddWithValue("@name", name);
+                    insCmd.Parameters.AddWithValue("@xml", xml);
+                    insCmd.ExecuteNonQuery();
+                }
+            }
+            catch { }
+        }
+
+        EnsureDesignSeeded(ReceiptTemplateService.PastryReceiptName, ReceiptTemplateService.GetPastryDefaultXml());
+        EnsureDesignSeeded(ReceiptTemplateService.CafeReceiptName, ReceiptTemplateService.GetCafeDefaultXml());
+        EnsureDesignSeeded(ReceiptTemplateService.SaleDetailsReportName, ReceiptTemplateService.GetSaleDetailsReportDefaultXml());
 
         using var checkConfig = connection.CreateCommand();
         checkConfig.CommandText = "SELECT COUNT(*) FROM OdooConfig WHERE Id = 1;";
@@ -3426,7 +3474,11 @@ public class SqliteDatabaseService
                    COALESCE(c.IsHideOpeningCashControlEnabled, 0),
                    COALESCE(c.DefaultOpeningCashAmount, 0.0),
                    COALESCE(c.IsSecondReceiptEnabled, 0),
-                   c.SecondReceiptDesignId
+                   c.SecondReceiptDesignId,
+                   COALESCE(c.IsHideClosingRegisterEnabled, 0),
+                   c.CustomSalesReceiptDesignId,
+                   COALESCE(c.IsHideReviewOrdersEnabled, 0),
+                   COALESCE(c.NumbersFirstOrProducts, 'products')
             FROM PosConfigs c
             LEFT JOIN Users u ON c.ActiveUserId = u.OdooId
             ORDER BY COALESCE(c.OdooId, c.Id) ASC;
@@ -3464,7 +3516,11 @@ public class SqliteDatabaseService
                 IsHideOpeningCashControlEnabled = !reader.IsDBNull(24) && reader.GetInt32(24) != 0,
                 DefaultOpeningCashAmount = reader.IsDBNull(25) ? 0.00m : Convert.ToDecimal(reader.GetDouble(25)),
                 IsSecondReceiptEnabled = !reader.IsDBNull(26) && reader.GetInt32(26) != 0,
-                SecondReceiptDesignId = reader.IsDBNull(27) ? null : reader.GetInt64(27)
+                SecondReceiptDesignId = reader.IsDBNull(27) ? null : reader.GetInt64(27),
+                IsHideClosingRegisterEnabled = !reader.IsDBNull(28) && reader.GetInt32(28) != 0,
+                CustomSalesReceiptDesignId = reader.IsDBNull(29) ? null : reader.GetInt64(29),
+                IsHideReviewOrdersEnabled = !reader.IsDBNull(30) && reader.GetInt32(30) != 0,
+                NumbersFirstOrProducts = reader.IsDBNull(31) ? "products" : reader.GetString(31)
             });
         }
 
@@ -3664,6 +3720,10 @@ public class SqliteDatabaseService
                 DefaultOpeningCashAmount = @defaultCash,
                 IsSecondReceiptEnabled = @secondReceiptEnabled,
                 SecondReceiptDesignId = @secondReceiptId,
+                IsHideClosingRegisterEnabled = @hideClosing,
+                CustomSalesReceiptDesignId = @customSalesReceiptId,
+                IsHideReviewOrdersEnabled = @hideReviewOrders,
+                NumbersFirstOrProducts = @numbersFirst,
                 UpdatedAt = CURRENT_TIMESTAMP
             WHERE Id = @id OR OdooId = @odooId;
             """;
@@ -3676,6 +3736,10 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@defaultCash", (double)config.DefaultOpeningCashAmount);
         cmd.Parameters.AddWithValue("@secondReceiptEnabled", config.IsSecondReceiptEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@secondReceiptId", (object?)config.SecondReceiptDesignId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@hideClosing", config.IsHideClosingRegisterEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@customSalesReceiptId", (object?)config.CustomSalesReceiptDesignId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@hideReviewOrders", config.IsHideReviewOrdersEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@numbersFirst", config.NumbersFirstOrProducts ?? "products");
         cmd.Parameters.AddWithValue("@id", config.Id);
         cmd.Parameters.AddWithValue("@odooId", config.OdooId);
 
@@ -3693,9 +3757,11 @@ public class SqliteDatabaseService
 
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            SELECT Id, Name, COALESCE(OpenCashDrawerOnly, 0), COALESCE(ReceiptXml, ''), COALESCE(UpdatedAt, '')
-            FROM PosReceiptDesigns
-            ORDER BY Id ASC;
+            SELECT d.Id, d.Name, COALESCE(d.OpenCashDrawerOnly, 0), COALESCE(d.ReceiptXml, ''), COALESCE(d.UpdatedAt, ''),
+                   d.CompanyId, c.Name AS CompanyName
+            FROM PosReceiptDesigns d
+            LEFT JOIN Companies c ON d.CompanyId = c.OdooId OR d.CompanyId = c.Id
+            ORDER BY d.Id ASC;
             """;
 
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -3707,7 +3773,9 @@ public class SqliteDatabaseService
                 Name = reader.GetString(1),
                 OpenCashDrawerOnly = reader.GetInt32(2) != 0,
                 ReceiptXml = reader.GetString(3),
-                UpdatedAt = reader.GetString(4)
+                UpdatedAt = reader.GetString(4),
+                CompanyId = reader.IsDBNull(5) ? null : reader.GetInt64(5),
+                CompanyName = reader.IsDBNull(6) ? null : reader.GetString(6)
             });
         }
 
@@ -3727,6 +3795,7 @@ public class SqliteDatabaseService
                 SET Name = @name,
                     OpenCashDrawerOnly = @openDrawerOnly,
                     ReceiptXml = @xml,
+                    CompanyId = @companyId,
                     UpdatedAt = CURRENT_TIMESTAMP
                 WHERE Id = @id;
                 """;
@@ -3735,8 +3804,8 @@ public class SqliteDatabaseService
         else
         {
             cmd.CommandText = """
-                INSERT INTO PosReceiptDesigns (Name, OpenCashDrawerOnly, ReceiptXml, UpdatedAt)
-                VALUES (@name, @openDrawerOnly, @xml, CURRENT_TIMESTAMP);
+                INSERT INTO PosReceiptDesigns (Name, OpenCashDrawerOnly, ReceiptXml, CompanyId, UpdatedAt)
+                VALUES (@name, @openDrawerOnly, @xml, @companyId, CURRENT_TIMESTAMP);
                 SELECT last_insert_rowid();
                 """;
         }
@@ -3744,6 +3813,7 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@name", string.IsNullOrWhiteSpace(design.Name) ? "New Receipt Design" : design.Name.Trim());
         cmd.Parameters.AddWithValue("@openDrawerOnly", design.OpenCashDrawerOnly ? 1 : 0);
         cmd.Parameters.AddWithValue("@xml", design.ReceiptXml ?? string.Empty);
+        cmd.Parameters.AddWithValue("@companyId", (object?)design.CompanyId ?? DBNull.Value);
 
         if (design.Id > 0)
         {
@@ -3766,6 +3836,83 @@ public class SqliteDatabaseService
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = "DELETE FROM PosReceiptDesigns WHERE Id = @id;";
         cmd.Parameters.AddWithValue("@id", id);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    // =========================================================================
+    // 12C. GENERAL & PRINTER SETTINGS REPOSITORY
+    // =========================================================================
+    public async Task<GeneralSettingsRecord> GetGeneralSettingsAsync()
+    {
+        var record = new GeneralSettingsRecord();
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT g.ScreenMode, g.DefaultCompanyId, c.Name AS CompanyName,
+                   g.DefaultPrinterName, g.PaperWidth, g.AutoPrintReceipt,
+                   g.CashDrawerPulse, g.PrintHeaderLogo, g.PrinterEncoding
+            FROM GeneralSettings g
+            LEFT JOIN Companies c ON g.DefaultCompanyId = c.OdooId OR g.DefaultCompanyId = c.Id
+            WHERE g.Id = 1;
+            """;
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            record.ScreenMode = reader.IsDBNull(0) ? "Window" : reader.GetString(0);
+            record.DefaultCompanyId = reader.IsDBNull(1) ? null : reader.GetInt32(1);
+            record.DefaultCompanyName = reader.IsDBNull(2) ? null : reader.GetString(2);
+            record.DefaultPrinterName = reader.IsDBNull(3) ? "" : reader.GetString(3);
+            record.PaperWidth = reader.IsDBNull(4) ? "80mm" : reader.GetString(4);
+            record.AutoPrintReceipt = !reader.IsDBNull(5) && reader.GetInt32(5) != 0;
+            record.CashDrawerPulse = !reader.IsDBNull(6) && reader.GetInt32(6) != 0;
+            record.PrintHeaderLogo = reader.IsDBNull(7) || reader.GetInt32(7) != 0;
+            record.PrinterEncoding = reader.IsDBNull(8) ? "UTF-8" : reader.GetString(8);
+        }
+        else
+        {
+            // Seed default general settings row
+            record.DefaultPrinterName = PosPrinterService.GetDefaultPrinter();
+            await SaveGeneralSettingsAsync(record);
+        }
+
+        return record;
+    }
+
+    public async Task SaveGeneralSettingsAsync(GeneralSettingsRecord settings)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO GeneralSettings (Id, ScreenMode, DefaultCompanyId, DefaultPrinterName, PaperWidth,
+                                         AutoPrintReceipt, CashDrawerPulse, PrintHeaderLogo, PrinterEncoding, UpdatedAt)
+            VALUES (1, @screenMode, @companyId, @printerName, @paperWidth,
+                    @autoPrint, @drawerPulse, @printLogo, @encoding, CURRENT_TIMESTAMP)
+            ON CONFLICT(Id) DO UPDATE SET
+                ScreenMode = @screenMode,
+                DefaultCompanyId = @companyId,
+                DefaultPrinterName = @printerName,
+                PaperWidth = @paperWidth,
+                AutoPrintReceipt = @autoPrint,
+                CashDrawerPulse = @drawerPulse,
+                PrintHeaderLogo = @printLogo,
+                PrinterEncoding = @encoding,
+                UpdatedAt = CURRENT_TIMESTAMP;
+            """;
+
+        cmd.Parameters.AddWithValue("@screenMode", settings.ScreenMode ?? "Window");
+        cmd.Parameters.AddWithValue("@companyId", (object?)settings.DefaultCompanyId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@printerName", settings.DefaultPrinterName ?? "");
+        cmd.Parameters.AddWithValue("@paperWidth", settings.PaperWidth ?? "80mm");
+        cmd.Parameters.AddWithValue("@autoPrint", settings.AutoPrintReceipt ? 1 : 0);
+        cmd.Parameters.AddWithValue("@drawerPulse", settings.CashDrawerPulse ? 1 : 0);
+        cmd.Parameters.AddWithValue("@printLogo", settings.PrintHeaderLogo ? 1 : 0);
+        cmd.Parameters.AddWithValue("@encoding", settings.PrinterEncoding ?? "UTF-8");
+
         await cmd.ExecuteNonQueryAsync();
     }
 

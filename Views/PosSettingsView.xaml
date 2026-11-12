@@ -286,7 +286,12 @@
                             <ColumnDefinition Width="36"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
+                        <!-- Card 2 Grid Rows -->
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="28"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="28"/>
                             <RowDefinition Height="Auto"/>
@@ -494,7 +499,12 @@
                             <ColumnDefinition Width="36"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
+                        <!-- Card 2 Grid Rows -->
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="28"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="28"/>
                             <RowDefinition Height="Auto"/>
@@ -628,6 +638,80 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
+
+                        <!-- ========================================================= -->
+                        <!-- 11. HIDE CLOSING REGISTER (Editable)                      -->
+                        <!-- ========================================================= -->
+                        <StackPanel Grid.Row="6" Grid.Column="0" Orientation="Horizontal">
+                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
+                                      IsChecked="{Binding IsHideClosingRegisterEnabled, Mode=TwoWay}"/>
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Closing Register" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <TextBlock Text="Bypass closing cash control popup and close register directly from 3 dots. Automatically prints sales details receipt."
+                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+
+                                    <StackPanel Visibility="{Binding CustomSalesReceiptDetailsVisibility}">
+                                        <Grid Margin="0,2,20,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Custom Sales Receipt" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
+                                                       VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <ComboBox Grid.Column="1"
+                                                      Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                      ItemsSource="{Binding ReceiptDesigns}"
+                                                      SelectedItem="{Binding SelectedCustomSalesReceiptDesign, Mode=TwoWay}"
+                                                      DisplayMemberPath="Name"
+                                                      Height="36"/>
+                                        </Grid>
+                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}"
+                                                Command="{Binding OpenReceiptDesignsTabCommand}"
+                                                Content="→ Receipt Designs"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ========================================================= -->
+                        <!-- 12. HIDE REVIEW ORDERS (Editable)                         -->
+                        <!-- ========================================================= -->
+                        <StackPanel Grid.Row="6" Grid.Column="2" Orientation="Horizontal">
+                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
+                                      IsChecked="{Binding IsHideReviewOrdersEnabled, Mode=TwoWay}"/>
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                                <StackPanel>
+                                    <TextBlock Text="Hide Review Orders" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <TextBlock Text="Automatically list draft orders at closing register without showing blocking warning popup."
+                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ========================================================= -->
+                        <!-- 13. NUMBERS FIRST, OR PRODUCTS (Editable)                 -->
+                        <!-- ========================================================= -->
+                        <StackPanel Grid.Row="8" Grid.Column="0" Orientation="Horizontal">
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Margin="30,0,0,0" Width="440">
+                                <StackPanel>
+                                    <TextBlock Text="Numbers first, or products" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <TextBlock Text="Choose whether to select products first then quantity, or type quantity on numpad first then click product."
+                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <RadioButton Content="Products first"
+                                                     IsChecked="{Binding IsProductsFirst, Mode=TwoWay}"
+                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
+                                                     Margin="0,0,24,0" Cursor="Hand"/>
+                                        <RadioButton Content="Numbers first"
+                                                     IsChecked="{Binding IsNumbersFirst, Mode=TwoWay}"
+                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
+                                                     Cursor="Hand"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Grid>
                 </Border>
             </StackPanel>
@@ -712,6 +796,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -768,8 +853,19 @@
                                  Padding="10,7" BorderBrush="#D1D5DB" BorderThickness="0,0,0,1.5"/>
                     </StackPanel>
 
-                    <!-- Field 2: Open Cash Drawer Only? -->
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,18" VerticalAlignment="Center">
+                    <!-- Field 2: Company Information (Select Company) -->
+                    <StackPanel Grid.Row="2" Margin="0,0,0,18">
+                        <TextBlock Text="Company Information" FontSize="13.5" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,6"/>
+                        <ComboBox ItemsSource="{Binding AvailableCompanies}"
+                                  SelectedItem="{Binding SelectedDesignCompany, Mode=TwoWay}"
+                                  DisplayMemberPath="Name"
+                                  Style="{StaticResource OdooFilterComboBoxStyle}"
+                                  Height="36"
+                                  ToolTip="Select the company whose name, address, and phone will populate this receipt design."/>
+                    </StackPanel>
+
+                    <!-- Field 3: Open Cash Drawer Only? -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,18" VerticalAlignment="Center">
                         <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
                                   IsChecked="{Binding DesignEditorOpenCashDrawerOnly, Mode=TwoWay}"
                                   Margin="0,0,10,0"/>
@@ -780,8 +876,8 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- Field 3: Receipt XML -->
-                    <Grid Grid.Row="3">
+                    <!-- Field 4: Receipt XML -->
+                    <Grid Grid.Row="4">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>

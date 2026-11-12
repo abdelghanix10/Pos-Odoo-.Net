@@ -1150,7 +1150,7 @@
                                     <Button Command="{Binding DataContext.AddProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
                                             Width="{Binding DataContext.ProductCardWidth, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=163}"
-                                            Height="175"
+                                            Height="{Binding DataContext.ProductCardHeight, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=213}"
                                             Margin="4"
                                             Cursor="Hand"
                                             Background="Transparent"
@@ -1159,7 +1159,7 @@
                                             <ControlTemplate TargetType="Button">
                                                 <Grid x:Name="CardGrid">
                                                     <Grid.RowDefinitions>
-                                                        <RowDefinition Height="169"/>
+                                                        <RowDefinition Height="*"/>
                                                         <RowDefinition Height="6"/>
                                                     </Grid.RowDefinitions>
 
@@ -1175,18 +1175,19 @@
                                                             <!-- LAYOUT WITH IMAGE -->
                                                             <Grid Visibility="{Binding HasImage, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                                                                 <Grid.RowDefinitions>
-                                                                    <RowDefinition Height="125"/>
+                                                                    <RowDefinition Height="{Binding DataContext.ProductCardWidth, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=163}"/>
                                                                     <RowDefinition Height="44"/>
                                                                 </Grid.RowDefinitions>
 
-                                                                <!-- Row 0: Image -->
+                                                                <!-- Row 0: Square Image Area (Height == Width) -->
                                                                 <Border Grid.Row="0"
                                                                         Background="#E9ECEF"
                                                                         CornerRadius="5,5,0,0"
                                                                         ClipToBounds="True">
                                                                     <Grid>
                                                                         <Image Source="{Binding ImageBitmap}"
-                                                                               Stretch="UniformToFill"
+                                                                               Stretch="Uniform"
+                                                                               Margin="6"
                                                                                HorizontalAlignment="Center"
                                                                                VerticalAlignment="Center"/>
 

@@ -20,9 +20,9 @@ public partial class PosRegisterView : UserControl
         double available = e.NewSize.Width - 34.0; // Padding + scrollbar margin
         if (available <= 180.0) return;
 
-        int cols = Math.Max(2, (int)Math.Floor(available / 172.0));
+        int cols = Math.Max(2, (int)Math.Floor(available / 175.0));
         double cardWidth = Math.Floor((available / cols) - 8.5);
-        vm.ProductCardWidth = Math.Clamp(cardWidth, 145.0, 260.0);
+        vm.ProductCardWidth = Math.Clamp(cardWidth, 140.0, 240.0);
     }
 
     private void PosRegisterView_PreviewKeyDown(object sender, KeyEventArgs e)

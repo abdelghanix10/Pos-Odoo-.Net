@@ -309,7 +309,8 @@ public record CloseSessionSyncPayload(
     decimal ClosingCashCount,
     string? ClosingNote,
     DateTime ClosedAt,
-    decimal OpeningBalance = 0m
+    decimal OpeningBalance = 0m,
+    DateTime? OpenedAt = null
 );
 
 public class SqliteDatabaseService
@@ -4091,12 +4092,13 @@ public class SqliteDatabaseService
         long? localSessId = null;
         int? odooSessId = null;
         decimal openingBalance = 0m;
+        DateTime? startAt = null;
 
         await using (var findCmd = connection.CreateCommand())
         {
             findCmd.Transaction = transaction;
             findCmd.CommandText = """
-                SELECT Id, OdooId, COALESCE(OpeningBalance, 0.0) FROM PosSessions
+                SELECT Id, OdooId, COALESCE(OpeningBalance, 0.0), StartAt FROM PosSessions
                 WHERE (PosConfigId = @cfgId AND LOWER(COALESCE(State, 'opened')) != 'closed')
                    OR Id = @sessId
                    OR OdooId = @sessId
@@ -4111,6 +4113,10 @@ public class SqliteDatabaseService
                 localSessId = r.GetInt64(0);
                 if (!r.IsDBNull(1)) odooSessId = r.GetInt32(1);
                 openingBalance = Convert.ToDecimal(r.GetDouble(2));
+                if (!r.IsDBNull(3))
+                {
+                    if (DateTime.TryParse(r.GetString(3), out var dt)) startAt = dt;
+                }
             }
         }
 
@@ -4197,7 +4203,8 @@ public class SqliteDatabaseService
                 closingBalance,
                 closingNote,
                 DateTime.Now,
-                openingBalance
+                openingBalance,
+                startAt
             );
 
             await EnqueueSyncItemInternalAsync(

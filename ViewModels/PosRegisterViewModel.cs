@@ -312,6 +312,13 @@ public partial class PosRegisterViewModel : ViewModelBase
     [ObservableProperty]
     private double _productCardWidth = 172.0;
 
+    public double ProductCardHeight => ProductCardWidth + 50.0;
+
+    partial void OnProductCardWidthChanged(double value)
+    {
+        OnPropertyChanged(nameof(ProductCardHeight));
+    }
+
     [ObservableProperty]
     private PosCategoryRecord? _selectedCategory;
 
@@ -978,7 +985,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 config.Name,
                 config.ActiveUserId,
                 CashierName,
-                enqueueForOdooSync: false
+                enqueueForOdooSync: true
             );
 
             if (resolvedSessOdooId.HasValue)

@@ -800,35 +800,91 @@ public class OdooSyncService
                 var el = arr[0];
                 odooSessionName = GetStringOrDefault(el, "name");
 
-                if (payload.OpeningBalance > 0m && el.TryGetProperty("bank_statement_id", out var bVal))
+                int stmtId = 0;
+                if (el.TryGetProperty("bank_statement_id", out var bVal))
                 {
-                    int stmtId = 0;
                     if (bVal.ValueKind == JsonValueKind.Array && bVal.GetArrayLength() > 0)
                         stmtId = bVal[0].GetInt32();
                     else if (bVal.ValueKind == JsonValueKind.Number)
                         stmtId = bVal.GetInt32();
-
-                    if (stmtId > 0)
-                    {
-                        try
-                        {
-                            using var _ = await ExecuteKwAsync(
-                                config,
-                                uid,
-                                "account.bank.statement",
-                                "write",
-                                [
-                                    new[] { stmtId },
-                                    new Dictionary<string, object>
-                                    {
-                                        ["balance_start"] = (double)payload.OpeningBalance
-                                    }
-                                ]
-                            );
-                        }
-                        catch { }
-                    }
                 }
+
+                if (stmtId == 0)
+                {
+                    try
+                    {
+                        using var _ = await ExecuteKwAsync(
+                            config,
+                            uid,
+                            "pos.session",
+                            "action_pos_session_open",
+                            [new[] { odooSessionId }]
+                        );
+                        using var sessDoc2 = await SearchReadAsync(
+                            config,
+                            uid,
+                            "pos.session",
+                            [new object[] { "id", "=", odooSessionId }],
+                            ["id", "bank_statement_id"]
+                        );
+                        if (sessDoc2.RootElement.TryGetProperty("result", out var arr2) &&
+                            arr2.ValueKind == JsonValueKind.Array &&
+                            arr2.GetArrayLength() > 0)
+                        {
+                            var el2 = arr2[0];
+                            if (el2.TryGetProperty("bank_statement_id", out var bVal2))
+                            {
+                                if (bVal2.ValueKind == JsonValueKind.Array && bVal2.GetArrayLength() > 0)
+                                    stmtId = bVal2[0].GetInt32();
+                                else if (bVal2.ValueKind == JsonValueKind.Number)
+                                    stmtId = bVal2.GetInt32();
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                if (stmtId > 0)
+                {
+                    try
+                    {
+                        using var _ = await ExecuteKwAsync(
+                            config,
+                            uid,
+                            "account.bank.statement",
+                            "write",
+                            [
+                                new[] { stmtId },
+                                new Dictionary<string, object>
+                                {
+                                    ["balance_start"] = (double)payload.OpeningBalance
+                                }
+                            ]
+                        );
+                    }
+                    catch { }
+                }
+
+                // Write start_at (Opening Date) and opening notes directly to pos.session
+                try
+                {
+                    var sessVals = new Dictionary<string, object>
+                    {
+                        ["start_at"] = payload.OpenedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                    };
+                    if (!string.IsNullOrWhiteSpace(payload.OpeningNote))
+                    {
+                        sessVals["opening_notes"] = payload.OpeningNote;
+                    }
+                    using var _ = await ExecuteKwAsync(
+                        config,
+                        uid,
+                        "pos.session",
+                        "write",
+                        [new[] { odooSessionId }, sessVals]
+                    );
+                }
+                catch { }
             }
         }
         catch { }
@@ -1035,6 +1091,31 @@ public class OdooSyncService
                         }
                         catch { }
                     }
+
+                    try
+                    {
+                        using var sDoc = await SearchReadAsync(config, uid, "pos.session", [new object[] { "id", "=", activeSessionId }], ["id", "bank_statement_id"]);
+                        if (sDoc.RootElement.TryGetProperty("result", out var bArr) && bArr.ValueKind == JsonValueKind.Array && bArr.GetArrayLength() > 0)
+                        {
+                            var sEl = bArr[0];
+                            int stId = 0;
+                            if (sEl.TryGetProperty("bank_statement_id", out var bVal))
+                            {
+                                if (bVal.ValueKind == JsonValueKind.Array && bVal.GetArrayLength() > 0)
+                                    stId = bVal[0].GetInt32();
+                                else if (bVal.ValueKind == JsonValueKind.Number)
+                                    stId = bVal.GetInt32();
+                            }
+                            if (stId > 0)
+                            {
+                                using var _ = await ExecuteKwAsync(
+                                    config, uid, "account.bank.statement", "write",
+                                    [new[] { stId }, new Dictionary<string, object> { ["balance_start"] = (double)openBal }]
+                                );
+                            }
+                        }
+                    }
+                    catch { }
                 }
             }
         }
@@ -1518,12 +1599,9 @@ public class OdooSyncService
                 {
                     var stmtVals = new Dictionary<string, object>
                     {
+                        ["balance_start"] = (double)payload.OpeningBalance,
                         ["balance_end_real"] = (double)payload.ClosingCashCount
                     };
-                    if (payload.OpeningBalance > 0m)
-                    {
-                        stmtVals["balance_start"] = (double)payload.OpeningBalance;
-                    }
 
                     using var _ = await ExecuteKwAsync(
                         config,
@@ -1539,6 +1617,27 @@ public class OdooSyncService
         {
             System.Diagnostics.Debug.WriteLine($"[PushCloseSession] Could not write bank_statement_id balance: {ex.Message}");
         }
+
+        // 3b. Update start_at (Opening Date) and stop_at (Closing Date) on pos.session
+        try
+        {
+            var sessVals = new Dictionary<string, object>
+            {
+                ["stop_at"] = payload.ClosedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
+            };
+            if (payload.OpenedAt.HasValue)
+            {
+                sessVals["start_at"] = payload.OpenedAt.Value.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            using var _ = await ExecuteKwAsync(
+                config,
+                uid,
+                "pos.session",
+                "write",
+                [new[] { targetSessionId }, sessVals]
+            );
+        }
+        catch { }
 
         try
         {
@@ -1702,7 +1801,7 @@ public class OdooSyncService
                         new Dictionary<string, object>
                         {
                             ["state"] = "closed",
-                            ["stop_at"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+                            ["stop_at"] = payload.ClosedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
                         }
                     ]
                 );
@@ -2496,6 +2595,7 @@ public class OdooSyncService
 
         var fields = await FilterValidFieldsAsync(config, uid, "pos.session",
             "id", "name", "config_id", "user_id", "start_at", "stop_at", "state",
+            "opening_balance", "closing_balance",
             "cash_register_balance_start", "cash_register_balance_end_real",
             "order_count", "total_payments_amount");
 
@@ -2513,8 +2613,12 @@ public class OdooSyncService
                 DateTime? startAt = GetDateTimeOrNull(item, "start_at");
                 DateTime? stopAt = GetDateTimeOrNull(item, "stop_at");
                 string state = GetStringOrDefault(item, "state", "opened");
-                decimal openBal = GetDecimalOrDefault(item, "cash_register_balance_start");
-                decimal closeBal = GetDecimalOrDefault(item, "cash_register_balance_end_real");
+                decimal openBal = item.TryGetProperty("opening_balance", out _)
+                    ? GetDecimalOrDefault(item, "opening_balance")
+                    : GetDecimalOrDefault(item, "cash_register_balance_start");
+                decimal closeBal = item.TryGetProperty("closing_balance", out _)
+                    ? GetDecimalOrDefault(item, "closing_balance")
+                    : GetDecimalOrDefault(item, "cash_register_balance_end_real");
                 int ordersCount = GetIntOrDefault(item, "order_count");
                 decimal totalPayments = GetDecimalOrDefault(item, "total_payments_amount");
 

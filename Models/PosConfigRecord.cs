@@ -76,6 +76,7 @@ public class PosConfigRecord : INotifyPropertyChanged
     private long? _customSalesReceiptDesignId = null;
     private bool _isHideReviewOrdersEnabled = false;
     private string _numbersFirstOrProducts = "products"; // "products" or "numbers"
+    private string _posLayout = "standard"; // "standard" or "split"
 
     public string SelectedPaymentMethodsCsv
     {
@@ -251,6 +252,25 @@ public class PosConfigRecord : INotifyPropertyChanged
     }
 
     public bool IsNumbersFirst => string.Equals(_numbersFirstOrProducts, "numbers", StringComparison.OrdinalIgnoreCase);
+
+    public string PosLayout
+    {
+        get => _posLayout;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "standard" : value.Trim().ToLowerInvariant();
+            if (_posLayout != normalized)
+            {
+                _posLayout = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsStandardLayout));
+                OnPropertyChanged(nameof(IsSplitLayout));
+            }
+        }
+    }
+
+    public bool IsStandardLayout => !IsSplitLayout;
+    public bool IsSplitLayout => string.Equals(_posLayout, "split", StringComparison.OrdinalIgnoreCase);
 
     public ObservableCollection<SparklineDataPoint> SparklinePoints { get; } = [];
 

@@ -902,6 +902,8 @@
             <!-- =================================================================== -->
             <Grid Grid.Row="1"
                   Visibility="{Binding IsRegisterViewActive, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                <!-- OPTION A: STANDARD ODOO LAYOUT (Left Cart / Right Products) -->
+                <Grid Visibility="{Binding IsStandardPosLayout, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="450" MaxWidth="450"/>
                     <ColumnDefinition Width="*"/>
@@ -1321,6 +1323,366 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
+                </Grid>
+                </Grid>
+
+                <!-- =============================================================== -->
+                <!-- OPTION B: SPLIT 4-QUADRANT LAYOUT                               -->
+                <!-- Top-Left: Order Items & Total | Top-Right: Numpad & Payment     -->
+                <!-- Bottom-Left: Category column  | Bottom-Right: Products grid     -->
+                <!-- =============================================================== -->
+                <Grid Background="{StaticResource AppBgBrush}"
+                      Visibility="{Binding IsSplitPosLayout, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="330" MinHeight="290"/>
+                        <RowDefinition Height="1"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- TOP HALF: ORDER LIST (LEFT) + NUMPAD (RIGHT) -->
+                    <Grid Grid.Row="0" Background="#FFFFFF">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="1"/>
+                            <ColumnDefinition Width="380"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- TOP-LEFT: ORDER ITEMS TABLE + TOTAL FOOTER -->
+                        <Grid Grid.Column="0" Background="#FFFFFF">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="38"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="54"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Background="#F8F9FA" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,0,0,1" Padding="16,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2.6*"/>
+                                        <ColumnDefinition Width="1.1*"/>
+                                        <ColumnDefinition Width="1.0*"/>
+                                        <ColumnDefinition Width="1.2*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Item" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="Price" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="2" Text="Units" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="Total" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </Border>
+
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding CurrentOrder.CartItems}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:PosCartItem}">
+                                            <Button Command="{Binding DataContext.SelectCartLineCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}" Cursor="Hand" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border x:Name="SplitLineBdr" Padding="16,10" Background="#FFFFFF" BorderBrush="#F1F3F5" BorderThickness="0,0,0,1">
+                                                            <StackPanel>
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="2.6*"/>
+                                                                        <ColumnDefinition Width="1.1*"/>
+                                                                        <ColumnDefinition Width="1.0*"/>
+                                                                        <ColumnDefinition Width="1.2*"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock Grid.Column="0" Text="{Binding ProductName}" FontSize="14.5" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="1" Text="{Binding UnitPrice, StringFormat='$ {0:N2}'}" FontSize="14" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                                    <Border Grid.Column="2" Background="#F3F4F6" CornerRadius="4" Padding="10,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding QuantityDisplay}" FontWeight="Bold" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                    </Border>
+                                                                    <TextBlock Grid.Column="3" Text="{Binding LineTotalDisplay}" FontWeight="Bold" FontSize="14.5" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                                </Grid>
+                                                                <TextBlock Text="{Binding CustomerNote}" FontSize="12" FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3,0,0"
+                                                                           Visibility="{Binding HasCustomerNote, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter TargetName="SplitLineBdr" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                                                            </DataTrigger>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="SplitLineBdr" Property="Background" Value="#F8F9FA"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <Border Grid.Row="2" Background="#F8F9FA" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,1,0,0" Padding="16,0">
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Taxes: " FontSize="13.5" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding CurrentOrder.TaxesDisplay}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,18,0"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBlock Text="Total" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                        <Border Background="#FFFFFF" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1" CornerRadius="4" MinWidth="150" Height="38" Padding="14,0">
+                                            <TextBlock Text="{Binding CurrentOrder.TotalDisplay}" FontSize="19" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <Border Grid.Column="1" Background="{StaticResource BorderLightBrush}"/>
+
+                        <!-- TOP-RIGHT: NUMPAD + PAYMENT BUTTONS -->
+                        <Grid Grid.Column="2" Background="#FFFFFF" Margin="8,6,8,6">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="54"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Background="#F3F0F8" BorderBrush="#DDDBE8" BorderThickness="1,1,1,0" CornerRadius="4,4,0,0" Padding="10,4"
+                                    Visibility="{Binding CurrentConfig.IsNumbersFirst, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Next Qty:" FontSize="12" FontWeight="SemiBold" Foreground="#71639E" VerticalAlignment="Center"/>
+                                        <Button Content="⌫" Style="{StaticResource NumpadHeaderChipStyle}" Command="{Binding NumpadPendingBackspaceCommand}"/>
+                                        <Button Content="Delete" Style="{StaticResource NumpadHeaderChipStyle}" Command="{Binding NumpadPendingDeleteCommand}"/>
+                                    </StackPanel>
+                                    <Border HorizontalAlignment="Right" Background="#71639E" CornerRadius="4" Padding="8,1">
+                                        <TextBlock Text="{Binding NumbersFirstDisplayText}" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Row="1" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="4" Margin="0,0,0,6" ClipToBounds="True">
+                                <Grid Background="{StaticResource BorderLightBrush}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="1"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="1"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="1"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="1"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="1"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="1"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button Grid.Row="0" Grid.Column="0" Content="1" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="1"/>
+                                    <Button Grid.Row="0" Grid.Column="2" Content="2" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="2"/>
+                                    <Button Grid.Row="0" Grid.Column="4" Content="3" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="3"/>
+                                    <Button Grid.Row="0" Grid.Column="6" Content="Qty" Style="{StaticResource NumpadQtyButtonStyle}" Command="{Binding SetNumpadModeCommand}" CommandParameter="Qty"/>
+                                    <Button Grid.Row="2" Grid.Column="0" Content="4" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="4"/>
+                                    <Button Grid.Row="2" Grid.Column="2" Content="5" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="5"/>
+                                    <Button Grid.Row="2" Grid.Column="4" Content="6" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="6"/>
+                                    <Button Grid.Row="2" Grid.Column="6" Content="+" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="+" FontSize="22" FontWeight="SemiBold"/>
+                                    <Button Grid.Row="4" Grid.Column="0" Content="7" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="7"/>
+                                    <Button Grid.Row="4" Grid.Column="2" Content="8" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="8"/>
+                                    <Button Grid.Row="4" Grid.Column="4" Content="9" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="9"/>
+                                    <Button Grid.Row="4" Grid.Column="6" Content="-" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="-" FontSize="24" FontWeight="SemiBold"/>
+                                    <Button Grid.Row="6" Grid.Column="0" Content="Delete" Style="{StaticResource NumpadAmberButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="Delete" FontSize="13.5" FontWeight="SemiBold"/>
+                                    <Button Grid.Row="6" Grid.Column="2" Content="0" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="0"/>
+                                    <Button Grid.Row="6" Grid.Column="4" Content="." Style="{StaticResource NumpadPeachButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="."/>
+                                    <Button Grid.Row="6" Grid.Column="6" Style="{StaticResource NumpadCoralButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="⌫">
+                                        <Viewbox Width="20" Height="20">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Data="M 21,6 H 9 L 3,12 L 9,18 H 21 Z M 12,9 L 17,15 M 17,9 L 12,15" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.8" StrokeLineJoin="Round" Fill="Transparent"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <Grid Grid.Row="2" Height="54">
+                                <Button Content="Payment" Command="{Binding OpenPaymentViewCommand}" IsEnabled="{Binding HasCurrentOrderItems}" Style="{StaticResource PosPrimaryButtonStyle}" Height="54" FontSize="16.5" FontWeight="Bold"
+                                        Visibility="{Binding IsOneClickPaymentVisible, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}"/>
+                                <Grid Visibility="{Binding IsOneClickPaymentVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="Payment" Command="{Binding OpenPaymentViewCommand}" IsEnabled="{Binding HasCurrentOrderItems}" Style="{StaticResource PosPrimaryButtonStyle}" Height="54" FontSize="16.5" FontWeight="Bold"/>
+                                    <Button Grid.Column="2" Content="{Binding OneClickPaymentButtonLabel}" Command="{Binding OneClickPayCommand}" IsEnabled="{Binding HasCurrentOrderItems}" Height="54" Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="OneClickBdr" Background="#EAECEF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6">
+                                                    <TextBlock Text="{TemplateBinding Content}" FontSize="16.5" FontWeight="SemiBold" Foreground="#111827" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="OneClickBdr" Property="Background" Value="#DEE2E6"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter TargetName="OneClickBdr" Property="Opacity" Value="0.55"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+
+                    <Border Grid.Row="1" Background="{StaticResource BorderMidBrush}"/>
+
+                    <!-- BOTTOM HALF: CATEGORIES COLUMN (LEFT) + PRODUCTS (RIGHT) -->
+                    <Grid Grid.Row="2" Background="{StaticResource AppBgBrush}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="225"/>
+                            <ColumnDefinition Width="1"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Background="#FFFFFF">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="8">
+                                <StackPanel>
+                                    <Button Command="{Binding SelectAllCategoriesCommand}" Height="54" Margin="0,0,0,6" Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="AllCatBdr" Background="#E9ECEF" CornerRadius="6" Padding="12,0" BorderThickness="0">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Viewbox Width="18" Height="18" Margin="0,0,10,0">
+                                                            <Canvas Width="24" Height="24">
+                                                                <Rectangle Canvas.Left="3" Canvas.Top="4" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#495057"/>
+                                                                <Rectangle Canvas.Left="13" Canvas.Top="4" Width="8" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#495057"/>
+                                                                <Rectangle Canvas.Left="3" Canvas.Top="14" Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#495057"/>
+                                                                <Rectangle Canvas.Left="13" Canvas.Top="14" Width="8" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#495057"/>
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                        <TextBlock Text="All Categories" FontSize="14" FontWeight="Bold" Foreground="#212529" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsAllCategoriesSelected}" Value="True">
+                                                        <Setter TargetName="AllCatBdr" Property="BorderThickness" Value="2"/>
+                                                        <Setter TargetName="AllCatBdr" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
+                                                        <Setter TargetName="AllCatBdr" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                                                    </DataTrigger>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="AllCatBdr" Property="Opacity" Value="0.9"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+
+                                    <ItemsControl ItemsSource="{Binding Categories}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Vertical"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type local:PosCategoryRecord}">
+                                                <Button Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}" Height="54" Margin="0,0,0,6" Cursor="Hand">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="CatBdr" Background="{Binding CategoryButtonBgBrush}" CornerRadius="6" Padding="12,4" BorderThickness="0" Opacity="0.82">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Border Grid.Column="0" Width="8" Height="26" CornerRadius="3" Background="{Binding ColorBrush}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="14" FontWeight="Bold" Foreground="{Binding CategoryButtonFgBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                                </Grid>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter TargetName="CatBdr" Property="BorderThickness" Value="2"/>
+                                                                    <Setter TargetName="CatBdr" Property="BorderBrush" Value="{Binding CategoryActiveBorderBrush}"/>
+                                                                    <Setter TargetName="CatBdr" Property="Opacity" Value="1.0"/>
+                                                                </DataTrigger>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="CatBdr" Property="Opacity" Value="0.95"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+
+                        <Border Grid.Column="1" Background="{StaticResource BorderLightBrush}"/>
+
+                        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" SizeChanged="ProductsScrollViewer_SizeChanged" Padding="8">
+                            <ItemsControl ItemsSource="{Binding FilteredProducts}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:ProductRecord}">
+                                        <Button Command="{Binding DataContext.AddProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Width="{Binding DataContext.ProductCardWidth, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=163}"
+                                                Height="{Binding DataContext.ProductCardHeight, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=213}"
+                                                Margin="4" Cursor="Hand" Background="Transparent" BorderThickness="0">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Grid x:Name="CardGrid">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="*"/>
+                                                            <RowDefinition Height="6"/>
+                                                        </Grid.RowDefinitions>
+                                                        <Border Grid.Row="0" x:Name="CardBdr" Background="#FFFFFF" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1,1,1,0" CornerRadius="6,6,0,0" ClipToBounds="True">
+                                                            <Grid>
+                                                                <Grid Visibility="{Binding HasImage, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="{Binding DataContext.ProductCardWidth, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=163}"/>
+                                                                        <RowDefinition Height="44"/>
+                                                                    </Grid.RowDefinitions>
+                                                                    <Border Grid.Row="0" Background="#E9ECEF" CornerRadius="5,5,0,0" ClipToBounds="True">
+                                                                        <Grid>
+                                                                            <Image Source="{Binding ImageBitmap}" Stretch="Uniform" Margin="6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="#000000" CornerRadius="4" MinWidth="22" Height="22" Padding="6,2" Margin="0,0,6,6"
+                                                                                    Visibility="{Binding HasCartQuantity, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                                                <TextBlock Text="{Binding CartQuantity}" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                            </Border>
+                                                                        </Grid>
+                                                                    </Border>
+                                                                    <Border Grid.Row="1" Background="#FFFFFF" Padding="8,4">
+                                                                        <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                                                    </Border>
+                                                                </Grid>
+                                                                <Border Visibility="{Binding HasImage, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}" Background="#FFFFFF" Padding="10">
+                                                                    <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Normal" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"/>
+                                                                </Border>
+                                                            </Grid>
+                                                        </Border>
+                                                        <Border Grid.Row="1" Background="{Binding CategoryColorBrush}" CornerRadius="0,0,6,6"/>
+                                                    </Grid>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="CardBdr" Property="BorderBrush" Value="#9CA3AF"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="CardGrid" Property="Opacity" Value="0.88"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
                 </Grid>
             </Grid>
 

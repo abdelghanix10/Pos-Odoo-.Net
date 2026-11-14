@@ -61,6 +61,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
     // 13. Numbers first, or products
     private string _numbersFirstOrProducts = "products";
+    private string _posLayout = "standard";
 
     // Receipt Designs Editor
     private ReceiptDesignRecord? _editingReceiptDesign;
@@ -634,6 +635,35 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         set { if (value) NumbersFirstOrProducts = "numbers"; }
     }
 
+    public string PosLayout
+    {
+        get => _posLayout;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "standard" : value.Trim().ToLowerInvariant();
+            if (_posLayout != normalized)
+            {
+                _posLayout = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsStandardLayoutSelected));
+                OnPropertyChanged(nameof(IsSplitLayoutSelected));
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
+    public bool IsStandardLayoutSelected
+    {
+        get => !string.Equals(_posLayout, "split", StringComparison.OrdinalIgnoreCase);
+        set { if (value) PosLayout = "standard"; }
+    }
+
+    public bool IsSplitLayoutSelected
+    {
+        get => string.Equals(_posLayout, "split", StringComparison.OrdinalIgnoreCase);
+        set { if (value) PosLayout = "split"; }
+    }
+
     // =========================================================================
     // RECEIPT DESIGNS EDITOR PROPERTIES
     // =========================================================================
@@ -857,6 +887,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
             IsHideReviewOrdersEnabled = config.IsHideReviewOrdersEnabled;
             NumbersFirstOrProducts = string.IsNullOrWhiteSpace(config.NumbersFirstOrProducts) ? "products" : config.NumbersFirstOrProducts;
+            PosLayout = string.IsNullOrWhiteSpace(config.PosLayout) ? "standard" : config.PosLayout;
         }
         finally
         {
@@ -919,6 +950,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         _selectedConfig.CustomSalesReceiptDesignId = SelectedCustomSalesReceiptDesign?.Id;
         _selectedConfig.IsHideReviewOrdersEnabled = IsHideReviewOrdersEnabled;
         _selectedConfig.NumbersFirstOrProducts = NumbersFirstOrProducts;
+        _selectedConfig.PosLayout = PosLayout;
 
         await SqliteDatabaseService.Instance.SavePosConfigSettingsAsync(_selectedConfig);
         SettingsSaved?.Invoke();

@@ -143,6 +143,8 @@ public partial class PosRegisterViewModel : ViewModelBase
 
     partial void OnCurrentConfigChanged(PosConfigRecord? value)
     {
+        OnPropertyChanged(nameof(IsSplitPosLayout));
+        OnPropertyChanged(nameof(IsStandardPosLayout));
         UpdateLandingState();
         if (IsRegisterClosedForLanding)
         {
@@ -693,6 +695,10 @@ public partial class PosRegisterViewModel : ViewModelBase
     public bool IsPrintButtonVisible =>
         CurrentConfig == null || CurrentConfig.IsPrintButtonEnabled;
 
+    public bool IsSplitPosLayout => CurrentConfig?.IsSplitLayout == true;
+    public bool IsStandardPosLayout => !IsSplitPosLayout;
+    public bool IsAllCategoriesSelected => SelectedCategory == null;
+
     // ==================== MODAL 6: PRODUCT VARIANT SELECTION POPUP ====================
     [ObservableProperty]
     private bool _isVariantPopupOpen;
@@ -886,6 +892,9 @@ public partial class PosRegisterViewModel : ViewModelBase
         OnPropertyChanged(nameof(OneClickPaymentButtonLabel));
         OnPropertyChanged(nameof(IsPrintLastReceiptVisible));
         OnPropertyChanged(nameof(IsPrintButtonVisible));
+        OnPropertyChanged(nameof(IsSplitPosLayout));
+        OnPropertyChanged(nameof(IsStandardPosLayout));
+        OnPropertyChanged(nameof(IsAllCategoriesSelected));
     }
 
     private void ScheduleDraftPersistence(PosDraftOrder? draft)
@@ -970,6 +979,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 config.DefaultOpeningCashAmount = fresh.DefaultOpeningCashAmount;
                 config.IsSecondReceiptEnabled = fresh.IsSecondReceiptEnabled;
                 config.SecondReceiptDesignId = fresh.SecondReceiptDesignId;
+                config.PosLayout = fresh.PosLayout;
             }
         }
         catch { }
@@ -2268,6 +2278,18 @@ public partial class PosRegisterViewModel : ViewModelBase
     // CATALOG & CATEGORY FILTERING
     // =========================================================================
     [RelayCommand]
+    public void SelectAllCategories()
+    {
+        SelectedCategory = null;
+        foreach (var c in Categories)
+        {
+            c.IsSelected = false;
+        }
+        OnPropertyChanged(nameof(IsAllCategoriesSelected));
+        FilterProducts();
+    }
+
+    [RelayCommand]
     public void SelectCategory(PosCategoryRecord? category)
     {
         if (SelectedCategory == category)
@@ -2280,6 +2302,7 @@ public partial class PosRegisterViewModel : ViewModelBase
             c.IsSelected = (c == SelectedCategory);
         }
 
+        OnPropertyChanged(nameof(IsAllCategoriesSelected));
         FilterProducts();
     }
 

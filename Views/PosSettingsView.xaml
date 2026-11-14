@@ -747,6 +747,30 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
+
+                        <!-- ========================================================= -->
+                        <!-- 14. POS REGISTER LAYOUT (Editable)                        -->
+                        <!-- ========================================================= -->
+                        <StackPanel Grid.Row="8" Grid.Column="2" Orientation="Horizontal">
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Margin="30,0,0,0" Width="440">
+                                <StackPanel>
+                                    <TextBlock Text="POS Register Layout" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <TextBlock Text="Choose between the standard Odoo layout or the split 4-quadrant layout (Order top-left, Numpad top-right, Categories bottom-left, Products bottom-right)."
+                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+
+                                    <StackPanel Orientation="Vertical" Margin="0,4,0,0">
+                                        <RadioButton Content="Standard Layout (Left Cart / Right Products)"
+                                                     IsChecked="{Binding IsStandardLayoutSelected, Mode=TwoWay}"
+                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
+                                                     Margin="0,0,0,8" Cursor="Hand"/>
+                                        <RadioButton Content="Split Layout (Top Order &amp; Numpad / Bottom Categories &amp; Products)"
+                                                     IsChecked="{Binding IsSplitLayoutSelected, Mode=TwoWay}"
+                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
+                                                     Cursor="Hand"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Grid>
                 </Border>
             </StackPanel>

@@ -912,6 +912,7 @@
                         <Button x:Name="TabGeneralSettings" Style="{StaticResource OdooActiveTabButtonStyle}" Content="General Settings" Click="TabButton_Click" Tag="GeneralSettings"/>
                         <Button x:Name="TabOdooSync" Style="{StaticResource OdooInactiveTabButtonStyle}" Content="Odoo Connection &amp; Sync" Click="TabButton_Click" Tag="OdooSync"/>
                         <Button x:Name="TabPrinter" Style="{StaticResource OdooInactiveTabButtonStyle}" Content="Printer" Click="TabButton_Click" Tag="Printer"/>
+                        <Button x:Name="TabBackup" Style="{StaticResource OdooInactiveTabButtonStyle}" Content="Backup" Click="TabButton_Click" Tag="Backup"/>
                     </StackPanel>
                 </Border>
 
@@ -1853,6 +1854,309 @@
                                     <TextBlock Text="Print Test Receipt" FontSize="13.5"/>
                                 </Button>
                             </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- 4. BACKUP TAB -->
+                    <ScrollViewer x:Name="BackupSettingsScrollViewer"
+                                  Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="28,22,28,32">
+                        <StackPanel MaxWidth="900" HorizontalAlignment="Left">
+                            <!-- CARD 1: BACKUP FOLDER LOCATION -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="24,20"
+                                    Margin="0,0,0,20"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                        <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,12,0">
+                                            <Viewbox Width="20" Height="20">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M 3,6 C 3,4.9 3.9,4 5,4 H 10 L 12,6 H 19 C 20.1,6 21,6.9 21,8 V 18 C 21,19.1 20.1,20 19,20 H 5 C 3.9,20 3,19.1 3,18 V 6 Z"
+                                                          Stroke="{StaticResource OdooPurpleBrush}"
+                                                          StrokeThickness="2"
+                                                          Fill="{StaticResource OdooPurpleSoftBrush}"
+                                                          StrokeLineJoin="Round"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Backup Folder Location" FontSize="16" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Choose the directory where local POS database backups (.db) will be stored." FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderLightBrush}" Margin="0,0,0,16"/>
+
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Folder Location" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Local or network folder path" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+
+                                        <Border Grid.Column="1" Style="{StaticResource SettingsInputBoxStyle}" MinWidth="340" Margin="0,0,10,0">
+                                            <TextBox x:Name="BackupFolderPathTextBox"
+                                                     VerticalAlignment="Center"
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     FontSize="13"
+                                                     Foreground="{StaticResource PrimaryTextBrush}"/>
+                                        </Border>
+
+                                        <Button Grid.Column="2"
+                                                x:Name="BrowseBackupFolderBtn"
+                                                Style="{StaticResource OdooTealActionButtonStyle}"
+                                                Height="40"
+                                                Padding="14,0"
+                                                Margin="0,0,8,0"
+                                                Click="BrowseBackupFolderBtn_Click">
+                                            <TextBlock Text="Browse..."/>
+                                        </Button>
+
+                                        <Button Grid.Column="3"
+                                                x:Name="OpenBackupFolderBtn"
+                                                Style="{StaticResource OdooOutlineButtonStyle}"
+                                                Height="40"
+                                                Padding="14,0"
+                                                Click="OpenBackupFolderBtn_Click"
+                                                ToolTip="Open Backup Folder in File Explorer">
+                                            <TextBlock Text="Open Folder"/>
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- CARD 2: AUTOMATIC BACKUP SCHEDULE (DAILY OR WEEKLY) -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="24,20"
+                                    Margin="0,0,0,20"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                        <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource OdooTealSoftBrush}" Margin="0,0,12,0">
+                                            <Viewbox Width="20" Height="20">
+                                                <Canvas Width="24" Height="24">
+                                                    <Ellipse Canvas.Left="3" Canvas.Top="3" Width="18" Height="18" Stroke="{StaticResource OdooTealBrush}" StrokeThickness="2"/>
+                                                    <Path Data="M 12,7 V 12 L 15.5,14" Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Automatic Backup Schedule" FontSize="16" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Automatically back up your local SQLite POS database on a daily or weekly schedule." FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderLightBrush}" Margin="0,0,0,16"/>
+
+                                    <CheckBox x:Name="AutoBackupEnabledCheckBox"
+                                              Content="Enable Automatic Scheduled Backups"
+                                              FontSize="13.5"
+                                              FontWeight="SemiBold"
+                                              Foreground="{StaticResource PrimaryTextBrush}"
+                                              Margin="0,0,0,18"/>
+
+                                    <Grid Margin="0,0,0,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Backup Frequency" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="How often backups run" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+
+                                        <ComboBox x:Name="BackupFrequencyComboBox"
+                                                  Grid.Column="1"
+                                                  Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                  Height="38"
+                                                  Width="280"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalContentAlignment="Center"
+                                                  FontSize="13.5"
+                                                  Padding="12,0">
+                                            <ComboBoxItem Content="Daily" IsSelected="True"/>
+                                            <ComboBoxItem Content="Weekly"/>
+                                        </ComboBox>
+                                    </Grid>
+
+                                    <!-- Scheduled Time (HH:mm) -->
+                                    <Grid Margin="0,0,0,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Scheduled Time" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Time of day to run backup (24h)" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ComboBox x:Name="BackupHourComboBox"
+                                                      Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                      Height="38"
+                                                      Width="95"
+                                                      VerticalContentAlignment="Center"
+                                                      FontSize="13.5"/>
+                                            <TextBlock Text=":"
+                                                       FontSize="18"
+                                                       FontWeight="Bold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0"/>
+                                            <ComboBox x:Name="BackupMinuteComboBox"
+                                                      Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                      Height="38"
+                                                      Width="95"
+                                                      VerticalContentAlignment="Center"
+                                                      FontSize="13.5"/>
+                                            <TextBlock Text="(HH : mm)"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="12,0,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <Border Background="#F9FAFB"
+                                            BorderBrush="{StaticResource SubtleBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="16,12"
+                                            Margin="0,4,0,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="LAST BACKUP" FontSize="11" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,3"/>
+                                                <TextBlock x:Name="LastBackupStatusText" Text="Never" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="NEXT SCHEDULED BACKUP" FontSize="11" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,3"/>
+                                                <TextBlock x:Name="NextBackupStatusText" Text="Not Scheduled" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource OdooTealBrush}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- SAVE & BACKUP NOW BUTTONS -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button x:Name="SaveBackupSettingsBtn"
+                                                Style="{StaticResource OdooPrimaryActionButtonStyle}"
+                                                Width="190"
+                                                Height="40"
+                                                Margin="0,0,14,0"
+                                                Click="SaveBackupSettingsBtn_Click">
+                                            <TextBlock Text="Save Backup Settings" FontSize="13.5"/>
+                                        </Button>
+
+                                        <Button x:Name="BackupNowBtn"
+                                                Style="{StaticResource OdooTealActionButtonStyle}"
+                                                Width="160"
+                                                Height="40"
+                                                Click="BackupNowBtn_Click">
+                                            <TextBlock Text="Backup Now" FontSize="13.5"/>
+                                        </Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- CARD 3: IMPORT & RESTORE DATABASE FROM BACKUP -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="24,20"
+                                    Margin="0,0,0,20"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                        <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,12,0">
+                                            <Viewbox Width="20" Height="20">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M 12,3 V 15 M 7,10 L 12,15 L 17,10"
+                                                          Stroke="{StaticResource OdooPurpleBrush}"
+                                                          StrokeThickness="2.2"
+                                                          StrokeStartLineCap="Round"
+                                                          StrokeEndLineCap="Round"
+                                                          StrokeLineJoin="Round"/>
+                                                    <Path Data="M 4,17 V 19 C 4,20.1 4.9,21 6,21 H 18 C 19.1,21 20,20.1 20,19 V 17"
+                                                          Stroke="{StaticResource OdooTealBrush}"
+                                                          StrokeThickness="2.2"
+                                                          StrokeStartLineCap="Round"
+                                                          StrokeEndLineCap="Round"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Import &amp; Restore Database" FontSize="16" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Select a previously saved SQLite backup file (.db) to restore all POS data, sessions, orders, and settings." FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderLightBrush}" Margin="0,0,0,16"/>
+
+                                    <Grid Margin="0,0,0,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Backup File (.db)" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Select database file to import" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+
+                                        <Border Grid.Column="1" Style="{StaticResource SettingsInputBoxStyle}" MinWidth="340" Margin="0,0,10,0">
+                                            <TextBox x:Name="RestoreFilePathTextBox"
+                                                     VerticalAlignment="Center"
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     FontSize="13"
+                                                     Foreground="{StaticResource PrimaryTextBrush}"/>
+                                        </Border>
+
+                                        <Button Grid.Column="2"
+                                                x:Name="BrowseRestoreFileBtn"
+                                                Style="{StaticResource OdooTealActionButtonStyle}"
+                                                Height="40"
+                                                Padding="16,0"
+                                                Click="BrowseRestoreFileBtn_Click">
+                                            <TextBlock Text="Select .db File..."/>
+                                        </Button>
+                                    </Grid>
+
+                                    <Button x:Name="ImportRestoreDbBtn"
+                                            Style="{StaticResource OdooPrimaryActionButtonStyle}"
+                                            Width="220"
+                                            Height="40"
+                                            HorizontalAlignment="Left"
+                                            Click="ImportRestoreDbBtn_Click">
+                                        <TextBlock Text="Import &amp; Restore Database" FontSize="13.5"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

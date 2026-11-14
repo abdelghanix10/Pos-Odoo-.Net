@@ -20,6 +20,8 @@ public class PosUserRecord : INotifyPropertyChanged
     private bool _isPosOnly;
     private int? _assignedPosConfigId;
     private string _assignedPosConfigName = string.Empty;
+    private string _odooServerUrl = string.Empty;
+    private string _odooDatabase = string.Empty;
     private string _status = "Confirmed";
     private string _language = "English (US)";
     private bool _isPurpleTheme = true;
@@ -151,6 +153,23 @@ public class PosUserRecord : INotifyPropertyChanged
             }
         }
     }
+
+    public string OdooServerUrl
+    {
+        get => _odooServerUrl;
+        set { if (_odooServerUrl != value) { _odooServerUrl = value; OnPropertyChanged(); } }
+    }
+
+    public string OdooDatabase
+    {
+        get => _odooDatabase;
+        set { if (_odooDatabase != value) { _odooDatabase = value; OnPropertyChanged(); } }
+    }
+
+    public bool HasConfiguredOdooCredentials =>
+        !string.IsNullOrWhiteSpace(_login) &&
+        !string.IsNullOrWhiteSpace(_password) &&
+        _password != "••••••••";
 
     public string AssignedPosDisplay =>
         string.IsNullOrWhiteSpace(_assignedPosConfigName) ? "Default POS Register" : _assignedPosConfigName;

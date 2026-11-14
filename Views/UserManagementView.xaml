@@ -741,20 +741,102 @@
                                 </Grid>
                             </StackPanel>
 
-                            <!-- RIGHT: LOCAL POS SECURITY & VISIBILITY -->
+                            <!-- RIGHT: PER-USER ODOO SERVER CREDENTIALS, ROLES & POS SECURITY -->
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="POINT OF SALE TERMINAL SECURITY &amp; ROLES"
+                                <TextBlock Text="ODOO SERVER CONNECTION CREDENTIALS (PER-USER)"
+                                           Foreground="{StaticResource OdooPurpleBrush}"
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Margin="0,0,0,14"/>
+
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Odoo Server URL" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,5"/>
+                                        <Border Style="{StaticResource FormInputBoxBorderStyle}">
+                                            <TextBox Text="{Binding OdooServerUrl, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="Transparent" BorderThickness="0" FontSize="13" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Odoo Database Name" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,5"/>
+                                        <Border Style="{StaticResource FormInputBoxBorderStyle}">
+                                            <TextBox Text="{Binding OdooDatabase, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="Transparent" BorderThickness="0" FontSize="13" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Odoo Username / Login" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,5"/>
+                                        <Border Style="{StaticResource FormInputBoxBorderStyle}">
+                                            <TextBox Text="{Binding UserLogin, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="Transparent" BorderThickness="0" FontSize="13" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Odoo Password / API Key" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,5"/>
+                                        <Border Style="{StaticResource FormInputBoxBorderStyle}">
+                                            <TextBox Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="Transparent" BorderThickness="0" FontSize="13" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Button Style="{StaticResource OdooPrimaryButtonStyle}"
+                                        Command="{Binding TestUserConnectionCommand}"
+                                        IsEnabled="{Binding IsTestingUserConnection, Converter={StaticResource InverseBooleanConverter}}"
+                                        HorizontalAlignment="Left"
+                                        Margin="0,0,0,22">
+                                    <TextBlock Text="{Binding TestConnectionButtonText}"/>
+                                </Button>
+
+                                <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,18"/>
+
+                                <TextBlock Text="POINT OF SALE TERMINAL ROLES &amp; SECURITY"
                                            Foreground="{StaticResource OdooTealBrush}"
                                            FontSize="12"
                                            FontWeight="Bold"
-                                           Margin="0,0,0,16"/>
+                                           Margin="0,0,0,14"/>
 
-                                <TextBlock Text="User Role &amp; Access Level" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,6"/>
-                                <ComboBox ItemsSource="{Binding AvailableRoles}"
-                                          SelectedItem="{Binding SelectedRole, Mode=TwoWay}"
-                                          Style="{StaticResource OdooFilterComboBoxStyle}"
-                                          Height="40"
-                                          Margin="0,0,0,14"/>
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="User Role" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,5"/>
+                                        <ComboBox ItemsSource="{Binding AvailableRoles}"
+                                                  SelectedItem="{Binding SelectedRole, Mode=TwoWay}"
+                                                  Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                  Height="40"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Assigned POS Register" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,5"/>
+                                        <ComboBox ItemsSource="{Binding AvailablePosConfigs}"
+                                                  SelectedItem="{Binding SelectedPosConfig, Mode=TwoWay}"
+                                                  DisplayMemberPath="Name"
+                                                  Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                  Height="40"/>
+                                    </StackPanel>
+                                </Grid>
 
                                 <Border Background="#F9FAFB"
                                         BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -770,31 +852,11 @@
                                     </CheckBox>
                                 </Border>
 
-                                <TextBlock Text="Assigned POS Register" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,6"/>
-                                <ComboBox ItemsSource="{Binding AvailablePosConfigs}"
-                                          SelectedItem="{Binding SelectedPosConfig, Mode=TwoWay}"
-                                          DisplayMemberPath="Name"
-                                          Style="{StaticResource OdooFilterComboBoxStyle}"
-                                          Height="40"
-                                          Margin="0,0,0,16"/>
-
-                                <TextBlock Text="Local Password" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,6"/>
-                                <Border Style="{StaticResource FormInputBoxBorderStyle}" Margin="0,0,0,16">
-                                    <TextBox Text="{Binding Password, UpdateSourceTrigger=PropertyChanged}"
-                                             Background="Transparent"
-                                             BorderThickness="0"
-                                             FontSize="13.5"
-                                             VerticalAlignment="Center"/>
-                                </Border>
-
-                                <TextBlock Text="POS Security PIN (Digits)" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,6"/>
-                                <Border Style="{StaticResource FormInputBoxBorderStyle}" Margin="0,0,0,16">
+                                <TextBlock Text="POS Security PIN (Digits)" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,5"/>
+                                <Border Style="{StaticResource FormInputBoxBorderStyle}" Margin="0,0,0,14">
                                     <TextBox Text="{Binding Pin, UpdateSourceTrigger=PropertyChanged}"
                                              MaxLength="6"
-                                             Background="Transparent"
-                                             BorderThickness="0"
-                                             FontSize="13.5"
-                                             VerticalAlignment="Center"/>
+                                             Background="Transparent" BorderThickness="0" FontSize="13.5" VerticalAlignment="Center"/>
                                 </Border>
 
                                 <Border Background="#F9FAFB"

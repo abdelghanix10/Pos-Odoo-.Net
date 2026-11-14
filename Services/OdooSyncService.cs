@@ -87,9 +87,111 @@ public class OdooSyncService
 
     public PosUserRecord? CurrentPosUser { get; private set; }
 
+    public OdooConfigRecord? CurrentUserOdooConfig { get; private set; }
+
     public void SetCurrentPosUser(PosUserRecord? user)
     {
         CurrentPosUser = user;
+        if (user == null)
+        {
+            CurrentUserOdooConfig = null;
+        }
+    }
+
+    public async Task<ConnectionTestResult> AuthenticatePosUserAsync(PosUserRecord user)
+    {
+        SetCurrentPosUser(user);
+
+        var globalConfig = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+        string serverUrl = !string.IsNullOrWhiteSpace(user.OdooServerUrl)
+            ? user.OdooServerUrl.Trim()
+            : globalConfig.ServerUrl;
+        string dbName = !string.IsNullOrWhiteSpace(user.OdooDatabase)
+            ? user.OdooDatabase.Trim()
+            : globalConfig.DatabaseName;
+
+        if (user.HasConfiguredOdooCredentials &&
+            !string.IsNullOrWhiteSpace(serverUrl) &&
+            !string.IsNullOrWhiteSpace(dbName))
+        {
+            var userConfig = new OdooConfigRecord(
+                serverUrl,
+                dbName,
+                user.Login.Trim(),
+                user.Password,
+                globalConfig.LastSyncedAt,
+                globalConfig.LastStatus
+            );
+
+            CurrentUserOdooConfig = userConfig;
+
+            if (await CheckServerReachableAsync(serverUrl))
+            {
+                var authResult = await TestConnectionAsync(userConfig);
+                if (authResult.Success && authResult.Uid.HasValue && authResult.Uid.Value > 0)
+                {
+                    if (user.OdooId != authResult.Uid.Value)
+                    {
+                        user.OdooId = authResult.Uid.Value;
+                        await SqliteDatabaseService.Instance.SaveUserRecordAsync(user);
+                    }
+                    return authResult;
+                }
+                return authResult;
+            }
+        }
+
+        await RecordUserLoginInOdooAsync(user);
+        return new ConnectionTestResult(true, $"Logged in locally as {user.Name}", user.OdooId);
+    }
+
+    private async Task<(OdooConfigRecord ExecConfig, int ExecUid)> ResolveExecutionCredentialsAsync(
+        OdooConfigRecord fallbackConfig,
+        int fallbackUid,
+        int? targetUserId,
+        string? targetUserNameOrLogin)
+    {
+        try
+        {
+            // 1. Check if CurrentPosUser matches and has configured credentials
+            if (CurrentPosUser != null && CurrentPosUser.HasConfiguredOdooCredentials)
+            {
+                bool matchesCurrent =
+                    (!targetUserId.HasValue && string.IsNullOrWhiteSpace(targetUserNameOrLogin)) ||
+                    (targetUserId.HasValue && CurrentPosUser.OdooId == targetUserId.Value) ||
+                    (!string.IsNullOrWhiteSpace(targetUserNameOrLogin) &&
+                     (string.Equals(CurrentPosUser.Name, targetUserNameOrLogin, StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(CurrentPosUser.Login, targetUserNameOrLogin, StringComparison.OrdinalIgnoreCase)));
+
+                if (matchesCurrent)
+                {
+                    var uCfg = CurrentUserOdooConfig ?? new OdooConfigRecord(
+                        !string.IsNullOrWhiteSpace(CurrentPosUser.OdooServerUrl) ? CurrentPosUser.OdooServerUrl : fallbackConfig.ServerUrl,
+                        !string.IsNullOrWhiteSpace(CurrentPosUser.OdooDatabase) ? CurrentPosUser.OdooDatabase : fallbackConfig.DatabaseName,
+                        CurrentPosUser.Login.Trim(),
+                        CurrentPosUser.Password,
+                        fallbackConfig.LastSyncedAt,
+                        fallbackConfig.LastStatus
+                    );
+                    int uUid = await EnsureAuthenticatedUidAsync(uCfg);
+                    return (uCfg, uUid);
+                }
+            }
+
+            // 2. Look up the specific user's credentials from the SQLite Users table
+            var dbUserConfig = await SqliteDatabaseService.Instance.GetUserSpecificOdooConfigAsync(targetUserId, targetUserNameOrLogin);
+            if (dbUserConfig != null)
+            {
+                int uUid = await EnsureAuthenticatedUidAsync(dbUserConfig);
+                return (dbUserConfig, uUid);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ResolveExecutionCredentialsAsync] Fallback to default config: {ex.Message}");
+        }
+
+        return (fallbackConfig, fallbackUid);
     }
 
     public bool IsOnline { get; private set; }
@@ -953,6 +1055,10 @@ public class OdooSyncService
 
     private async Task PushOpenSessionToOdooAsync(OdooConfigRecord config, int uid, OpenSessionSyncPayload payload)
     {
+        var (execConfig, execUid) = await ResolveExecutionCredentialsAsync(config, uid, payload.UserId, payload.CashierName);
+        config = execConfig;
+        uid = execUid;
+
         int? resolvedUserId = await ResolvePosUserOdooIdAsync(config, uid, payload.UserId, payload.CashierName);
         int odooSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, payload.ExistingSessionOdooId, payload.LocalSessionId, resolvedUserId);
 
@@ -1400,6 +1506,10 @@ public class OdooSyncService
             }
         }
 
+        var (execConfig, execUid) = await ResolveExecutionCredentialsAsync(config, uid, payload.CashierId, payload.CashierName);
+        config = execConfig;
+        uid = execUid;
+
         // Resolve the logged-in cashier's Odoo res.users ID and display name
         string effectiveCashierName = !string.IsNullOrWhiteSpace(payload.CashierName)
             ? payload.CashierName
@@ -1834,6 +1944,11 @@ public class OdooSyncService
         CashInOutSyncPayload payload,
         int? sessionOdooId)
     {
+        var (sessUserId, sessUserName) = await SqliteDatabaseService.Instance.GetSessionUserAsync(payload.LocalSessionId, sessionOdooId ?? payload.SessionOdooId);
+        var (execConfig, execUid) = await ResolveExecutionCredentialsAsync(config, uid, sessUserId, sessUserName);
+        config = execConfig;
+        uid = execUid;
+
         int activeSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, sessionOdooId, payload.LocalSessionId);
         string operation = payload.Amount >= 0m ? "in" : "out";
         double absAmount = (double)Math.Abs(payload.Amount);
@@ -2137,6 +2252,11 @@ public class OdooSyncService
         CloseSessionSyncPayload payload,
         int? sessionOdooId)
     {
+        var (sessUserId, sessUserName) = await SqliteDatabaseService.Instance.GetSessionUserAsync(payload.LocalSessionId, sessionOdooId ?? payload.SessionOdooId);
+        var (execConfig, execUid) = await ResolveExecutionCredentialsAsync(config, uid, sessUserId, sessUserName);
+        config = execConfig;
+        uid = execUid;
+
         // 1. Prefer the session this close was queued for; fall back to any open session
         int targetSessionId = 0;
         if (sessionOdooId.HasValue && sessionOdooId.Value > 0)

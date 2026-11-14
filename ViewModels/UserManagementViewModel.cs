@@ -52,6 +52,21 @@ public partial class UserManagementViewModel : ViewModelBase
     [ObservableProperty]
     private PosConfigRecord? _selectedPosConfig;
 
+    [ObservableProperty]
+    private string _odooServerUrl = string.Empty;
+
+    [ObservableProperty]
+    private string _odooDatabase = string.Empty;
+
+    [ObservableProperty]
+    private string _userLogin = string.Empty;
+
+    [ObservableProperty]
+    private bool _isTestingUserConnection;
+
+    [ObservableProperty]
+    private string _testConnectionButtonText = "Test User Odoo Connection";
+
     public const int PageSize = 80;
 
     [ObservableProperty]
@@ -285,7 +300,10 @@ public partial class UserManagementViewModel : ViewModelBase
     {
         if (user == null) return;
         SelectedUser = user;
-        Password = user.Password ?? string.Empty;
+        OdooServerUrl = user.OdooServerUrl ?? string.Empty;
+        OdooDatabase = user.OdooDatabase ?? string.Empty;
+        UserLogin = user.Login ?? string.Empty;
+        Password = user.Password == "••••••••" ? string.Empty : (user.Password ?? string.Empty);
         Pin = user.Pin ?? string.Empty;
         IsPosOnly = user.IsPosOnly;
         SelectedRole = user.IsPosOnly ? "POS Only" : "Administrator";
@@ -364,7 +382,13 @@ public partial class UserManagementViewModel : ViewModelBase
     {
         if (SelectedUser == null) return;
 
-        SelectedUser.Password = Password;
+        if (!string.IsNullOrWhiteSpace(UserLogin))
+        {
+            SelectedUser.Login = UserLogin.Trim();
+        }
+        SelectedUser.OdooServerUrl = OdooServerUrl.Trim();
+        SelectedUser.OdooDatabase = OdooDatabase.Trim();
+        SelectedUser.Password = string.IsNullOrWhiteSpace(Password) ? "••••••••" : Password;
         SelectedUser.Pin = Pin;
         SelectedUser.IsPosOnly = IsPosOnly;
         SelectedUser.Role = IsPosOnly ? "POS Only" : "Administrator";
@@ -376,7 +400,59 @@ public partial class UserManagementViewModel : ViewModelBase
 
         await ReloadUsersAsync();
         UsersUpdated?.Invoke();
-        ShowToast($"Permissions & credentials for \"{SelectedUser.Name.Trim()}\" updated.", "Success");
+        ShowToast($"Odoo credentials & permissions for \"{SelectedUser.Name.Trim()}\" saved.", "Success");
+    }
+
+    [RelayCommand]
+    public async Task TestUserConnectionAsync()
+    {
+        if (SelectedUser == null || IsTestingUserConnection) return;
+
+        if (string.IsNullOrWhiteSpace(OdooServerUrl) || string.IsNullOrWhiteSpace(OdooDatabase) ||
+            string.IsNullOrWhiteSpace(UserLogin) || string.IsNullOrWhiteSpace(Password))
+        {
+            ShowToast("Please fill in Server URL, Database, Login, and Odoo Password / API Key for this user.", "Warning");
+            return;
+        }
+
+        IsTestingUserConnection = true;
+        TestConnectionButtonText = "Testing Connection...";
+
+        try
+        {
+            var userConfig = new OdooConfigRecord(
+                OdooServerUrl.Trim(),
+                OdooDatabase.Trim(),
+                UserLogin.Trim(),
+                Password,
+                null,
+                null
+            );
+
+            var result = await OdooSyncService.Instance.TestConnectionAsync(userConfig);
+            if (result.Success)
+            {
+                if (result.Uid.HasValue && result.Uid.Value > 0)
+                {
+                    SelectedUser.OdooId = result.Uid.Value;
+                }
+                await SaveCredentialsAsync();
+                ShowToast($"Authenticated in Odoo as {SelectedUser.Name} (UID: {result.Uid})!", "Success");
+            }
+            else
+            {
+                ShowToast(result.Message, "Error");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Connection failed: {ex.Message}", "Error");
+        }
+        finally
+        {
+            IsTestingUserConnection = false;
+            TestConnectionButtonText = "Test User Odoo Connection";
+        }
     }
 
     [RelayCommand]

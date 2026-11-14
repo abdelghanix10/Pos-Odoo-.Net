@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace OdooPosLogin;
@@ -16,6 +17,13 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     private bool _cashDrawerPulse = false;
     private bool _printHeaderLogo = true;
     private string _printerEncoding = "UTF-8";
+
+    // Backup settings
+    private string _backupFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups");
+    private bool _autoBackupEnabled = false;
+    private string _backupFrequency = "Daily"; // "Daily" or "Weekly"
+    private string _backupTime = "23:00";      // "HH:mm" (24-hour format)
+    private string? _lastBackupAt;
 
     public string ScreenMode
     {
@@ -71,6 +79,44 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     {
         get => _printerEncoding;
         set { if (_printerEncoding != value) { _printerEncoding = value; OnPropertyChanged(); } }
+    }
+
+    public string BackupFolderPath
+    {
+        get => _backupFolderPath;
+        set { if (_backupFolderPath != value) { _backupFolderPath = value; OnPropertyChanged(); } }
+    }
+
+    public bool AutoBackupEnabled
+    {
+        get => _autoBackupEnabled;
+        set { if (_autoBackupEnabled != value) { _autoBackupEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public string BackupFrequency
+    {
+        get => _backupFrequency;
+        set { if (_backupFrequency != value) { _backupFrequency = value; OnPropertyChanged(); } }
+    }
+
+    public string BackupTime
+    {
+        get => _backupTime;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "23:00" : value.Trim();
+            if (_backupTime != normalized)
+            {
+                _backupTime = normalized;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string? LastBackupAt
+    {
+        get => _lastBackupAt;
+        set { if (_lastBackupAt != value) { _lastBackupAt = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

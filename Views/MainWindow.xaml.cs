@@ -370,7 +370,14 @@ public partial class MainWindow : Window
     private async void StartPosSession(PosUserRecord user)
     {
         OdooSyncService.Instance.SetCurrentPosUser(user);
-        _ = Task.Run(() => OdooSyncService.Instance.RecordUserLoginInOdooAsync(user));
+        _ = Task.Run(async () =>
+        {
+            var authRes = await OdooSyncService.Instance.AuthenticatePosUserAsync(user);
+            if (!authRes.Success)
+            {
+                Dispatcher.Invoke(() => ShowLoginToast($"Odoo Auth Warning ({user.Name}): {authRes.Message}"));
+            }
+        });
 
         LoginWorkspaceGrid.Visibility = Visibility.Collapsed;
         TopLoginHeaderBar.Visibility = Visibility.Collapsed;
@@ -379,7 +386,7 @@ public partial class MainWindow : Window
 
         await MainShellModule.StartSessionForUserAsync(user);
 
-        ShowLoginToast($"Authenticated as {user.Name} — Active POS Session");
+        ShowLoginToast($"Authenticated as {user.Name} ({user.Login}) — Active POS Session");
     }
 
     private void ShowLoginToast(string message)

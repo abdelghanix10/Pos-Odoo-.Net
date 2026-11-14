@@ -693,6 +693,8 @@ public class SqliteDatabaseService
             "ALTER TABLE Users ADD COLUMN IsPosOnly INTEGER DEFAULT 0;",
             "ALTER TABLE Users ADD COLUMN AssignedPosConfigId INTEGER;",
             "ALTER TABLE Users ADD COLUMN AssignedPosConfigName TEXT DEFAULT '';",
+            "ALTER TABLE Users ADD COLUMN OdooServerUrl TEXT DEFAULT '';",
+            "ALTER TABLE Users ADD COLUMN OdooDatabase TEXT DEFAULT '';",
             "ALTER TABLE Products ADD COLUMN InternalCategoryName TEXT DEFAULT 'All';",
             "ALTER TABLE Products ADD COLUMN QtyAvailable REAL DEFAULT 0.0;",
             "ALTER TABLE Products ADD COLUMN SaleOk INTEGER DEFAULT 1;",
@@ -730,6 +732,11 @@ public class SqliteDatabaseService
             "ALTER TABLE PosConfigs ADD COLUMN LastReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN IsPrintButtonEnabled INTEGER DEFAULT 1;",
             "ALTER TABLE PosConfigs ADD COLUMN PosLayout TEXT DEFAULT 'standard';",
+            "ALTER TABLE GeneralSettings ADD COLUMN BackupFolderPath TEXT DEFAULT '';",
+            "ALTER TABLE GeneralSettings ADD COLUMN AutoBackupEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE GeneralSettings ADD COLUMN BackupFrequency TEXT DEFAULT 'Daily';",
+            "ALTER TABLE GeneralSettings ADD COLUMN BackupTime TEXT DEFAULT '23:00';",
+            "ALTER TABLE GeneralSettings ADD COLUMN LastBackupAt TEXT;",
             "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN CustomOrderReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN IsHideOpeningCashControlEnabled INTEGER DEFAULT 0;",
@@ -1177,6 +1184,7 @@ public class SqliteDatabaseService
     // =========================================================================
     public async Task<List<PosUserRecord>> LoadAllUsersAsync()
     {
+        var globalConfig = await GetOdooConfigAsync();
         var users = new List<PosUserRecord>();
 
         await using var connection = new SqliteConnection(_connectionString);
@@ -1186,7 +1194,8 @@ public class SqliteDatabaseService
         command.CommandText = """
             SELECT OdooId, Name, Login, Email, Phone, Password, Pin, Status, AvatarBase64, IsVisibleInPos, IsPurpleTheme,
                    COALESCE(Role, 'User'), COALESCE(Language, 'English (US)'),
-                   COALESCE(IsPosOnly, 0), AssignedPosConfigId, COALESCE(AssignedPosConfigName, '')
+                   COALESCE(IsPosOnly, 0), AssignedPosConfigId, COALESCE(AssignedPosConfigName, ''),
+                   COALESCE(OdooServerUrl, ''), COALESCE(OdooDatabase, '')
             FROM Users
             ORDER BY Name ASC;
             """;
@@ -1210,6 +1219,17 @@ public class SqliteDatabaseService
             bool isPosOnly = !reader.IsDBNull(13) && reader.GetInt32(13) == 1;
             int? assignedConfigId = reader.IsDBNull(14) ? null : reader.GetInt32(14);
             string assignedConfigName = reader.IsDBNull(15) ? "" : reader.GetString(15);
+            string userServerUrl = reader.IsDBNull(16) ? "" : reader.GetString(16);
+            string userDatabase = reader.IsDBNull(17) ? "" : reader.GetString(17);
+
+            // If this user matches the global config username and has no custom password yet, inherit it
+            if ((string.IsNullOrWhiteSpace(password) || password == "••••••••") &&
+                !string.IsNullOrWhiteSpace(globalConfig.Username) &&
+                string.Equals(login, globalConfig.Username, StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(globalConfig.ApiKey))
+            {
+                password = globalConfig.ApiKey;
+            }
 
             if (isPosOnly && !string.Equals(role, "POS Only", StringComparison.OrdinalIgnoreCase))
             {
@@ -1229,6 +1249,8 @@ public class SqliteDatabaseService
                 IsPosOnly = isPosOnly,
                 AssignedPosConfigId = assignedConfigId,
                 AssignedPosConfigName = assignedConfigName,
+                OdooServerUrl = string.IsNullOrWhiteSpace(userServerUrl) ? globalConfig.ServerUrl : userServerUrl,
+                OdooDatabase = string.IsNullOrWhiteSpace(userDatabase) ? globalConfig.DatabaseName : userDatabase,
                 Status = status,
                 Language = language,
                 AvatarBase64 = avatarBase64,
@@ -1247,8 +1269,8 @@ public class SqliteDatabaseService
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO Users (OdooId, Name, Login, Email, Phone, Password, Pin, Role, IsPosOnly, AssignedPosConfigId, AssignedPosConfigName, Status, Language, AvatarBase64, IsVisibleInPos, IsPurpleTheme)
-            VALUES (@odooId, @name, @login, @email, @phone, @pass, @pin, @role, @isPosOnly, @posCfgId, @posCfgName, @status, @lang, @avatar, @visible, @theme)
+            INSERT INTO Users (OdooId, Name, Login, Email, Phone, Password, Pin, Role, IsPosOnly, AssignedPosConfigId, AssignedPosConfigName, OdooServerUrl, OdooDatabase, Status, Language, AvatarBase64, IsVisibleInPos, IsPurpleTheme)
+            VALUES (@odooId, @name, @login, @email, @phone, @pass, @pin, @role, @isPosOnly, @posCfgId, @posCfgName, @serverUrl, @dbName, @status, @lang, @avatar, @visible, @theme)
             ON CONFLICT(Login) DO UPDATE SET
                 OdooId = COALESCE(excluded.OdooId, Users.OdooId),
                 Name = excluded.Name,
@@ -1260,6 +1282,8 @@ public class SqliteDatabaseService
                 IsPosOnly = excluded.IsPosOnly,
                 AssignedPosConfigId = excluded.AssignedPosConfigId,
                 AssignedPosConfigName = excluded.AssignedPosConfigName,
+                OdooServerUrl = excluded.OdooServerUrl,
+                OdooDatabase = excluded.OdooDatabase,
                 Status = excluded.Status,
                 Language = excluded.Language,
                 AvatarBase64 = excluded.AvatarBase64,
@@ -1278,6 +1302,8 @@ public class SqliteDatabaseService
         command.Parameters.AddWithValue("@isPosOnly", user.IsPosOnly ? 1 : 0);
         command.Parameters.AddWithValue("@posCfgId", (object?)user.AssignedPosConfigId ?? DBNull.Value);
         command.Parameters.AddWithValue("@posCfgName", user.AssignedPosConfigName ?? "");
+        command.Parameters.AddWithValue("@serverUrl", user.OdooServerUrl?.Trim() ?? "");
+        command.Parameters.AddWithValue("@dbName", user.OdooDatabase?.Trim() ?? "");
         command.Parameters.AddWithValue("@status", user.Status);
         command.Parameters.AddWithValue("@lang", user.Language ?? "English (US)");
         command.Parameters.AddWithValue("@avatar", (object?)user.AvatarBase64 ?? DBNull.Value);
@@ -1285,6 +1311,71 @@ public class SqliteDatabaseService
         command.Parameters.AddWithValue("@theme", user.IsPurpleTheme ? 1 : 0);
 
         await command.ExecuteNonQueryAsync();
+    }
+
+    public async Task<OdooConfigRecord?> GetUserSpecificOdooConfigAsync(int? userOdooId, string? userNameOrLogin)
+    {
+        var globalConfig = await GetOdooConfigAsync();
+        var users = await LoadAllUsersAsync();
+
+        PosUserRecord? matched = null;
+        if (userOdooId.HasValue && userOdooId.Value > 0)
+        {
+            matched = users.FirstOrDefault(u => u.OdooId == userOdooId.Value);
+        }
+        if (matched == null && !string.IsNullOrWhiteSpace(userNameOrLogin))
+        {
+            matched = users.FirstOrDefault(u =>
+                string.Equals(u.Login, userNameOrLogin.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(u.Name, userNameOrLogin.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (matched != null && matched.HasConfiguredOdooCredentials)
+        {
+            string serverUrl = !string.IsNullOrWhiteSpace(matched.OdooServerUrl)
+                ? matched.OdooServerUrl.Trim()
+                : globalConfig.ServerUrl;
+            string dbName = !string.IsNullOrWhiteSpace(matched.OdooDatabase)
+                ? matched.OdooDatabase.Trim()
+                : globalConfig.DatabaseName;
+
+            return new OdooConfigRecord(
+                serverUrl,
+                dbName,
+                matched.Login.Trim(),
+                matched.Password,
+                globalConfig.LastSyncedAt,
+                globalConfig.LastStatus
+            );
+        }
+
+        return null;
+    }
+
+    public async Task<(int? UserId, string? UserName)> GetSessionUserAsync(long? localSessionId, int? odooSessionId)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT UserId, UserName
+            FROM PosSessions
+            WHERE (@localId IS NOT NULL AND Id = @localId)
+               OR (@odooId IS NOT NULL AND OdooId = @odooId)
+            ORDER BY Id DESC
+            LIMIT 1;
+            """;
+        cmd.Parameters.AddWithValue("@localId", (object?)localSessionId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@odooId", (object?)odooSessionId ?? DBNull.Value);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+        {
+            int? uid = reader.IsDBNull(0) ? null : reader.GetInt32(0);
+            string? uname = reader.IsDBNull(1) ? null : reader.GetString(1);
+            return (uid, uname);
+        }
+        return (null, null);
     }
 
     public async Task DeleteUserRecordAsync(string login)
@@ -3891,6 +3982,7 @@ public class SqliteDatabaseService
     public async Task<GeneralSettingsRecord> GetGeneralSettingsAsync()
     {
         var record = new GeneralSettingsRecord();
+        string defaultBackupDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups");
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
 
@@ -3898,7 +3990,10 @@ public class SqliteDatabaseService
         cmd.CommandText = """
             SELECT g.ScreenMode, g.DefaultCompanyId, c.Name AS CompanyName,
                    g.DefaultPrinterName, g.PaperWidth, g.AutoPrintReceipt,
-                   g.CashDrawerPulse, g.PrintHeaderLogo, g.PrinterEncoding
+                   g.CashDrawerPulse, g.PrintHeaderLogo, g.PrinterEncoding,
+                   COALESCE(g.BackupFolderPath, ''), COALESCE(g.AutoBackupEnabled, 0),
+                   COALESCE(g.BackupFrequency, 'Daily'), g.LastBackupAt,
+                   COALESCE(g.BackupTime, '23:00')
             FROM GeneralSettings g
             LEFT JOIN Companies c ON g.DefaultCompanyId = c.OdooId OR g.DefaultCompanyId = c.Id
             WHERE g.Id = 1;
@@ -3916,11 +4011,22 @@ public class SqliteDatabaseService
             record.CashDrawerPulse = !reader.IsDBNull(6) && reader.GetInt32(6) != 0;
             record.PrintHeaderLogo = reader.IsDBNull(7) || reader.GetInt32(7) != 0;
             record.PrinterEncoding = reader.IsDBNull(8) ? "UTF-8" : reader.GetString(8);
+
+            string folder = reader.IsDBNull(9) ? "" : reader.GetString(9);
+            record.BackupFolderPath = string.IsNullOrWhiteSpace(folder) ? defaultBackupDir : folder;
+            record.AutoBackupEnabled = !reader.IsDBNull(10) && reader.GetInt32(10) != 0;
+            string freq = reader.IsDBNull(11) ? "Daily" : reader.GetString(11);
+            record.BackupFrequency = string.IsNullOrWhiteSpace(freq) ? "Daily" : freq;
+            record.LastBackupAt = reader.IsDBNull(12) ? null : reader.GetString(12);
+            string bTime = reader.IsDBNull(13) ? "23:00" : reader.GetString(13);
+            record.BackupTime = string.IsNullOrWhiteSpace(bTime) ? "23:00" : bTime;
         }
         else
         {
             // Seed default general settings row
             record.DefaultPrinterName = PosPrinterService.GetDefaultPrinter();
+            record.BackupFolderPath = defaultBackupDir;
+            record.BackupTime = "23:00";
             await SaveGeneralSettingsAsync(record);
         }
 
@@ -3935,9 +4041,11 @@ public class SqliteDatabaseService
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = """
             INSERT INTO GeneralSettings (Id, ScreenMode, DefaultCompanyId, DefaultPrinterName, PaperWidth,
-                                         AutoPrintReceipt, CashDrawerPulse, PrintHeaderLogo, PrinterEncoding, UpdatedAt)
+                                         AutoPrintReceipt, CashDrawerPulse, PrintHeaderLogo, PrinterEncoding,
+                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, UpdatedAt)
             VALUES (1, @screenMode, @companyId, @printerName, @paperWidth,
-                    @autoPrint, @drawerPulse, @printLogo, @encoding, CURRENT_TIMESTAMP)
+                    @autoPrint, @drawerPulse, @printLogo, @encoding,
+                    @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt, CURRENT_TIMESTAMP)
             ON CONFLICT(Id) DO UPDATE SET
                 ScreenMode = @screenMode,
                 DefaultCompanyId = @companyId,
@@ -3947,6 +4055,11 @@ public class SqliteDatabaseService
                 CashDrawerPulse = @drawerPulse,
                 PrintHeaderLogo = @printLogo,
                 PrinterEncoding = @encoding,
+                BackupFolderPath = @backupFolder,
+                AutoBackupEnabled = @autoBackup,
+                BackupFrequency = @backupFreq,
+                BackupTime = @backupTime,
+                LastBackupAt = COALESCE(@lastBackupAt, GeneralSettings.LastBackupAt),
                 UpdatedAt = CURRENT_TIMESTAMP;
             """;
 
@@ -3958,8 +4071,161 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@drawerPulse", settings.CashDrawerPulse ? 1 : 0);
         cmd.Parameters.AddWithValue("@printLogo", settings.PrintHeaderLogo ? 1 : 0);
         cmd.Parameters.AddWithValue("@encoding", settings.PrinterEncoding ?? "UTF-8");
+        cmd.Parameters.AddWithValue("@backupFolder", settings.BackupFolderPath ?? "");
+        cmd.Parameters.AddWithValue("@autoBackup", settings.AutoBackupEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@backupFreq", settings.BackupFrequency ?? "Daily");
+        cmd.Parameters.AddWithValue("@backupTime", settings.BackupTime ?? "23:00");
+        cmd.Parameters.AddWithValue("@lastBackupAt", (object?)settings.LastBackupAt ?? DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    public async Task<string> PerformDatabaseBackupAsync(string? overrideFolderPath = null)
+    {
+        var settings = await GetGeneralSettingsAsync();
+        string targetFolder = !string.IsNullOrWhiteSpace(overrideFolderPath)
+            ? overrideFolderPath.Trim()
+            : (!string.IsNullOrWhiteSpace(settings.BackupFolderPath)
+                ? settings.BackupFolderPath.Trim()
+                : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups"));
+
+        Directory.CreateDirectory(targetFolder);
+
+        DateTime now = DateTime.Now;
+        string fileName = $"pos_data_backup_{now:yyyyMMdd_HHmmss}.db";
+        string backupFilePath = Path.Combine(targetFolder, fileName);
+
+        string destConnString = new SqliteConnectionStringBuilder
+        {
+            DataSource = backupFilePath,
+            Mode = SqliteOpenMode.ReadWriteCreate
+        }.ToString();
+
+        await using (var sourceConnection = new SqliteConnection(_connectionString))
+        await using (var destinationConnection = new SqliteConnection(destConnString))
+        {
+            await sourceConnection.OpenAsync();
+            await destinationConnection.OpenAsync();
+            sourceConnection.BackupDatabase(destinationConnection);
+        }
+
+        settings.BackupFolderPath = targetFolder;
+        settings.LastBackupAt = now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        await SaveGeneralSettingsAsync(settings);
+
+        return backupFilePath;
+    }
+
+    public static DateTime GetNextScheduledBackupDateTime(GeneralSettingsRecord settings)
+    {
+        if (!TimeSpan.TryParseExact(settings.BackupTime, @"hh\:mm", CultureInfo.InvariantCulture, out TimeSpan scheduledTimeOfDay) &&
+            !TimeSpan.TryParse(settings.BackupTime, CultureInfo.InvariantCulture, out scheduledTimeOfDay))
+        {
+            scheduledTimeOfDay = new TimeSpan(23, 0, 0);
+        }
+
+        DateTime now = DateTime.Now;
+        DateTime todayScheduled = DateTime.Today.Add(scheduledTimeOfDay);
+        bool isWeekly = string.Equals(settings.BackupFrequency, "Weekly", StringComparison.OrdinalIgnoreCase);
+
+        bool hasLastBackup = !string.IsNullOrWhiteSpace(settings.LastBackupAt) &&
+                             DateTime.TryParse(settings.LastBackupAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime lastBackup);
+
+        if (!hasLastBackup)
+        {
+            return todayScheduled;
+        }
+
+        DateTime.TryParse(settings.LastBackupAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime lastDt);
+
+        if (isWeekly)
+        {
+            DateTime nextWeekly = lastDt.Date.AddDays(7).Add(scheduledTimeOfDay);
+            return nextWeekly;
+        }
+        else
+        {
+            // Daily: if we already backed up today at or after today's scheduled time, next is tomorrow at scheduled time
+            if (lastDt >= todayScheduled)
+            {
+                return todayScheduled.AddDays(1);
+            }
+            return todayScheduled;
+        }
+    }
+
+    public async Task<string?> CheckAndRunScheduledBackupAsync()
+    {
+        try
+        {
+            var settings = await GetGeneralSettingsAsync();
+            if (!settings.AutoBackupEnabled || string.IsNullOrWhiteSpace(settings.BackupFolderPath))
+            {
+                return null;
+            }
+
+            DateTime nextScheduled = GetNextScheduledBackupDateTime(settings);
+            if (DateTime.Now >= nextScheduled)
+            {
+                return await PerformDatabaseBackupAsync(settings.BackupFolderPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ScheduledBackup] Error: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    public async Task RestoreDatabaseFromBackupAsync(string backupFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(backupFilePath) || !File.Exists(backupFilePath))
+        {
+            throw new FileNotFoundException("The selected backup file does not exist.", backupFilePath);
+        }
+
+        // Preserve current backup settings so restoring an older DB doesn't lose the user's backup schedule
+        var previousSettings = await GetGeneralSettingsAsync();
+
+        string sourceConnString = new SqliteConnectionStringBuilder
+        {
+            DataSource = backupFilePath.Trim(),
+            Mode = SqliteOpenMode.ReadOnly
+        }.ToString();
+
+        await using (var backupConnection = new SqliteConnection(sourceConnString))
+        {
+            await backupConnection.OpenAsync();
+
+            // Validate that this is a valid SQLite database containing POS tables
+            await using (var checkCmd = backupConnection.CreateCommand())
+            {
+                checkCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('OdooConfig', 'Users', 'Products', 'PosConfigs');";
+                long validTables = Convert.ToInt64(await checkCmd.ExecuteScalarAsync() ?? 0L);
+                if (validTables == 0)
+                {
+                    throw new InvalidDataException("The selected file is not a valid Odoo POS SQLite backup database.");
+                }
+            }
+
+            await using var liveConnection = new SqliteConnection(_connectionString);
+            await liveConnection.OpenAsync();
+
+            // Atomically overwrite live database pages from the backup database
+            backupConnection.BackupDatabase(liveConnection);
+        }
+
+        // Ensure all latest schema migrations exist on the restored database
+        InitializeDatabase();
+
+        // Restore backup schedule settings if the restored DB didn't have them
+        var restoredSettings = await GetGeneralSettingsAsync();
+        if (string.IsNullOrWhiteSpace(restoredSettings.BackupFolderPath))
+            restoredSettings.BackupFolderPath = previousSettings.BackupFolderPath;
+        if (string.IsNullOrWhiteSpace(restoredSettings.BackupTime))
+            restoredSettings.BackupTime = previousSettings.BackupTime;
+        await SaveGeneralSettingsAsync(restoredSettings);
     }
 
     // =========================================================================

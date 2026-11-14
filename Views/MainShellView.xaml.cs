@@ -14,6 +14,7 @@ public partial class MainShellView : UserControl
 
     private bool _isPasswordRevealed = false;
     private readonly DispatcherTimer _toastTimer;
+    private readonly DispatcherTimer _backupSchedulerTimer;
 
     // Events to communicate with parent Window
     public event EventHandler? LogoutRequested;
@@ -43,6 +44,25 @@ public partial class MainShellView : UserControl
             _toastTimer.Stop();
             ShellToastBanner.Visibility = Visibility.Collapsed;
         };
+
+        for (int h = 0; h < 24; h++)
+            BackupHourComboBox.Items.Add(h.ToString("D2"));
+        for (int m = 0; m < 60; m++)
+            BackupMinuteComboBox.Items.Add(m.ToString("D2"));
+        BackupHourComboBox.SelectedItem = "23";
+        BackupMinuteComboBox.SelectedItem = "00";
+
+        _backupSchedulerTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _backupSchedulerTimer.Tick += async (_, _) =>
+        {
+            string? createdPath = await SqliteDatabaseService.Instance.CheckAndRunScheduledBackupAsync();
+            if (!string.IsNullOrWhiteSpace(createdPath))
+            {
+                await LoadGeneralAndPrinterSettingsAsync();
+            }
+        };
+        _backupSchedulerTimer.Start();
+        _ = SqliteDatabaseService.Instance.CheckAndRunScheduledBackupAsync();
 
         UsersViewControl.RequestCloseToPos += (_, _) =>
         {
@@ -624,6 +644,7 @@ public partial class MainShellView : UserControl
         TabGeneralSettings.Style = inactiveStyle;
         TabOdooSync.Style = inactiveStyle;
         TabPrinter.Style = inactiveStyle;
+        TabBackup.Style = inactiveStyle;
 
         clickedTab.Style = activeStyle;
 
@@ -632,6 +653,7 @@ public partial class MainShellView : UserControl
         GeneralSettingsScrollViewer.Visibility = Visibility.Collapsed;
         OdooSyncScrollViewer.Visibility = Visibility.Collapsed;
         PrinterSettingsScrollViewer.Visibility = Visibility.Collapsed;
+        BackupSettingsScrollViewer.Visibility = Visibility.Collapsed;
 
         switch (tabTag)
         {
@@ -645,6 +667,10 @@ public partial class MainShellView : UserControl
                 break;
             case "Printer":
                 PrinterSettingsScrollViewer.Visibility = Visibility.Visible;
+                _ = LoadGeneralAndPrinterSettingsAsync();
+                break;
+            case "Backup":
+                BackupSettingsScrollViewer.Visibility = Visibility.Visible;
                 _ = LoadGeneralAndPrinterSettingsAsync();
                 break;
         }
@@ -723,10 +749,230 @@ public partial class MainShellView : UserControl
             PrinterAutoPrintCheckBox.IsChecked = settings.AutoPrintReceipt;
             PrinterCashDrawerCheckBox.IsChecked = settings.CashDrawerPulse;
             PrinterHeaderLogoCheckBox.IsChecked = settings.PrintHeaderLogo;
+
+            // Set Backup Controls
+            BackupFolderPathTextBox.Text = settings.BackupFolderPath;
+            AutoBackupEnabledCheckBox.IsChecked = settings.AutoBackupEnabled;
+            BackupFrequencyComboBox.SelectedIndex = string.Equals(settings.BackupFrequency, "Weekly", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+
+            string[] timeParts = (settings.BackupTime ?? "23:00").Split(':');
+            string hourPart = timeParts.Length > 0 && int.TryParse(timeParts[0], out int hVal) ? Math.Clamp(hVal, 0, 23).ToString("D2") : "23";
+            string minPart = timeParts.Length > 1 && int.TryParse(timeParts[1], out int mVal) ? Math.Clamp(mVal, 0, 59).ToString("D2") : "00";
+            BackupHourComboBox.SelectedItem = hourPart;
+            BackupMinuteComboBox.SelectedItem = minPart;
+
+            UpdateBackupStatusLabels(settings);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[MainShellView] Error loading general settings: {ex.Message}");
+        }
+    }
+
+    private void UpdateBackupStatusLabels(GeneralSettingsRecord settings)
+    {
+        LastBackupStatusText.Text = string.IsNullOrWhiteSpace(settings.LastBackupAt)
+            ? "Never"
+            : settings.LastBackupAt;
+
+        if (!settings.AutoBackupEnabled)
+        {
+            NextBackupStatusText.Text = "Disabled (Manual Only)";
+            return;
+        }
+
+        DateTime nextDt = SqliteDatabaseService.GetNextScheduledBackupDateTime(settings);
+        if (DateTime.Now >= nextDt)
+        {
+            NextBackupStatusText.Text = $"Due Now ({settings.BackupFrequency} at {settings.BackupTime})";
+        }
+        else
+        {
+            NextBackupStatusText.Text = $"{nextDt:yyyy-MM-dd HH:mm} ({settings.BackupFrequency})";
+        }
+    }
+
+    private void BrowseBackupFolderBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Select POS Database Backup Folder"
+        };
+
+        if (!string.IsNullOrWhiteSpace(BackupFolderPathTextBox.Text) &&
+            System.IO.Directory.Exists(BackupFolderPathTextBox.Text))
+        {
+            dialog.InitialDirectory = BackupFolderPathTextBox.Text;
+        }
+
+        if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.FolderName))
+        {
+            BackupFolderPathTextBox.Text = dialog.FolderName;
+        }
+    }
+
+    private void OpenBackupFolderBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string folder = BackupFolderPathTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                folder = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups");
+            }
+            System.IO.Directory.CreateDirectory(folder);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = folder,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Could not open backup folder: {ex.Message}", isError: true);
+        }
+    }
+
+    private async void SaveBackupSettingsBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string folder = BackupFolderPathTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                ShowToast("Please specify a valid backup folder path.", isWarning: true);
+                return;
+            }
+
+            string frequency = (BackupFrequencyComboBox.SelectedItem is ComboBoxItem item &&
+                                string.Equals(item.Content?.ToString(), "Weekly", StringComparison.OrdinalIgnoreCase))
+                ? "Weekly"
+                : "Daily";
+
+            string selectedHour = BackupHourComboBox.SelectedItem?.ToString() ?? "23";
+            string selectedMinute = BackupMinuteComboBox.SelectedItem?.ToString() ?? "00";
+            string backupTime = $"{selectedHour}:{selectedMinute}";
+
+            var current = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            current.BackupFolderPath = folder;
+            current.AutoBackupEnabled = AutoBackupEnabledCheckBox.IsChecked ?? false;
+            current.BackupFrequency = frequency;
+            current.BackupTime = backupTime;
+
+            await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
+            UpdateBackupStatusLabels(current);
+
+            // If automatic backups were just enabled and a backup is due, run it now
+            if (current.AutoBackupEnabled)
+            {
+                string? autoFile = await SqliteDatabaseService.Instance.CheckAndRunScheduledBackupAsync();
+                if (!string.IsNullOrWhiteSpace(autoFile))
+                {
+                    current = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+                    UpdateBackupStatusLabels(current);
+                }
+            }
+
+            ShowToast($"Backup settings saved ({frequency} at {backupTime}).");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Failed to save backup settings: {ex.Message}", isError: true);
+        }
+    }
+
+    private async void BackupNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            BackupNowBtn.IsEnabled = false;
+            string folder = BackupFolderPathTextBox.Text.Trim();
+            string backupPath = await SqliteDatabaseService.Instance.PerformDatabaseBackupAsync(folder);
+
+            var current = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            UpdateBackupStatusLabels(current);
+
+            ShowToast($"Database backed up to: {System.IO.Path.GetFileName(backupPath)}");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Backup failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            BackupNowBtn.IsEnabled = true;
+        }
+    }
+
+    private void BrowseRestoreFileBtn_Click(object sender, RoutedEventArgs e)
+    {
+        var openDialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Select POS SQLite Backup File to Restore",
+            Filter = "SQLite Database Backup (*.db;*.sqlite)|*.db;*.sqlite|All Files (*.*)|*.*",
+            CheckFileExists = true
+        };
+
+        if (!string.IsNullOrWhiteSpace(BackupFolderPathTextBox.Text) &&
+            System.IO.Directory.Exists(BackupFolderPathTextBox.Text))
+        {
+            openDialog.InitialDirectory = BackupFolderPathTextBox.Text;
+        }
+
+        if (openDialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(openDialog.FileName))
+        {
+            RestoreFilePathTextBox.Text = openDialog.FileName;
+        }
+    }
+
+    private async void ImportRestoreDbBtn_Click(object sender, RoutedEventArgs e)
+    {
+        string filePath = RestoreFilePathTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            BrowseRestoreFileBtn_Click(sender, e);
+            filePath = RestoreFilePathTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                return;
+            }
+        }
+
+        if (!System.IO.File.Exists(filePath))
+        {
+            ShowToast("Selected backup file does not exist.", isError: true);
+            return;
+        }
+
+        var confirm = MessageBox.Show(
+            $"Are you sure you want to import and restore the database from:\n\n{filePath}\n\nAll current local data will be replaced by the selected backup.",
+            "Confirm Database Restore",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            ImportRestoreDbBtn.IsEnabled = false;
+            await SqliteDatabaseService.Instance.RestoreDatabaseFromBackupAsync(filePath);
+
+            await LoadSavedConfigAsync();
+            await LoadGeneralAndPrinterSettingsAsync();
+            await ReloadAllChildViewsAsync();
+
+            ShowToast($"Database restored successfully from {System.IO.Path.GetFileName(filePath)}!");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Restore failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            ImportRestoreDbBtn.IsEnabled = true;
         }
     }
 

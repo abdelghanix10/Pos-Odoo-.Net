@@ -22,8 +22,8 @@ public class PosCartItem : INotifyPropertyChanged
         _customProductName = customProductName;
         _quantity = quantity;
         _unitPrice = customUnitPrice ?? product.ListPrice;
-        _taxRate = product.SalesTaxRate >= 0m ? product.SalesTaxRate : 15.0m;
-        _isUnitPriceTaxIncluded = unitPriceIsTaxIncluded;
+        _taxRate = product.SalesTaxRate >= 0m ? product.SalesTaxRate : 0.0m;
+        _isUnitPriceTaxIncluded = unitPriceIsTaxIncluded || product.IsSalesTaxIncluded;
     }
 
     public ProductRecord Product

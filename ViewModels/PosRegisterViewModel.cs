@@ -331,6 +331,40 @@ public partial class PosRegisterViewModel : ViewModelBase
 
     public string NumbersFirstDisplayText => HasPendingProductQuantity ? $"{PendingProductQuantity:G29}" : "1";
 
+    private void PendingQuantityBackspace()
+    {
+        if (_numbersFirstBuffer.Length > 1)
+        {
+            _numbersFirstBuffer = _numbersFirstBuffer[..^1];
+            if (decimal.TryParse(_numbersFirstBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
+            {
+                PendingProductQuantity = val;
+                HasPendingProductQuantity = true;
+            }
+        }
+        else
+        {
+            _numbersFirstBuffer = string.Empty;
+            PendingProductQuantity = 1m;
+            HasPendingProductQuantity = false;
+        }
+        OnPropertyChanged(nameof(NumbersFirstDisplayText));
+    }
+
+    private void PendingQuantityClear()
+    {
+        _numbersFirstBuffer = string.Empty;
+        PendingProductQuantity = 1m;
+        HasPendingProductQuantity = false;
+        OnPropertyChanged(nameof(NumbersFirstDisplayText));
+    }
+
+    [RelayCommand]
+    public void NumpadPendingBackspace() => PendingQuantityBackspace();
+
+    [RelayCommand]
+    public void NumpadPendingDelete() => PendingQuantityClear();
+
     private int _nextOrderSeq = 1;
     private int _deviceDigit = 2;
 
@@ -641,6 +675,9 @@ public partial class PosRegisterViewModel : ViewModelBase
     public bool IsPrintLastReceiptVisible =>
         CurrentConfig != null && CurrentConfig.IsPrintLastReceiptEnabled;
 
+    public bool IsPrintButtonVisible =>
+        CurrentConfig == null || CurrentConfig.IsPrintButtonEnabled;
+
     // ==================== MODAL 6: PRODUCT VARIANT SELECTION POPUP ====================
     [ObservableProperty]
     private bool _isVariantPopupOpen;
@@ -822,6 +859,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsOneClickPaymentVisible));
         OnPropertyChanged(nameof(OneClickPaymentButtonLabel));
         OnPropertyChanged(nameof(IsPrintLastReceiptVisible));
+        OnPropertyChanged(nameof(IsPrintButtonVisible));
     }
 
     private void ScheduleDraftPersistence(PosDraftOrder? draft)
@@ -898,6 +936,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                 config.IsAutomaticReceiptPrintingEnabled = fresh.IsAutomaticReceiptPrintingEnabled;
                 config.IsPreventLineMergingEnabled = fresh.IsPreventLineMergingEnabled;
                 config.IsPrintLastReceiptEnabled = fresh.IsPrintLastReceiptEnabled;
+                config.LastReceiptDesignId = fresh.LastReceiptDesignId;
+                config.IsPrintButtonEnabled = fresh.IsPrintButtonEnabled;
                 config.IsCustomOrderReceiptsEnabled = fresh.IsCustomOrderReceiptsEnabled;
                 config.CustomOrderReceiptDesignId = fresh.CustomOrderReceiptDesignId;
                 config.IsHideOpeningCashControlEnabled = fresh.IsHideOpeningCashControlEnabled;
@@ -909,6 +949,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         catch { }
 
         CurrentConfig = config;
+        OnPropertyChanged(nameof(IsPrintButtonVisible));
         ActiveShopName = config.Name;
         CashierName = !string.IsNullOrWhiteSpace(config.ActiveUserName) ? config.ActiveUserName! : "Mitchell Admin";
         CashierAvatarBitmap = config.ActiveUserAvatarBitmap;
@@ -1021,7 +1062,23 @@ public partial class PosRegisterViewModel : ViewModelBase
         if (config == null) return;
         try
         {
-            var (_, resolvedSessOdooId, resolvedSessName) = await SqliteDatabaseService.Instance.UpdateSessionOpeningControlAsync(
+            var sessions = await SqliteDatabaseService.Instance.LoadAllSessionsAsync();
+            var existingOpen = sessions.FirstOrDefault(s =>
+                !s.IsClosed &&
+                ((config.CurrentSessionId.HasValue && (s.OdooId == config.CurrentSessionId.Value || s.Id == config.CurrentSessionId.Value)) ||
+                 s.PosConfigId == config.OdooId));
+
+            if (existingOpen != null)
+            {
+                CurrentSession = existingOpen;
+                if (existingOpen.OdooId.HasValue)
+                    config.CurrentSessionId = existingOpen.OdooId.Value;
+                if (!string.IsNullOrWhiteSpace(existingOpen.Name))
+                    config.CurrentSessionName = existingOpen.Name;
+                return;
+            }
+
+            var (localSessId, resolvedSessOdooId, resolvedSessName) = await SqliteDatabaseService.Instance.UpdateSessionOpeningControlAsync(
                 config.OdooId,
                 config.CurrentSessionId,
                 config.OpeningBalance,
@@ -1031,6 +1088,20 @@ public partial class PosRegisterViewModel : ViewModelBase
                 CashierName,
                 enqueueForOdooSync: true
             );
+
+            CurrentSession = new PosSessionRecord
+            {
+                Id = localSessId,
+                OdooId = resolvedSessOdooId,
+                Name = resolvedSessName,
+                PosConfigId = config.OdooId,
+                PosConfigName = config.Name,
+                UserId = config.ActiveUserId,
+                UserName = CashierName,
+                StartAt = DateTime.Now,
+                State = "opened",
+                OpeningBalance = config.OpeningBalance
+            };
 
             if (resolvedSessOdooId.HasValue)
                 config.CurrentSessionId = resolvedSessOdooId.Value;
@@ -1637,7 +1708,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
         else
         {
-            var newItem = new PosCartItem(product, qtyToAdd, unitPriceIsTaxIncluded: false, customProductName: customName, customUnitPrice: customPrice);
+            var newItem = new PosCartItem(product, qtyToAdd, unitPriceIsTaxIncluded: product.IsSalesTaxIncluded, customProductName: customName, customUnitPrice: customPrice);
             CurrentOrder.CartItems.Add(newItem);
             SelectCartLine(newItem);
         }
@@ -1827,64 +1898,53 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public void NumpadKey(string key)
     {
-        // Setting 13: Numbers First mode handling (cashier selects quantity before product)
+        // Setting 13: Numbers First mode handling (cashier selects quantity before product).
+        // Bottom ⌫/Delete edit the selected line when one exists; the small header
+        // ⌫/Delete buttons edit the pending quantity buffer instead.
         if (CurrentConfig?.IsNumbersFirst == true)
         {
-            if (key == "⌫" || key == "Back")
+            bool editSelectedLine = SelectedCartLine != null &&
+                (key == "⌫" || key == "Back" || key == "Delete" || key == "ClearAll" || key == "C");
+            if (!editSelectedLine)
             {
-                if (_numbersFirstBuffer.Length > 1)
+                if (key == "⌫" || key == "Back")
                 {
-                    _numbersFirstBuffer = _numbersFirstBuffer[..^1];
+                    PendingQuantityBackspace();
+                    return;
+                }
+                else if (key == "+" || key == "Plus")
+                {
+                    PendingProductQuantity += 1m;
+                    _numbersFirstBuffer = PendingProductQuantity.ToString("G29", CultureInfo.InvariantCulture);
+                    HasPendingProductQuantity = true;
+                    OnPropertyChanged(nameof(NumbersFirstDisplayText));
+                    return;
+                }
+                else if (key == "-" || key == "Minus")
+                {
+                    PendingProductQuantity = Math.Max(1m, PendingProductQuantity - 1m);
+                    _numbersFirstBuffer = PendingProductQuantity.ToString("G29", CultureInfo.InvariantCulture);
+                    HasPendingProductQuantity = true;
+                    OnPropertyChanged(nameof(NumbersFirstDisplayText));
+                    return;
+                }
+                else if (key == "Delete" || key == "ClearAll" || key == "C")
+                {
+                    PendingQuantityClear();
+                    return;
+                }
+                else if (!string.IsNullOrEmpty(key) && (char.IsDigit(key[0]) || key == "."))
+                {
+                    if (key == "." && _numbersFirstBuffer.Contains('.')) return;
+                    _numbersFirstBuffer += key;
                     if (decimal.TryParse(_numbersFirstBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
                     {
                         PendingProductQuantity = val;
                         HasPendingProductQuantity = true;
                     }
+                    OnPropertyChanged(nameof(NumbersFirstDisplayText));
+                    return;
                 }
-                else
-                {
-                    _numbersFirstBuffer = string.Empty;
-                    PendingProductQuantity = 1m;
-                    HasPendingProductQuantity = false;
-                }
-                OnPropertyChanged(nameof(NumbersFirstDisplayText));
-                return;
-            }
-            else if (key == "+" || key == "Plus")
-            {
-                PendingProductQuantity += 1m;
-                _numbersFirstBuffer = PendingProductQuantity.ToString("G29", CultureInfo.InvariantCulture);
-                HasPendingProductQuantity = true;
-                OnPropertyChanged(nameof(NumbersFirstDisplayText));
-                return;
-            }
-            else if (key == "-" || key == "Minus")
-            {
-                PendingProductQuantity = Math.Max(1m, PendingProductQuantity - 1m);
-                _numbersFirstBuffer = PendingProductQuantity.ToString("G29", CultureInfo.InvariantCulture);
-                HasPendingProductQuantity = true;
-                OnPropertyChanged(nameof(NumbersFirstDisplayText));
-                return;
-            }
-            else if (key == "Delete" || key == "ClearAll" || key == "C")
-            {
-                _numbersFirstBuffer = string.Empty;
-                PendingProductQuantity = 1m;
-                HasPendingProductQuantity = false;
-                OnPropertyChanged(nameof(NumbersFirstDisplayText));
-                return;
-            }
-            else if (!string.IsNullOrEmpty(key) && (char.IsDigit(key[0]) || key == "."))
-            {
-                if (key == "." && _numbersFirstBuffer.Contains('.')) return;
-                _numbersFirstBuffer += key;
-                if (decimal.TryParse(_numbersFirstBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
-                {
-                    PendingProductQuantity = val;
-                    HasPendingProductQuantity = true;
-                }
-                OnPropertyChanged(nameof(NumbersFirstDisplayText));
-                return;
             }
         }
 
@@ -1970,7 +2030,14 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
         else if (key == "Delete" || key == "ClearAll")
         {
-            _ = ClearCurrentOrderLinesAsync();
+            if (CurrentConfig?.IsNumbersFirst == true)
+            {
+                DeleteSelectedCartLine();
+            }
+            else
+            {
+                _ = ClearCurrentOrderLinesAsync();
+            }
             return;
         }
         else if (key == "+/-")
@@ -2679,7 +2746,13 @@ public partial class PosRegisterViewModel : ViewModelBase
             decimal total = CurrentOrder.TotalAmount;
             decimal tax = CurrentOrder.Taxes;
             int cfgId = CurrentConfig?.OdooId ?? 1;
-            int sessId = CurrentConfig?.CurrentSessionId ?? 1;
+            int sessId = (int)(CurrentSession?.Id > 0 ? CurrentSession.Id : (CurrentConfig?.CurrentSessionId ?? 1));
+            int? sessOdooId = CurrentSession?.OdooId;
+            if (!sessOdooId.HasValue && CurrentSession != null && CurrentSession.Id > 0)
+            {
+                sessOdooId = await SqliteDatabaseService.Instance.GetOdooSessionIdForLocalSessionAsync(CurrentSession.Id);
+                if (sessOdooId.HasValue) CurrentSession.OdooId = sessOdooId;
+            }
             string sessName = CurrentConfig?.CurrentSessionName ?? $"{ActiveShopName}/00001";
             string shopName = CurrentConfig?.Name ?? ActiveShopName;
 
@@ -2694,7 +2767,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 PosReference = CurrentOrder.OrderRef,
                 TrackingNumber = CurrentOrder.OrderNumber,
                 SessionId = sessId,
-                SessionOdooId = CurrentConfig?.CurrentSessionId,
+                SessionOdooId = sessOdooId,
                 SessionName = sessName,
                 PosConfigName = shopName,
                 DateOrder = DateTime.Now,
@@ -2731,7 +2804,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 {
                     OrderName = order.Name,
                     SessionId = sessId,
-                    SessionOdooId = CurrentConfig?.CurrentSessionId,
+                    SessionOdooId = sessOdooId,
                     SessionName = sessName,
                     CashierName = CashierName,
                     PaymentMethodId = SelectedPaymentMethodOdooId,
@@ -2843,8 +2916,20 @@ public partial class PosRegisterViewModel : ViewModelBase
             return;
         }
 
-        ExecuteOrderReceiptPrint(targetOrder, isAutoPrint: false);
+        ExecuteOrderReceiptPrint(targetOrder, isAutoPrint: false, overrideDesign: ResolveLastReceiptDesign());
     }
+
+    [RelayCommand]
+    public void PrintOrderReceipt(PosOrderRecord? order)
+    {
+        if (order == null) return;
+        ExecuteOrderReceiptPrint(order, isAutoPrint: false, overrideDesign: ResolveLastReceiptDesign());
+    }
+
+    private ReceiptDesignRecord? ResolveLastReceiptDesign() =>
+        CurrentConfig?.LastReceiptDesignId.HasValue == true
+            ? _allReceiptDesigns.FirstOrDefault(d => d.Id == CurrentConfig.LastReceiptDesignId.Value)
+            : null;
 
     [RelayCommand]
     public void CloseReceiptPreviewModal()
@@ -2852,10 +2937,10 @@ public partial class PosRegisterViewModel : ViewModelBase
         IsReceiptPreviewModalOpen = false;
     }
 
-    private void ExecuteOrderReceiptPrint(PosOrderRecord order, bool isAutoPrint)
+    private void ExecuteOrderReceiptPrint(PosOrderRecord order, bool isAutoPrint, ReceiptDesignRecord? overrideDesign = null)
     {
-        ReceiptDesignRecord? mainDesign = null;
-        if (CurrentConfig?.IsCustomOrderReceiptsEnabled == true && CurrentConfig.CustomOrderReceiptDesignId.HasValue)
+        ReceiptDesignRecord? mainDesign = overrideDesign;
+        if (mainDesign == null && CurrentConfig?.IsCustomOrderReceiptsEnabled == true && CurrentConfig.CustomOrderReceiptDesignId.HasValue)
         {
             mainDesign = _allReceiptDesigns.FirstOrDefault(d => d.Id == CurrentConfig.CustomOrderReceiptDesignId.Value)
                          ?? _allReceiptDesigns.FirstOrDefault();
@@ -2897,7 +2982,6 @@ public partial class PosRegisterViewModel : ViewModelBase
             ReceiptPreviewSecondText = string.Empty;
         }
 
-        IsReceiptPreviewModalOpen = true;
         ShowPosToast(isAutoPrint
             ? (HasSecondReceiptPreview ? "Main & Second Receipts printed automatically." : "Receipt printed automatically.")
             : "Receipt printed.");

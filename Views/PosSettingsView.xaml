@@ -564,6 +564,41 @@
                                 <StackPanel>
                                     <TextBlock Text="Print Last Receipt" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
                                     <TextBlock Text="Enable a button to print the last paid order."
+                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+
+                                    <StackPanel Visibility="{Binding PrintLastReceiptDetailsVisibility}">
+                                        <Grid Margin="0,2,20,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Receipt Design" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
+                                                       VerticalAlignment="Center" Margin="0,0,14,0"/>
+                                            <ComboBox Grid.Column="1"
+                                                      Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                      ItemsSource="{Binding ReceiptDesigns}"
+                                                      SelectedItem="{Binding SelectedLastReceiptDesign, Mode=TwoWay}"
+                                                      DisplayMemberPath="Name"
+                                                      Height="36"/>
+                                        </Grid>
+                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}"
+                                                Command="{Binding OpenReceiptDesignsTabCommand}"
+                                                Content="→ Receipt Designs"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ========================================================= -->
+                        <!-- 7b. ACTIVE BUTTON PRINT (Editable)                        -->
+                        <!-- ========================================================= -->
+                        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal">
+                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
+                                      IsChecked="{Binding IsPrintButtonEnabled, Mode=TwoWay}"/>
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                                <StackPanel>
+                                    <TextBlock Text="Active Button Print" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <TextBlock Text="Show the Print button on the payment confirmation (Change) screen."
                                                FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,0"/>
                                 </StackPanel>
                             </Border>

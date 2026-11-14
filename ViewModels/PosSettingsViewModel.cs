@@ -37,6 +37,8 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
     // 7. Print Last Receipt
     private bool _isPrintLastReceiptEnabled;
+    private ReceiptDesignRecord? _selectedLastReceiptDesign;
+    private bool _isPrintButtonEnabled = true;
 
     // 8. Custom Order Receipts
     private bool _isCustomOrderReceiptsEnabled;
@@ -417,6 +419,37 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             if (_isPrintLastReceiptEnabled != value)
             {
                 _isPrintLastReceiptEnabled = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PrintLastReceiptDetailsVisibility));
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
+    public Visibility PrintLastReceiptDetailsVisibility => _isPrintLastReceiptEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+    public ReceiptDesignRecord? SelectedLastReceiptDesign
+    {
+        get => _selectedLastReceiptDesign;
+        set
+        {
+            if (_selectedLastReceiptDesign != value)
+            {
+                _selectedLastReceiptDesign = value;
+                OnPropertyChanged();
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
+    public bool IsPrintButtonEnabled
+    {
+        get => _isPrintButtonEnabled;
+        set
+        {
+            if (_isPrintButtonEnabled != value)
+            {
+                _isPrintButtonEnabled = value;
                 OnPropertyChanged();
                 AutoSaveIfLoaded();
             }
@@ -799,6 +832,10 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             IsAutomaticReceiptPrintingEnabled = config.IsAutomaticReceiptPrintingEnabled;
             IsPreventLineMergingEnabled = config.IsPreventLineMergingEnabled;
             IsPrintLastReceiptEnabled = config.IsPrintLastReceiptEnabled;
+            SelectedLastReceiptDesign = config.LastReceiptDesignId.HasValue
+                ? ReceiptDesigns.FirstOrDefault(d => d.Id == config.LastReceiptDesignId.Value)
+                : null;
+            IsPrintButtonEnabled = config.IsPrintButtonEnabled;
 
             IsCustomOrderReceiptsEnabled = config.IsCustomOrderReceiptsEnabled;
             SelectedCustomOrderReceiptDesign = config.CustomOrderReceiptDesignId.HasValue
@@ -867,6 +904,8 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         // Only local settings (6, 7, 8, 9, 10) are persisted from the program.
         _selectedConfig.IsPreventLineMergingEnabled = IsPreventLineMergingEnabled;
         _selectedConfig.IsPrintLastReceiptEnabled = IsPrintLastReceiptEnabled;
+        _selectedConfig.LastReceiptDesignId = SelectedLastReceiptDesign?.Id;
+        _selectedConfig.IsPrintButtonEnabled = IsPrintButtonEnabled;
         _selectedConfig.IsCustomOrderReceiptsEnabled = IsCustomOrderReceiptsEnabled;
         _selectedConfig.CustomOrderReceiptDesignId = SelectedCustomOrderReceiptDesign?.Id;
         _selectedConfig.IsHideOpeningCashControlEnabled = IsHideOpeningCashControlEnabled;

@@ -64,6 +64,8 @@ public class PosConfigRecord : INotifyPropertyChanged
     private bool _isAutomaticReceiptPrintingEnabled = false;
     private bool _isPreventLineMergingEnabled = false;
     private bool _isPrintLastReceiptEnabled = false;
+    private long? _lastReceiptDesignId = null;
+    private bool _isPrintButtonEnabled = true;
     private bool _isCustomOrderReceiptsEnabled = false;
     private long? _customOrderReceiptDesignId = null;
     private bool _isHideOpeningCashControlEnabled = false;
@@ -166,6 +168,18 @@ public class PosConfigRecord : INotifyPropertyChanged
     {
         get => _isPrintLastReceiptEnabled;
         set { if (_isPrintLastReceiptEnabled != value) { _isPrintLastReceiptEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public long? LastReceiptDesignId
+    {
+        get => _lastReceiptDesignId;
+        set { if (_lastReceiptDesignId != value) { _lastReceiptDesignId = value; OnPropertyChanged(); } }
+    }
+
+    public bool IsPrintButtonEnabled
+    {
+        get => _isPrintButtonEnabled;
+        set { if (_isPrintButtonEnabled != value) { _isPrintButtonEnabled = value; OnPropertyChanged(); } }
     }
 
     public bool IsCustomOrderReceiptsEnabled

@@ -91,7 +91,8 @@ public record ProductDto(
     string PurchaseTaxLabel = "15%",
     string UomName = "Units",
     string CompanyName = "",
-    string PosDescription = ""
+    string PosDescription = "",
+    bool IsSalesTaxIncluded = false
 );
 
 public record ComboChoiceDto(
@@ -620,6 +621,8 @@ public class SqliteDatabaseService
                 IsAutomaticReceiptPrintingEnabled INTEGER DEFAULT 0,
                 IsPreventLineMergingEnabled INTEGER DEFAULT 0,
                 IsPrintLastReceiptEnabled INTEGER DEFAULT 0,
+                LastReceiptDesignId INTEGER,
+                IsPrintButtonEnabled INTEGER DEFAULT 1,
                 IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0,
                 CustomOrderReceiptDesignId INTEGER,
                 IsHideOpeningCashControlEnabled INTEGER DEFAULT 0,
@@ -700,6 +703,7 @@ public class SqliteDatabaseService
             "ALTER TABLE Products ADD COLUMN UomName TEXT DEFAULT 'Units';",
             "ALTER TABLE Products ADD COLUMN CompanyName TEXT DEFAULT '';",
             "ALTER TABLE Products ADD COLUMN PosDescription TEXT DEFAULT '';",
+            "ALTER TABLE Products ADD COLUMN IsSalesTaxIncluded INTEGER DEFAULT 0;",
             "ALTER TABLE PosSessions ADD COLUMN CashInOutTotal REAL DEFAULT 0.0;",
             "ALTER TABLE PosSessions ADD COLUMN OpeningNote TEXT;",
             "ALTER TABLE PosSessions ADD COLUMN ClosingNote TEXT;",
@@ -720,6 +724,8 @@ public class SqliteDatabaseService
             "ALTER TABLE PosConfigs ADD COLUMN IsAutomaticReceiptPrintingEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN IsPreventLineMergingEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN IsPrintLastReceiptEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN LastReceiptDesignId INTEGER;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsPrintButtonEnabled INTEGER DEFAULT 1;",
             "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN CustomOrderReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN IsHideOpeningCashControlEnabled INTEGER DEFAULT 0;",
@@ -2132,7 +2138,8 @@ public class SqliteDatabaseService
                    COALESCE(p.PurchaseTaxLabel, '15%'),
                    COALESCE(p.UomName, 'Units'),
                    COALESCE(p.CompanyName, ''),
-                   COALESCE(p.PosDescription, '')
+                   COALESCE(p.PosDescription, ''),
+                   COALESCE(p.IsSalesTaxIncluded, 0)
             FROM Products p
             LEFT JOIN PosCategories c ON p.PosCategoryId = c.OdooId
             ORDER BY p.Name ASC;
@@ -2171,7 +2178,8 @@ public class SqliteDatabaseService
                 PurchaseTaxLabel = reader.IsDBNull(25) ? "15%" : reader.GetString(25),
                 UomName = reader.IsDBNull(26) ? "Units" : reader.GetString(26),
                 CompanyName = reader.IsDBNull(27) ? "" : reader.GetString(27),
-                PosDescription = reader.IsDBNull(28) ? "" : reader.GetString(28)
+                PosDescription = reader.IsDBNull(28) ? "" : reader.GetString(28),
+                IsSalesTaxIncluded = !reader.IsDBNull(29) && reader.GetInt32(29) != 0
             });
         }
 
@@ -2209,7 +2217,7 @@ public class SqliteDatabaseService
                         SaleOk = @saleOk, PurchaseOk = @purchaseOk, AvailableInPos = @availPos,
                         TrackInventory = @trackInv, ToWeight = @toWeight,
                         SalesTaxLabel = @sTaxLbl, SalesTaxRate = @sTaxRate, PurchaseTaxLabel = @pTaxLbl,
-                        UomName = @uom, CompanyName = @company, PosDescription = @posDesc,
+                        UomName = @uom, CompanyName = @company, PosDescription = @posDesc, IsSalesTaxIncluded = @isTaxIncl,
                         ImageBase64 = @image, TagsJson = @tags, AttributesJson = @attrs, ComboChoicesJson = @combos,
                         UpdatedAt = CURRENT_TIMESTAMP
                     WHERE OdooId = @odooId;
@@ -2223,12 +2231,12 @@ public class SqliteDatabaseService
                                          PosCategoryId, PosCategoryName, InternalCategoryName, VariantCount, QtyAvailable,
                                          SaleOk, PurchaseOk, AvailableInPos, TrackInventory, ToWeight,
                                          SalesTaxLabel, SalesTaxRate, PurchaseTaxLabel, UomName, CompanyName, PosDescription,
-                                         ImageBase64, TagsJson, AttributesJson, ComboChoicesJson)
+                                         IsSalesTaxIncluded, ImageBase64, TagsJson, AttributesJson, ComboChoicesJson)
                     VALUES (@odooId, @name, @type, @listPrice, @stdPrice, @sku, @barcode,
                             @catId, @catName, @internalCat, @variants, @qty,
                             @saleOk, @purchaseOk, @availPos, @trackInv, @toWeight,
                             @sTaxLbl, @sTaxRate, @pTaxLbl, @uom, @company, @posDesc,
-                            @image, @tags, @attrs, @combos);
+                            @isTaxIncl, @image, @tags, @attrs, @combos);
                     """;
                 imported++;
             }
@@ -2256,6 +2264,7 @@ public class SqliteDatabaseService
             cmd.Parameters.AddWithValue("@uom", p.UomName ?? "Units");
             cmd.Parameters.AddWithValue("@company", p.CompanyName ?? "");
             cmd.Parameters.AddWithValue("@posDesc", p.PosDescription ?? "");
+            cmd.Parameters.AddWithValue("@isTaxIncl", p.IsSalesTaxIncluded ? 1 : 0);
             cmd.Parameters.AddWithValue("@image", (object?)p.ImageBase64 ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@tags", (object?)p.TagsJson ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@attrs", (object?)p.AttributesJson ?? DBNull.Value);
@@ -3478,7 +3487,9 @@ public class SqliteDatabaseService
                    COALESCE(c.IsHideClosingRegisterEnabled, 0),
                    c.CustomSalesReceiptDesignId,
                    COALESCE(c.IsHideReviewOrdersEnabled, 0),
-                   COALESCE(c.NumbersFirstOrProducts, 'products')
+                   COALESCE(c.NumbersFirstOrProducts, 'products'),
+                   c.LastReceiptDesignId,
+                   COALESCE(c.IsPrintButtonEnabled, 1)
             FROM PosConfigs c
             LEFT JOIN Users u ON c.ActiveUserId = u.OdooId
             ORDER BY COALESCE(c.OdooId, c.Id) ASC;
@@ -3520,7 +3531,9 @@ public class SqliteDatabaseService
                 IsHideClosingRegisterEnabled = !reader.IsDBNull(28) && reader.GetInt32(28) != 0,
                 CustomSalesReceiptDesignId = reader.IsDBNull(29) ? null : reader.GetInt64(29),
                 IsHideReviewOrdersEnabled = !reader.IsDBNull(30) && reader.GetInt32(30) != 0,
-                NumbersFirstOrProducts = reader.IsDBNull(31) ? "products" : reader.GetString(31)
+                NumbersFirstOrProducts = reader.IsDBNull(31) ? "products" : reader.GetString(31),
+                LastReceiptDesignId = reader.IsDBNull(32) ? null : reader.GetInt64(32),
+                IsPrintButtonEnabled = reader.IsDBNull(33) || reader.GetInt32(33) != 0
             });
         }
 
@@ -3714,6 +3727,8 @@ public class SqliteDatabaseService
             UPDATE PosConfigs
             SET IsPreventLineMergingEnabled = @preventMerge,
                 IsPrintLastReceiptEnabled = @printLast,
+                LastReceiptDesignId = @lastReceiptId,
+                IsPrintButtonEnabled = @printButtonEnabled,
                 IsCustomOrderReceiptsEnabled = @customReceiptEnabled,
                 CustomOrderReceiptDesignId = @customReceiptId,
                 IsHideOpeningCashControlEnabled = @hideOpening,
@@ -3730,6 +3745,8 @@ public class SqliteDatabaseService
 
         cmd.Parameters.AddWithValue("@preventMerge", config.IsPreventLineMergingEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@printLast", config.IsPrintLastReceiptEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@lastReceiptId", (object?)config.LastReceiptDesignId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@printButtonEnabled", config.IsPrintButtonEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@customReceiptEnabled", config.IsCustomOrderReceiptsEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@customReceiptId", (object?)config.CustomOrderReceiptDesignId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@hideOpening", config.IsHideOpeningCashControlEnabled ? 1 : 0);
@@ -4778,6 +4795,28 @@ public class SqliteDatabaseService
         await cmd.ExecuteNonQueryAsync();
     }
 
+    public async Task<int?> GetOdooSessionIdForLocalSessionAsync(long localSessionId)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT OdooId FROM PosSessions WHERE Id = @id AND OdooId IS NOT NULL LIMIT 1;";
+        cmd.Parameters.AddWithValue("@id", localSessionId);
+        var res = await cmd.ExecuteScalarAsync();
+        return res is null or DBNull ? null : Convert.ToInt32(res);
+    }
+
+    public async Task<long?> GetLocalSessionIdByOdooSessionIdAsync(int odooSessionId)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT Id FROM PosSessions WHERE OdooId = @odooId LIMIT 1;";
+        cmd.Parameters.AddWithValue("@odooId", odooSessionId);
+        var res = await cmd.ExecuteScalarAsync();
+        return res is null or DBNull ? null : Convert.ToInt64(res);
+    }
+
     public async Task BindLocalSessionToOdooSessionAsync(
         long localSessionId,
         int configOdooId,
@@ -4787,6 +4826,17 @@ public class SqliteDatabaseService
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        // Release the Odoo session id from any other local row first so the
+        // UNIQUE(OdooId) constraint cannot fail when re-binding ownership.
+        await using (var clearCmd = connection.CreateCommand())
+        {
+            clearCmd.Transaction = transaction;
+            clearCmd.CommandText = "UPDATE PosSessions SET OdooId = NULL WHERE OdooId = @odooId AND Id != @localId;";
+            clearCmd.Parameters.AddWithValue("@odooId", odooSessionId);
+            clearCmd.Parameters.AddWithValue("@localId", localSessionId);
+            await clearCmd.ExecuteNonQueryAsync();
+        }
 
         await using (var updSess = connection.CreateCommand())
         {
@@ -4858,7 +4908,12 @@ public class SqliteDatabaseService
                 UPDATE PendingSyncQueue
                 SET SessionOdooId = @odooId
                 WHERE Status != 'Completed'
-                  AND LocalEntityId = @localId;
+                  AND (
+                      (OperationType IN ('OPEN_SESSION', 'CLOSE_SESSION', 'CASH_IN_OUT') AND LocalEntityId = @localId)
+                      OR (OperationType = 'CREATE_ORDER' AND LocalEntityId IN (
+                          SELECT Id FROM PosOrders WHERE SessionId = @localId
+                      ))
+                  );
                 """;
             updQueue.Parameters.AddWithValue("@odooId", odooSessionId);
             updQueue.Parameters.AddWithValue("@localId", localSessionId);

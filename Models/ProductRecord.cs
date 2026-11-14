@@ -54,6 +54,7 @@ public class ProductRecord : INotifyPropertyChanged
     private bool _toWeight = false;
     private string _salesTaxLabel = "15%";
     private decimal _salesTaxRate = 15.0m;
+    private bool _isSalesTaxIncluded = false;
     private string _purchaseTaxLabel = "15%";
     private string _uomName = "Units";
     private string _companyName = string.Empty;
@@ -353,6 +354,20 @@ public class ProductRecord : INotifyPropertyChanged
         }
     }
 
+    public bool IsSalesTaxIncluded
+    {
+        get => _isSalesTaxIncluded;
+        set
+        {
+            if (_isSalesTaxIncluded != value)
+            {
+                _isSalesTaxIncluded = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(TaxIncludedPriceDisplay));
+            }
+        }
+    }
+
     public string PurchaseTaxLabel
     {
         get => _purchaseTaxLabel;
@@ -502,7 +517,9 @@ public class ProductRecord : INotifyPropertyChanged
     {
         get
         {
-            decimal incl = Math.Round(ListPrice * (1.0m + (SalesTaxRate / 100.0m)), 2);
+            decimal incl = IsSalesTaxIncluded
+                ? ListPrice
+                : Math.Round(ListPrice * (1.0m + (SalesTaxRate / 100.0m)), 2);
             return $"(= $ {incl:N2} Incl. Taxes)";
         }
     }

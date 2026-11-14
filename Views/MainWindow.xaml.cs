@@ -31,6 +31,7 @@ public partial class MainWindow : Window
         // Hook up MainShellModule Logout
         MainShellModule.LogoutRequested += (_, _) =>
         {
+            OdooSyncService.Instance.SetCurrentPosUser(null);
             MainShellModule.Visibility = Visibility.Collapsed;
             TopLoginHeaderBar.Visibility = Visibility.Visible;
             LoginWorkspaceGrid.Visibility = Visibility.Visible;
@@ -226,7 +227,7 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrWhiteSpace(user.Pin))
         {
-            StartPosSession(user.Name);
+            StartPosSession(user);
             return;
         }
 
@@ -286,10 +287,10 @@ public partial class MainWindow : Window
     {
         bool isValid = _selectedUser is not null && _currentPin == _selectedUser.Pin;
 
-        if (isValid)
+        if (isValid && _selectedUser is not null)
         {
             PinPadModalOverlay.Visibility = Visibility.Collapsed;
-            StartPosSession(_selectedUser?.Name ?? "User");
+            StartPosSession(_selectedUser);
         }
         else
         {
@@ -366,16 +367,19 @@ public partial class MainWindow : Window
     }
 
     // ==================== SESSION START & EXIT LOGIC ====================
-    private void StartPosSession(string userName)
+    private void StartPosSession(PosUserRecord user)
     {
+        OdooSyncService.Instance.SetCurrentPosUser(user);
+        _ = Task.Run(() => OdooSyncService.Instance.RecordUserLoginInOdooAsync(user));
+
         LoginWorkspaceGrid.Visibility = Visibility.Collapsed;
         TopLoginHeaderBar.Visibility = Visibility.Collapsed;
         HeaderQuickSetupBtn.Visibility = Visibility.Collapsed;
         MainShellModule.Visibility = Visibility.Visible;
-        MainShellModule.SetCurrentUser(userName);
+        MainShellModule.SetCurrentUser(user);
         MainShellModule.SwitchToDashboard();
 
-        ShowLoginToast($"Authenticated as {userName} — Active POS Session");
+        ShowLoginToast($"Authenticated as {user.Name} — Active POS Session");
     }
 
     private void ShowLoginToast(string message)

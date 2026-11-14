@@ -85,6 +85,13 @@ public class OdooSyncService
     private readonly System.Threading.Timer _backgroundFlushTimer;
     private int _flushRunning;
 
+    public PosUserRecord? CurrentPosUser { get; private set; }
+
+    public void SetCurrentPosUser(PosUserRecord? user)
+    {
+        CurrentPosUser = user;
+    }
+
     public bool IsOnline { get; private set; }
     public string ConnectionStatusLabel { get; private set; } = "Offline (Local Mode)";
     public event Action<bool>? OnlineStatusChanged;
@@ -729,8 +736,142 @@ public class OdooSyncService
         return processedCount;
     }
 
-    private async Task<int> EnsureOdooOpenSessionIdAsync(OdooConfigRecord config, int uid, int configOdooId, int? knownSessionOdooId = null, long? preferLocalSessionId = null)
+    public async Task<int?> ResolvePosUserOdooIdAsync(OdooConfigRecord config, int uid, int? knownUserId, string? userNameOrLogin)
     {
+        if (knownUserId.HasValue && knownUserId.Value > 0)
+            return knownUserId.Value;
+
+        if (CurrentPosUser?.OdooId is > 0 &&
+            (string.IsNullOrWhiteSpace(userNameOrLogin) ||
+             string.Equals(CurrentPosUser.Name, userNameOrLogin, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(CurrentPosUser.Login, userNameOrLogin, StringComparison.OrdinalIgnoreCase)))
+        {
+            return CurrentPosUser.OdooId.Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userNameOrLogin))
+        {
+            try
+            {
+                var localUsers = await SqliteDatabaseService.Instance.LoadAllUsersAsync();
+                var localMatch = localUsers.FirstOrDefault(u =>
+                    u.OdooId is > 0 &&
+                    (string.Equals(u.Name, userNameOrLogin.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(u.Login, userNameOrLogin.Trim(), StringComparison.OrdinalIgnoreCase)));
+                if (localMatch?.OdooId is > 0)
+                    return localMatch.OdooId.Value;
+
+                using var userDoc = await SearchReadAsync(
+                    config,
+                    uid,
+                    "res.users",
+                    [
+                        "|",
+                        new object[] { "login", "=", userNameOrLogin.Trim() },
+                        new object[] { "name", "=", userNameOrLogin.Trim() }
+                    ],
+                    ["id", "name", "login"]
+                );
+                if (userDoc.RootElement.TryGetProperty("result", out var arr) &&
+                    arr.ValueKind == JsonValueKind.Array &&
+                    arr.GetArrayLength() > 0)
+                {
+                    int resolvedId = GetIntOrDefault(arr[0], "id");
+                    if (resolvedId > 0)
+                        return resolvedId;
+                }
+            }
+            catch { }
+        }
+
+        return CurrentPosUser?.OdooId;
+    }
+
+    public async Task RecordUserLoginInOdooAsync(PosUserRecord user)
+    {
+        if (user == null) return;
+
+        try
+        {
+            var config = await SqliteDatabaseService.Instance.GetOdooConfigAsync();
+            if (string.IsNullOrWhiteSpace(config.ServerUrl) ||
+                string.IsNullOrWhiteSpace(config.DatabaseName) ||
+                string.IsNullOrWhiteSpace(config.Username))
+            {
+                return;
+            }
+
+            if (!await CheckServerReachableAsync(config.ServerUrl))
+                return;
+
+            int adminUid = await EnsureAuthenticatedUidAsync(config);
+
+            // 1. Ensure user.OdooId is resolved from Odoo res.users
+            if (!user.OdooId.HasValue || user.OdooId.Value <= 0)
+            {
+                int? resolvedId = await ResolvePosUserOdooIdAsync(config, adminUid, user.OdooId, !string.IsNullOrWhiteSpace(user.Login) ? user.Login : user.Name);
+                if (resolvedId.HasValue && resolvedId.Value > 0)
+                {
+                    user.OdooId = resolvedId.Value;
+                    await SqliteDatabaseService.Instance.SaveUserRecordAsync(user);
+                }
+            }
+
+            // 2. If the user has their own Odoo password configured, authenticate directly so Odoo logs their login
+            if (!string.IsNullOrWhiteSpace(user.Login) &&
+                !string.IsNullOrWhiteSpace(user.Password) &&
+                user.Password != "••••••••")
+            {
+                string baseUrl = NormalizeUrl(config.ServerUrl);
+                var authPayload = new
+                {
+                    jsonrpc = "2.0",
+                    method = "call",
+                    @params = new
+                    {
+                        service = "common",
+                        method = "authenticate",
+                        args = new object[]
+                        {
+                            config.DatabaseName.Trim(),
+                            user.Login.Trim(),
+                            user.Password,
+                            new { }
+                        }
+                    },
+                    id = Interlocked.Increment(ref _rpcIdCounter)
+                };
+
+                using var jsonContent = new StringContent(JsonSerializer.Serialize(authPayload), Encoding.UTF8, "application/json");
+                using var resp = await _httpClient.PostAsync($"{baseUrl}/jsonrpc", jsonContent);
+                if (resp.IsSuccessStatusCode)
+                {
+                    string respStr = await resp.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(respStr);
+                    if (doc.RootElement.TryGetProperty("result", out var res) &&
+                        res.ValueKind == JsonValueKind.Number &&
+                        res.TryGetInt32(out int loggedInUid) &&
+                        loggedInUid > 0 &&
+                        user.OdooId != loggedInUid)
+                    {
+                        user.OdooId = loggedInUid;
+                        await SqliteDatabaseService.Instance.SaveUserRecordAsync(user);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[RecordUserLoginInOdooAsync] {ex.Message}");
+        }
+    }
+
+    private async Task<int> EnsureOdooOpenSessionIdAsync(OdooConfigRecord config, int uid, int configOdooId, int? knownSessionOdooId = null, long? preferLocalSessionId = null, int? sessionUserId = null)
+    {
+        int effectiveUserId = (sessionUserId.HasValue && sessionUserId.Value > 0)
+            ? sessionUserId.Value
+            : (CurrentPosUser?.OdooId is > 0 ? CurrentPosUser.OdooId.Value : uid);
+
         // 1. Prefer the known session when it is still open and not owned by another local session
         if (knownSessionOdooId.HasValue && knownSessionOdooId.Value > 0)
         {
@@ -794,7 +935,7 @@ public class OdooSyncService
                 new Dictionary<string, object>
                 {
                     ["config_id"] = configOdooId,
-                    ["user_id"] = uid
+                    ["user_id"] = effectiveUserId
                 }
             ]
         );
@@ -812,7 +953,8 @@ public class OdooSyncService
 
     private async Task PushOpenSessionToOdooAsync(OdooConfigRecord config, int uid, OpenSessionSyncPayload payload)
     {
-        int odooSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, payload.ExistingSessionOdooId, payload.LocalSessionId);
+        int? resolvedUserId = await ResolvePosUserOdooIdAsync(config, uid, payload.UserId, payload.CashierName);
+        int odooSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, payload.ExistingSessionOdooId, payload.LocalSessionId, resolvedUserId);
 
         try
         {
@@ -932,6 +1074,10 @@ public class OdooSyncService
                     {
                         ["start_at"] = payload.OpenedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
                     };
+                    if (resolvedUserId.HasValue && resolvedUserId.Value > 0)
+                    {
+                        sessVals["user_id"] = resolvedUserId.Value;
+                    }
                     if (!string.IsNullOrWhiteSpace(payload.OpeningNote))
                     {
                         sessVals["opening_notes"] = payload.OpeningNote;
@@ -1254,9 +1400,15 @@ public class OdooSyncService
             }
         }
 
+        // Resolve the logged-in cashier's Odoo res.users ID and display name
+        string effectiveCashierName = !string.IsNullOrWhiteSpace(payload.CashierName)
+            ? payload.CashierName
+            : (CurrentPosUser?.Name ?? "");
+        int? resolvedCashierId = await ResolvePosUserOdooIdAsync(config, uid, payload.CashierId, effectiveCashierName);
+
         // 2. Ensure we have an active Odoo session ID (and ensure it is in 'opened' state).
         // Single read for state + company + bank statement to cut RPC round-trips.
-        int activeSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, sessionOdooId, payload.LocalSessionId);
+        int activeSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, sessionOdooId, payload.LocalSessionId, resolvedCashierId);
         int? sessionCompanyId = null;
         try
         {
@@ -1418,13 +1570,13 @@ public class OdooSyncService
         if (orderFields.Count == 0 || orderFields.Contains("sequence_number"))
             orderVals["sequence_number"] = seqNumber;
         if (orderFields.Count == 0 || orderFields.Contains("user_id"))
-            orderVals["user_id"] = payload.CashierId ?? uid;
+            orderVals["user_id"] = resolvedCashierId ?? uid;
         if (orderFields.Count == 0 || orderFields.Contains("date_order"))
             orderVals["date_order"] = payload.DateOrder.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         if (!string.IsNullOrWhiteSpace(payload.TrackingNumber) && (orderFields.Count == 0 || orderFields.Contains("tracking_number")))
             orderVals["tracking_number"] = payload.TrackingNumber;
-        if (!string.IsNullOrWhiteSpace(payload.CashierName) && (orderFields.Count == 0 || orderFields.Contains("cashier")))
-            orderVals["cashier"] = payload.CashierName;
+        if (!string.IsNullOrWhiteSpace(effectiveCashierName) && (orderFields.Count == 0 || orderFields.Contains("cashier")))
+            orderVals["cashier"] = effectiveCashierName;
         if (payload.PartnerId.HasValue && payload.PartnerId.Value > 0 && (orderFields.Count == 0 || orderFields.Contains("partner_id")))
             orderVals["partner_id"] = payload.PartnerId.Value;
         if (payload.IsToInvoice && (orderFields.Count == 0 || orderFields.Contains("to_invoice")))

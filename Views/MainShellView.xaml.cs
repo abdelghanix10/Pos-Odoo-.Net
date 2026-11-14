@@ -19,6 +19,7 @@ public partial class MainShellView : UserControl
     public event EventHandler? LogoutRequested;
 
     public string CurrentUser { get; private set; } = "Administrator";
+    public PosUserRecord? CurrentPosUser { get; private set; }
     public PosDashboardView DashboardControl => DashboardViewControl;
     public CompanyManagementView CompaniesControl => CompaniesViewControl;
     public PaymentMethodManagementView PaymentMethodsControl => PaymentMethodsViewControl;
@@ -52,7 +53,7 @@ public partial class MainShellView : UserControl
         DashboardViewControl.VM.OpenRegisterRequested += async config =>
         {
             bool showOpeningControl = config.IsOpeningControl || config.IsClosed;
-            await RegisterViewControl.VM.InitializeRegisterAsync(config, showOpeningControl);
+            await RegisterViewControl.VM.InitializeRegisterAsync(config, showOpeningControl, CurrentPosUser);
             RegisterViewControl.Visibility = Visibility.Visible;
         };
         RegisterViewControl.VM.ReturnToDashboardRequested += async () =>
@@ -305,6 +306,12 @@ public partial class MainShellView : UserControl
         await UsersViewControl.ReloadUsersFromDatabaseAsync(resetDetailView: false);
         UsersViewControl.NotifyUsersUpdated();
         await RefreshDatabaseCountsAsync();
+    }
+
+    public void SetCurrentUser(PosUserRecord user)
+    {
+        CurrentPosUser = user;
+        CurrentUser = user.Name;
     }
 
     public void SetCurrentUser(string userName)

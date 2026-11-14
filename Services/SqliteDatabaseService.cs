@@ -3996,6 +3996,7 @@ public class SqliteDatabaseService
                     OpeningNote = @note,
                     State = 'opened',
                     StartAt = COALESCE(StartAt, @now),
+                    UserId = COALESCE(@userId, UserId),
                     UserName = COALESCE(@userName, UserName),
                     IsSynced = @synced,
                     UpdatedAt = CURRENT_TIMESTAMP
@@ -4004,6 +4005,7 @@ public class SqliteDatabaseService
             cmdSession.Parameters.AddWithValue("@openBal", (double)openingBalance);
             cmdSession.Parameters.AddWithValue("@note", openingNote ?? "");
             cmdSession.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            cmdSession.Parameters.AddWithValue("@userId", (object?)userId ?? DBNull.Value);
             cmdSession.Parameters.AddWithValue("@userName", (object?)cashierName ?? DBNull.Value);
             cmdSession.Parameters.AddWithValue("@synced", enqueueForOdooSync ? 0 : 1);
             cmdSession.Parameters.AddWithValue("@id", localSessId);

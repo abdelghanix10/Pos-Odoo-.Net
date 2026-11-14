@@ -57,6 +57,21 @@ public partial class PosRegisterViewModel : ViewModelBase
     [ObservableProperty]
     private BitmapImage? _cashierAvatarBitmap;
 
+    [ObservableProperty]
+    private PosUserRecord? _loggedInUser;
+
+    private int? EffectiveUserId =>
+        LoggedInUser?.OdooId ??
+        OdooSyncService.Instance.CurrentPosUser?.OdooId ??
+        CurrentConfig?.ActiveUserId;
+
+    private string EffectiveCashierName =>
+        !string.IsNullOrWhiteSpace(LoggedInUser?.Name)
+            ? LoggedInUser.Name
+            : (!string.IsNullOrWhiteSpace(OdooSyncService.Instance.CurrentPosUser?.Name)
+                ? OdooSyncService.Instance.CurrentPosUser.Name
+                : CashierName);
+
     public bool HasCashierAvatar => CashierAvatarBitmap != null;
 
     public string CashierInitials
@@ -913,7 +928,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     // =========================================================================
     // INITIALIZATION & CONTEXT LOADING
     // =========================================================================
-    public async Task InitializeRegisterAsync(PosConfigRecord config, bool showOpeningControl = false)
+    public async Task InitializeRegisterAsync(PosConfigRecord config, bool showOpeningControl = false, PosUserRecord? loggedInUser = null)
     {
         try
         {
@@ -948,11 +963,51 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
         catch { }
 
+        var activeUser = loggedInUser ?? OdooSyncService.Instance.CurrentPosUser;
+
+        try
+        {
+            var users = await SqliteDatabaseService.Instance.LoadAllUsersAsync();
+            if (activeUser != null && (!activeUser.OdooId.HasValue || activeUser.AvatarBitmap == null))
+            {
+                var dbMatch = users.FirstOrDefault(u =>
+                    (!string.IsNullOrWhiteSpace(activeUser.Login) && string.Equals(u.Login, activeUser.Login, StringComparison.OrdinalIgnoreCase)) ||
+                    string.Equals(u.Name, activeUser.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (dbMatch != null)
+                {
+                    activeUser.OdooId ??= dbMatch.OdooId;
+                    activeUser.AvatarBase64 ??= dbMatch.AvatarBase64;
+                    activeUser.AvatarBitmap ??= dbMatch.AvatarBitmap;
+                }
+            }
+        }
+        catch { }
+
+        LoggedInUser = activeUser;
         CurrentConfig = config;
         OnPropertyChanged(nameof(IsPrintButtonVisible));
         ActiveShopName = config.Name;
-        CashierName = !string.IsNullOrWhiteSpace(config.ActiveUserName) ? config.ActiveUserName! : "Mitchell Admin";
-        CashierAvatarBitmap = config.ActiveUserAvatarBitmap;
+
+        if (activeUser != null)
+        {
+            CashierName = activeUser.Name;
+            CashierAvatarBitmap = activeUser.AvatarBitmap;
+            if (activeUser.OdooId.HasValue && activeUser.OdooId.Value > 0)
+            {
+                config.ActiveUserId = activeUser.OdooId.Value;
+            }
+            config.ActiveUserName = activeUser.Name;
+            if (!string.IsNullOrWhiteSpace(activeUser.AvatarBase64))
+            {
+                config.ActiveUserAvatarBase64 = activeUser.AvatarBase64;
+            }
+        }
+        else
+        {
+            CashierName = !string.IsNullOrWhiteSpace(config.ActiveUserName) ? config.ActiveUserName! : "Mitchell Admin";
+            CashierAvatarBitmap = config.ActiveUserAvatarBitmap;
+        }
 
         // Always reset category selection and search text so products display immediately on open
         SelectedCategory = null;
@@ -968,12 +1023,14 @@ public partial class PosRegisterViewModel : ViewModelBase
             {
                 var users = await SqliteDatabaseService.Instance.LoadAllUsersAsync();
                 var matchedUser = users.FirstOrDefault(u => string.Equals(u.Name, CashierName, StringComparison.OrdinalIgnoreCase))
-                                  ?? users.FirstOrDefault(u => u.HasAvatar);
+                                  ?? (activeUser == null ? users.FirstOrDefault(u => u.HasAvatar) : null);
                 if (matchedUser != null)
                 {
                     CashierAvatarBitmap = matchedUser.AvatarBitmap;
-                    if (string.IsNullOrWhiteSpace(config.ActiveUserName))
+                    if (activeUser == null && string.IsNullOrWhiteSpace(config.ActiveUserName))
                         CashierName = matchedUser.Name;
+                    if (matchedUser.OdooId.HasValue && !config.ActiveUserId.HasValue)
+                        config.ActiveUserId = matchedUser.OdooId.Value;
                 }
             }
 
@@ -1084,8 +1141,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                 config.OpeningBalance,
                 string.Empty,
                 config.Name,
-                config.ActiveUserId,
-                CashierName,
+                EffectiveUserId,
+                EffectiveCashierName,
                 enqueueForOdooSync: true
             );
 
@@ -1096,8 +1153,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                 Name = resolvedSessName,
                 PosConfigId = config.OdooId,
                 PosConfigName = config.Name,
-                UserId = config.ActiveUserId,
-                UserName = CashierName,
+                UserId = EffectiveUserId,
+                UserName = EffectiveCashierName,
                 StartAt = DateTime.Now,
                 State = "opened",
                 OpeningBalance = config.OpeningBalance
@@ -1141,14 +1198,16 @@ public partial class PosRegisterViewModel : ViewModelBase
                     openBal,
                     string.Empty,
                     cfgName,
-                    CurrentConfig.ActiveUserId,
-                    CashierName,
+                    EffectiveUserId,
+                    EffectiveCashierName,
                     enqueueForOdooSync: true
                 );
 
                 CurrentConfig.CurrentSessionState = "opened";
                 CurrentConfig.CurrentSessionId = resolvedSessOdooId ?? (int)localSessId;
                 CurrentConfig.CurrentSessionName = resolvedSessName;
+                CurrentConfig.ActiveUserId = EffectiveUserId;
+                CurrentConfig.ActiveUserName = EffectiveCashierName;
                 CurrentSessionNameDisplay = resolvedSessName;
                 CurrentSession = new PosSessionRecord
                 {
@@ -1157,8 +1216,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                     Name = resolvedSessName,
                     PosConfigId = cfgId,
                     PosConfigName = cfgName,
-                    UserId = CurrentConfig.ActiveUserId,
-                    UserName = CashierName,
+                    UserId = EffectiveUserId,
+                    UserName = EffectiveCashierName,
                     StartAt = DateTime.Now,
                     State = "opened",
                     OpeningBalance = openBal
@@ -1616,7 +1675,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                 SessionName = sessName,
                 PosConfigName = shopName,
                 DateOrder = draft.CreatedAt,
-                CashierName = CashierName,
+                CashierId = EffectiveUserId,
+                CashierName = EffectiveCashierName,
                 CustomerName = draft.CustomerName,
                 AmountTotal = draft.TotalAmount,
                 AmountTax = draft.Taxes,
@@ -2433,8 +2493,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                 cash,
                 OpeningNote,
                 cfgName,
-                CurrentConfig?.ActiveUserId,
-                CashierName,
+                EffectiveUserId,
+                EffectiveCashierName,
                 enqueueForOdooSync: true
             );
 
@@ -2444,6 +2504,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                 CurrentConfig.OpeningBalance = cash;
                 CurrentConfig.CurrentSessionId = resolvedSessOdooId ?? (int)localSessId;
                 CurrentConfig.CurrentSessionName = resolvedSessName;
+                CurrentConfig.ActiveUserId = EffectiveUserId;
+                CurrentConfig.ActiveUserName = EffectiveCashierName;
             }
 
             CurrentSessionNameDisplay = resolvedSessName;
@@ -2454,8 +2516,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                 Name = resolvedSessName,
                 PosConfigId = cfgId,
                 PosConfigName = cfgName,
-                UserId = CurrentConfig?.ActiveUserId ?? 2,
-                UserName = CashierName,
+                UserId = EffectiveUserId,
+                UserName = EffectiveCashierName,
                 StartAt = DateTime.Now,
                 State = "opened",
                 OpeningBalance = cash
@@ -2771,8 +2833,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                 SessionName = sessName,
                 PosConfigName = shopName,
                 DateOrder = DateTime.Now,
-                CashierId = CurrentConfig?.ActiveUserId,
-                CashierName = CashierName,
+                CashierId = EffectiveUserId,
+                CashierName = EffectiveCashierName,
                 CustomerName = CurrentOrder.CustomerName,
                 FiscalPosition = "Standard Tax",
                 AmountTotal = total,
@@ -2806,7 +2868,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                     SessionId = sessId,
                     SessionOdooId = sessOdooId,
                     SessionName = sessName,
-                    CashierName = CashierName,
+                    CashierName = EffectiveCashierName,
                     PaymentMethodId = SelectedPaymentMethodOdooId,
                     PaymentMethodName = SelectedPaymentMethod,
                     Amount = total,

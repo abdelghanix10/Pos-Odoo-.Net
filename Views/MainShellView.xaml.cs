@@ -65,6 +65,11 @@ public partial class MainShellView : UserControl
             await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
             await RefreshDatabaseCountsAsync();
         };
+        RegisterViewControl.VM.LogoutFromPosRequested += () =>
+        {
+            RegisterViewControl.Visibility = Visibility.Collapsed;
+            LogoutRequested?.Invoke(this, EventArgs.Empty);
+        };
         DashboardViewControl.VM.ViewOrdersRequested += shopName =>
         {
             SwitchToOrders(shopName);
@@ -317,6 +322,49 @@ public partial class MainShellView : UserControl
     public void SetCurrentUser(string userName)
     {
         CurrentUser = userName;
+    }
+
+    public async Task StartSessionForUserAsync(PosUserRecord user)
+    {
+        SetCurrentUser(user);
+
+        if (user.IsPosOnly)
+        {
+            // Hide Sidebar & Dashboard completely for POS-Only users
+            SidebarContainerBorder.Visibility = Visibility.Collapsed;
+            SidebarMenuColumn.Width = new GridLength(0);
+            HideAllMainViews();
+
+            var configs = await SqliteDatabaseService.Instance.LoadAllPosConfigsAsync();
+            var targetConfig = configs.FirstOrDefault(c =>
+                (user.AssignedPosConfigId.HasValue && c.OdooId == user.AssignedPosConfigId.Value) ||
+                (!string.IsNullOrWhiteSpace(user.AssignedPosConfigName) &&
+                 string.Equals(c.Name, user.AssignedPosConfigName, StringComparison.OrdinalIgnoreCase)))
+                ?? configs.FirstOrDefault()
+                ?? new PosConfigRecord
+                {
+                    Id = 1,
+                    OdooId = 1,
+                    Name = "Point of Sale",
+                    CurrentSessionState = "closed"
+                };
+
+            await RegisterViewControl.VM.InitializeRegisterAsync(
+                targetConfig,
+                showOpeningControl: true,
+                loggedInUser: user,
+                isPosOnlyMode: true);
+
+            RegisterViewControl.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            // Full Administrator access: restore Sidebar & Dashboard
+            SidebarContainerBorder.Visibility = Visibility.Visible;
+            SidebarMenuColumn.Width = new GridLength(_isSidebarCollapsed ? _collapsedSidebarWidth : _expandedSidebarWidth);
+            RegisterViewControl.Visibility = Visibility.Collapsed;
+            SwitchToDashboard();
+        }
     }
 
     // =========================================================================

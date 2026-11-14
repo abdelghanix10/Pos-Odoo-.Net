@@ -2246,9 +2246,9 @@
                 </Border>
             </StackPanel>
 
-            <!-- Bottom: "Backend" Button -->
+            <!-- Bottom: "Backend" or "Logout" Button -->
             <Button Command="{Binding ReturnToBackendCommand}"
-                    Content="Backend"
+                    Content="{Binding LandingBottomButtonText}"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Bottom"
                     Margin="0,0,0,24"
@@ -2629,6 +2629,46 @@
                                     </Trigger>
                                     <Trigger Property="IsPressed" Value="True">
                                         <Setter TargetName="Bdr" Property="Background" Value="#B21F2D"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+
+                    <!-- Logout Action -->
+                    <Button Command="{Binding LogoutFromPosCommand}"
+                            Height="48"
+                            Margin="0,10,0,0"
+                            Cursor="Hand">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bdr"
+                                        Background="#F8F9FA"
+                                        BorderBrush="#FECACA"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="16,0">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Viewbox Width="19" Height="19" Margin="0,0,10,0">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Data="M 10,4 H 4 V 20 H 10" Stroke="#DC2626" StrokeThickness="2" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                                                <Path Data="M 9,12 H 20 M 16,8 L 20,12 L 16,16" Stroke="#DC2626" StrokeThickness="2" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="Logout"
+                                                   FontSize="14.5"
+                                                   FontWeight="Bold"
+                                                   Foreground="#DC2626"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bdr" Property="Background" Value="#FEF2F2"/>
+                                        <Setter TargetName="Bdr" Property="BorderBrush" Value="#F87171"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Bdr" Property="Background" Value="#FEE2E2"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>

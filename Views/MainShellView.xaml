@@ -371,7 +371,8 @@
         <!-- ======================================================================= -->
         <!-- 1. MODERN ODOO 20 COLLAPSIBLE LEFT SIDEBAR                              -->
         <!-- ======================================================================= -->
-        <Border Grid.Column="0"
+        <Border x:Name="SidebarContainerBorder"
+                Grid.Column="0"
                 Background="{StaticResource SurfaceCardBrush}"
                 BorderBrush="{StaticResource SubtleBorderBrush}"
                 BorderThickness="0,0,1,0"

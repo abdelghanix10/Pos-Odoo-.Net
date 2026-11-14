@@ -745,7 +745,18 @@ public partial class PosRegisterViewModel : ViewModelBase
     private PosDraftOrder? _pendingDraftToSave;
 
     public event Action? ReturnToDashboardRequested;
+    public event Action? LogoutFromPosRequested;
     public event Action<string>? PosMessageRequested;
+
+    [ObservableProperty]
+    private bool _isPosOnlyMode;
+
+    public string LandingBottomButtonText => IsPosOnlyMode ? "Logout" : "Backend";
+
+    partial void OnIsPosOnlyModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(LandingBottomButtonText));
+    }
 
     public PosRegisterViewModel()
     {
@@ -928,7 +939,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     // =========================================================================
     // INITIALIZATION & CONTEXT LOADING
     // =========================================================================
-    public async Task InitializeRegisterAsync(PosConfigRecord config, bool showOpeningControl = false, PosUserRecord? loggedInUser = null)
+    public async Task InitializeRegisterAsync(PosConfigRecord config, bool showOpeningControl = false, PosUserRecord? loggedInUser = null, bool isPosOnlyMode = false)
     {
         try
         {
@@ -1083,6 +1094,16 @@ public partial class PosRegisterViewModel : ViewModelBase
         IsVariantPopupOpen = false;
         IsReceiptPreviewModalOpen = false;
         NotifyViewStatesChanged();
+
+        IsPosOnlyMode = isPosOnlyMode || (activeUser?.IsPosOnly ?? false);
+
+        // POS-only users always land on the Opening Control screen (no dashboard/sidebar)
+        if (IsPosOnlyMode)
+        {
+            IsPosLandingScreenOpen = true;
+            IsOpeningControlModalOpen = false;
+            return;
+        }
 
         // Setting 9: Hide Opening Cash Control (Automatically hide the opening cash control popup and set cash to the default amount)
         if (config.IsHideOpeningCashControlEnabled)
@@ -2574,6 +2595,12 @@ public partial class PosRegisterViewModel : ViewModelBase
     public void DiscardOpeningControl()
     {
         IsOpeningControlModalOpen = false;
+        if (IsPosOnlyMode)
+        {
+            IsPosLandingScreenOpen = true;
+            return;
+        }
+
         if (CurrentConfig != null && (CurrentConfig.IsClosed || CurrentConfig.IsOpeningControl))
         {
             IsPosLandingScreenOpen = false;
@@ -3120,6 +3147,12 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public async Task ReturnToBackendAsync()
     {
+        if (IsPosOnlyMode)
+        {
+            await LogoutFromPosAsync();
+            return;
+        }
+
         bool multipleTabs = DraftOrders.Count > 1;
         foreach (var draft in DraftOrders.ToList())
         {
@@ -3129,6 +3162,30 @@ public partial class PosRegisterViewModel : ViewModelBase
         IsHamburgerMenuOpen = false;
         IsPosLandingScreenOpen = false;
         ReturnToDashboardRequested?.Invoke();
+    }
+
+    [RelayCommand]
+    public async Task LogoutFromPosAsync()
+    {
+        try
+        {
+            bool multipleTabs = DraftOrders.Count > 1;
+            foreach (var draft in DraftOrders.ToList())
+            {
+                await PersistDraftOrderToDatabaseAsync(draft, allowEmpty: multipleTabs);
+            }
+        }
+        catch { }
+
+        IsHamburgerMenuOpen = false;
+        IsOpeningControlModalOpen = false;
+        IsClosingRegisterModalOpen = false;
+        IsDraftOrdersWarningModalOpen = false;
+        IsPaymentViewOpen = false;
+        IsPaymentConfirmationOpen = false;
+        IsPosLandingScreenOpen = false;
+
+        LogoutFromPosRequested?.Invoke();
     }
 
     [RelayCommand]
@@ -3391,8 +3448,16 @@ public partial class PosRegisterViewModel : ViewModelBase
             IsDraftOrdersWarningModalOpen = false;
             OdooSyncService.Instance.NotifyQueueUpdated();
 
-            // Exit POS mode immediately without freezing UI on network calls
-            ReturnToDashboardRequested?.Invoke();
+            if (IsPosOnlyMode)
+            {
+                // Keep POS-only user on the Opening Control screen (no dashboard/sidebar)
+                IsPosLandingScreenOpen = true;
+            }
+            else
+            {
+                // Exit POS mode immediately without freezing UI on network calls
+                ReturnToDashboardRequested?.Invoke();
+            }
 
             // Flush all pending orders and the close-session operation to Odoo in background
             _ = Task.Run(async () =>

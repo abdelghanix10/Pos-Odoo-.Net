@@ -367,7 +367,7 @@ public partial class MainWindow : Window
     }
 
     // ==================== SESSION START & EXIT LOGIC ====================
-    private void StartPosSession(PosUserRecord user)
+    private async void StartPosSession(PosUserRecord user)
     {
         OdooSyncService.Instance.SetCurrentPosUser(user);
         _ = Task.Run(() => OdooSyncService.Instance.RecordUserLoginInOdooAsync(user));
@@ -376,8 +376,8 @@ public partial class MainWindow : Window
         TopLoginHeaderBar.Visibility = Visibility.Collapsed;
         HeaderQuickSetupBtn.Visibility = Visibility.Collapsed;
         MainShellModule.Visibility = Visibility.Visible;
-        MainShellModule.SetCurrentUser(user);
-        MainShellModule.SwitchToDashboard();
+
+        await MainShellModule.StartSessionForUserAsync(user);
 
         ShowLoginToast($"Authenticated as {user.Name} — Active POS Session");
     }

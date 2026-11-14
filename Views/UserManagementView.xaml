@@ -589,8 +589,8 @@
                                                             <TextBlock Grid.Column="2" Text="{Binding Login}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
 
                                                             <!-- Role Pill -->
-                                                            <Border Grid.Column="3" Background="#E5E7EB" CornerRadius="10" Padding="10,2.5" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding Role}" FontSize="11.5" FontWeight="Bold" Foreground="#1F2937"/>
+                                                            <Border Grid.Column="3" Background="{Binding RoleBadgeBackground}" CornerRadius="10" Padding="10,2.5" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding RoleDisplay}" FontSize="11.5" FontWeight="Bold" Foreground="{Binding RoleBadgeForeground}"/>
                                                             </Border>
 
                                                             <!-- Status Pill -->
@@ -743,11 +743,40 @@
 
                             <!-- RIGHT: LOCAL POS SECURITY & VISIBILITY -->
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="POINT OF SALE TERMINAL SECURITY"
+                                <TextBlock Text="POINT OF SALE TERMINAL SECURITY &amp; ROLES"
                                            Foreground="{StaticResource OdooTealBrush}"
                                            FontSize="12"
                                            FontWeight="Bold"
                                            Margin="0,0,0,16"/>
+
+                                <TextBlock Text="User Role &amp; Access Level" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,6"/>
+                                <ComboBox ItemsSource="{Binding AvailableRoles}"
+                                          SelectedItem="{Binding SelectedRole, Mode=TwoWay}"
+                                          Style="{StaticResource OdooFilterComboBoxStyle}"
+                                          Height="40"
+                                          Margin="0,0,0,14"/>
+
+                                <Border Background="#F9FAFB"
+                                        BorderBrush="{StaticResource SubtleBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="14,10"
+                                        Margin="0,0,0,14">
+                                    <CheckBox IsChecked="{Binding IsPosOnly, Mode=TwoWay}" Cursor="Hand" VerticalContentAlignment="Center">
+                                        <StackPanel Margin="6,0,0,0">
+                                            <TextBlock Text="POS-Only Mode (No Dashboard or Sidebar)" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Take user directly to the Opening Control screen for their POS register on login" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                </Border>
+
+                                <TextBlock Text="Assigned POS Register" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,6"/>
+                                <ComboBox ItemsSource="{Binding AvailablePosConfigs}"
+                                          SelectedItem="{Binding SelectedPosConfig, Mode=TwoWay}"
+                                          DisplayMemberPath="Name"
+                                          Style="{StaticResource OdooFilterComboBoxStyle}"
+                                          Height="40"
+                                          Margin="0,0,0,16"/>
 
                                 <TextBlock Text="Local Password" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,6"/>
                                 <Border Style="{StaticResource FormInputBoxBorderStyle}" Margin="0,0,0,16">

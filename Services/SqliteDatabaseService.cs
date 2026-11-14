@@ -690,6 +690,9 @@ public class SqliteDatabaseService
             "ALTER TABLE OdooConfig ADD COLUMN HasPurgedLegacyDemoData INTEGER DEFAULT 0;",
             "ALTER TABLE Users ADD COLUMN Role TEXT DEFAULT 'User';",
             "ALTER TABLE Users ADD COLUMN Language TEXT DEFAULT 'English (US)';",
+            "ALTER TABLE Users ADD COLUMN IsPosOnly INTEGER DEFAULT 0;",
+            "ALTER TABLE Users ADD COLUMN AssignedPosConfigId INTEGER;",
+            "ALTER TABLE Users ADD COLUMN AssignedPosConfigName TEXT DEFAULT '';",
             "ALTER TABLE Products ADD COLUMN InternalCategoryName TEXT DEFAULT 'All';",
             "ALTER TABLE Products ADD COLUMN QtyAvailable REAL DEFAULT 0.0;",
             "ALTER TABLE Products ADD COLUMN SaleOk INTEGER DEFAULT 1;",
@@ -1181,7 +1184,8 @@ public class SqliteDatabaseService
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT OdooId, Name, Login, Email, Phone, Password, Pin, Status, AvatarBase64, IsVisibleInPos, IsPurpleTheme,
-                   COALESCE(Role, 'User'), COALESCE(Language, 'English (US)')
+                   COALESCE(Role, 'User'), COALESCE(Language, 'English (US)'),
+                   COALESCE(IsPosOnly, 0), AssignedPosConfigId, COALESCE(AssignedPosConfigName, '')
             FROM Users
             ORDER BY Name ASC;
             """;
@@ -1202,6 +1206,14 @@ public class SqliteDatabaseService
             bool isPurple = reader.IsDBNull(10) || reader.GetInt32(10) == 1;
             string role = reader.IsDBNull(11) ? "User" : reader.GetString(11);
             string language = reader.IsDBNull(12) ? "English (US)" : reader.GetString(12);
+            bool isPosOnly = !reader.IsDBNull(13) && reader.GetInt32(13) == 1;
+            int? assignedConfigId = reader.IsDBNull(14) ? null : reader.GetInt32(14);
+            string assignedConfigName = reader.IsDBNull(15) ? "" : reader.GetString(15);
+
+            if (isPosOnly && !string.Equals(role, "POS Only", StringComparison.OrdinalIgnoreCase))
+            {
+                role = "POS Only";
+            }
 
             users.Add(new PosUserRecord
             {
@@ -1213,6 +1225,9 @@ public class SqliteDatabaseService
                 Password = password,
                 Pin = pin,
                 Role = role,
+                IsPosOnly = isPosOnly,
+                AssignedPosConfigId = assignedConfigId,
+                AssignedPosConfigName = assignedConfigName,
                 Status = status,
                 Language = language,
                 AvatarBase64 = avatarBase64,
@@ -1231,15 +1246,19 @@ public class SqliteDatabaseService
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            INSERT INTO Users (OdooId, Name, Login, Email, Phone, Password, Pin, Role, Status, Language, AvatarBase64, IsVisibleInPos, IsPurpleTheme)
-            VALUES (@odooId, @name, @login, @email, @phone, @pass, @pin, @role, @status, @lang, @avatar, @visible, @theme)
+            INSERT INTO Users (OdooId, Name, Login, Email, Phone, Password, Pin, Role, IsPosOnly, AssignedPosConfigId, AssignedPosConfigName, Status, Language, AvatarBase64, IsVisibleInPos, IsPurpleTheme)
+            VALUES (@odooId, @name, @login, @email, @phone, @pass, @pin, @role, @isPosOnly, @posCfgId, @posCfgName, @status, @lang, @avatar, @visible, @theme)
             ON CONFLICT(Login) DO UPDATE SET
+                OdooId = COALESCE(excluded.OdooId, Users.OdooId),
                 Name = excluded.Name,
                 Email = excluded.Email,
                 Phone = excluded.Phone,
                 Password = excluded.Password,
                 Pin = excluded.Pin,
                 Role = excluded.Role,
+                IsPosOnly = excluded.IsPosOnly,
+                AssignedPosConfigId = excluded.AssignedPosConfigId,
+                AssignedPosConfigName = excluded.AssignedPosConfigName,
                 Status = excluded.Status,
                 Language = excluded.Language,
                 AvatarBase64 = excluded.AvatarBase64,
@@ -1254,7 +1273,10 @@ public class SqliteDatabaseService
         command.Parameters.AddWithValue("@phone", user.Phone);
         command.Parameters.AddWithValue("@pass", user.Password);
         command.Parameters.AddWithValue("@pin", user.Pin);
-        command.Parameters.AddWithValue("@role", user.Role ?? "User");
+        command.Parameters.AddWithValue("@role", user.IsPosOnly ? "POS Only" : (user.Role ?? "Administrator"));
+        command.Parameters.AddWithValue("@isPosOnly", user.IsPosOnly ? 1 : 0);
+        command.Parameters.AddWithValue("@posCfgId", (object?)user.AssignedPosConfigId ?? DBNull.Value);
+        command.Parameters.AddWithValue("@posCfgName", user.AssignedPosConfigName ?? "");
         command.Parameters.AddWithValue("@status", user.Status);
         command.Parameters.AddWithValue("@lang", user.Language ?? "English (US)");
         command.Parameters.AddWithValue("@avatar", (object?)user.AvatarBase64 ?? DBNull.Value);
@@ -1316,7 +1338,7 @@ public class SqliteDatabaseService
                         Login = @login,
                         Email = @email,
                         Phone = @phone,
-                        Role = @role,
+                        Role = CASE WHEN COALESCE(IsPosOnly, 0) = 1 THEN 'POS Only' ELSE @role END,
                         Status = @status,
                         Language = @lang,
                         AvatarBase64 = @avatar
@@ -1338,11 +1360,12 @@ public class SqliteDatabaseService
             }
             else
             {
+                bool defaultPosOnly = !string.Equals(odooUser.Role, "Administrator", StringComparison.OrdinalIgnoreCase);
                 await using var insertCmd = connection.CreateCommand();
                 insertCmd.Transaction = transaction;
                 insertCmd.CommandText = """
-                    INSERT INTO Users (OdooId, Name, Login, Email, Phone, Password, Pin, Role, Status, Language, AvatarBase64, IsVisibleInPos, IsPurpleTheme)
-                    VALUES (@odooId, @name, @login, @email, @phone, @pass, @pin, @role, @status, @lang, @avatar, 1, @theme);
+                    INSERT INTO Users (OdooId, Name, Login, Email, Phone, Password, Pin, Role, IsPosOnly, Status, Language, AvatarBase64, IsVisibleInPos, IsPurpleTheme)
+                    VALUES (@odooId, @name, @login, @email, @phone, @pass, @pin, @role, @isPosOnly, @status, @lang, @avatar, 1, @theme);
                     """;
                 insertCmd.Parameters.AddWithValue("@odooId", odooUser.OdooId);
                 insertCmd.Parameters.AddWithValue("@name", odooUser.Name);
@@ -1351,7 +1374,8 @@ public class SqliteDatabaseService
                 insertCmd.Parameters.AddWithValue("@phone", odooUser.Phone);
                 insertCmd.Parameters.AddWithValue("@pass", "••••••••");
                 insertCmd.Parameters.AddWithValue("@pin", "");
-                insertCmd.Parameters.AddWithValue("@role", odooUser.Role);
+                insertCmd.Parameters.AddWithValue("@role", defaultPosOnly ? "POS Only" : odooUser.Role);
+                insertCmd.Parameters.AddWithValue("@isPosOnly", defaultPosOnly ? 1 : 0);
                 insertCmd.Parameters.AddWithValue("@status", odooUser.Status);
                 insertCmd.Parameters.AddWithValue("@lang", odooUser.Language);
                 insertCmd.Parameters.AddWithValue("@avatar", (object?)odooUser.AvatarBase64 ?? DBNull.Value);

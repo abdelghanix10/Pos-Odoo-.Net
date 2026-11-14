@@ -17,6 +17,9 @@ public class PosUserRecord : INotifyPropertyChanged
     private string _password = "••••••••";
     private string _pin = string.Empty;
     private string _role = "User";
+    private bool _isPosOnly;
+    private int? _assignedPosConfigId;
+    private string _assignedPosConfigName = string.Empty;
     private string _status = "Confirmed";
     private string _language = "English (US)";
     private bool _isPurpleTheme = true;
@@ -79,8 +82,88 @@ public class PosUserRecord : INotifyPropertyChanged
     public string Role
     {
         get => _role;
-        set { if (_role != value) { _role = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_role != value)
+            {
+                _role = value;
+                bool posOnlyRole = string.Equals(_role, "POS Only", StringComparison.OrdinalIgnoreCase);
+                if (posOnlyRole && !_isPosOnly)
+                {
+                    _isPosOnly = true;
+                    OnPropertyChanged(nameof(IsPosOnly));
+                }
+                else if (string.Equals(_role, "Administrator", StringComparison.OrdinalIgnoreCase) && _isPosOnly)
+                {
+                    _isPosOnly = false;
+                    OnPropertyChanged(nameof(IsPosOnly));
+                }
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RoleDisplay));
+                OnPropertyChanged(nameof(RoleBadgeBackground));
+                OnPropertyChanged(nameof(RoleBadgeForeground));
+            }
+        }
     }
+
+    public bool IsPosOnly
+    {
+        get => _isPosOnly || string.Equals(_role, "POS Only", StringComparison.OrdinalIgnoreCase);
+        set
+        {
+            if (_isPosOnly != value)
+            {
+                _isPosOnly = value;
+                if (value && !string.Equals(_role, "POS Only", StringComparison.OrdinalIgnoreCase))
+                {
+                    _role = "POS Only";
+                    OnPropertyChanged(nameof(Role));
+                }
+                else if (!value && string.Equals(_role, "POS Only", StringComparison.OrdinalIgnoreCase))
+                {
+                    _role = "Administrator";
+                    OnPropertyChanged(nameof(Role));
+                }
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RoleDisplay));
+                OnPropertyChanged(nameof(RoleBadgeBackground));
+                OnPropertyChanged(nameof(RoleBadgeForeground));
+            }
+        }
+    }
+
+    public int? AssignedPosConfigId
+    {
+        get => _assignedPosConfigId;
+        set { if (_assignedPosConfigId != value) { _assignedPosConfigId = value; OnPropertyChanged(); } }
+    }
+
+    public string AssignedPosConfigName
+    {
+        get => _assignedPosConfigName;
+        set
+        {
+            if (_assignedPosConfigName != value)
+            {
+                _assignedPosConfigName = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AssignedPosDisplay));
+            }
+        }
+    }
+
+    public string AssignedPosDisplay =>
+        string.IsNullOrWhiteSpace(_assignedPosConfigName) ? "Default POS Register" : _assignedPosConfigName;
+
+    public string RoleDisplay => IsPosOnly ? "POS Only" : Role;
+
+    public Brush RoleBadgeBackground => IsPosOnly
+        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E6F4F5"))
+        : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E5E7EB"));
+
+    public Brush RoleBadgeForeground => IsPosOnly
+        ? new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84"))
+        : new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1F2937"));
 
     public string Status
     {

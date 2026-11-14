@@ -37,6 +37,21 @@ public partial class UserManagementViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isVisibleInPos = true;
 
+    [ObservableProperty]
+    private ObservableCollection<string> _availableRoles = ["Administrator", "POS Only"];
+
+    [ObservableProperty]
+    private ObservableCollection<PosConfigRecord> _availablePosConfigs = [];
+
+    [ObservableProperty]
+    private string _selectedRole = "Administrator";
+
+    [ObservableProperty]
+    private bool _isPosOnly;
+
+    [ObservableProperty]
+    private PosConfigRecord? _selectedPosConfig;
+
     public const int PageSize = 80;
 
     [ObservableProperty]
@@ -95,6 +110,24 @@ public partial class UserManagementViewModel : ViewModelBase
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();
 
+    partial void OnSelectedRoleChanged(string value)
+    {
+        bool posOnly = string.Equals(value, "POS Only", StringComparison.OrdinalIgnoreCase);
+        if (IsPosOnly != posOnly)
+        {
+            IsPosOnly = posOnly;
+        }
+    }
+
+    partial void OnIsPosOnlyChanged(bool value)
+    {
+        string targetRole = value ? "POS Only" : "Administrator";
+        if (!string.Equals(SelectedRole, targetRole, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectedRole = targetRole;
+        }
+    }
+
     public void ResetToMainList()
     {
         IsDetailViewVisible = false;
@@ -108,6 +141,13 @@ public partial class UserManagementViewModel : ViewModelBase
             if (resetDetailView)
             {
                 IsDetailViewVisible = false;
+            }
+
+            var configs = await SqliteDatabaseService.Instance.LoadAllPosConfigsAsync();
+            AvailablePosConfigs.Clear();
+            foreach (var cfg in configs)
+            {
+                AvailablePosConfigs.Add(cfg);
             }
 
             var users = await SqliteDatabaseService.Instance.LoadAllUsersAsync();
@@ -247,6 +287,12 @@ public partial class UserManagementViewModel : ViewModelBase
         SelectedUser = user;
         Password = user.Password ?? string.Empty;
         Pin = user.Pin ?? string.Empty;
+        IsPosOnly = user.IsPosOnly;
+        SelectedRole = user.IsPosOnly ? "POS Only" : "Administrator";
+        SelectedPosConfig = AvailablePosConfigs.FirstOrDefault(c =>
+            (user.AssignedPosConfigId.HasValue && c.OdooId == user.AssignedPosConfigId.Value) ||
+            (!string.IsNullOrWhiteSpace(user.AssignedPosConfigName) && string.Equals(c.Name, user.AssignedPosConfigName, StringComparison.OrdinalIgnoreCase)))
+            ?? AvailablePosConfigs.FirstOrDefault();
         IsVisibleInPos = user.IsVisibleInPos;
         IsDetailViewVisible = true;
         UpdatePager();
@@ -320,13 +366,17 @@ public partial class UserManagementViewModel : ViewModelBase
 
         SelectedUser.Password = Password;
         SelectedUser.Pin = Pin;
+        SelectedUser.IsPosOnly = IsPosOnly;
+        SelectedUser.Role = IsPosOnly ? "POS Only" : "Administrator";
+        SelectedUser.AssignedPosConfigId = SelectedPosConfig?.OdooId;
+        SelectedUser.AssignedPosConfigName = SelectedPosConfig?.Name ?? string.Empty;
         SelectedUser.IsVisibleInPos = IsVisibleInPos;
 
         await SqliteDatabaseService.Instance.SaveUserRecordAsync(SelectedUser);
 
         await ReloadUsersAsync();
         UsersUpdated?.Invoke();
-        ShowToast($"Credentials for \"{SelectedUser.Name.Trim()}\" updated successfully.", "Success");
+        ShowToast($"Permissions & credentials for \"{SelectedUser.Name.Trim()}\" updated.", "Success");
     }
 
     [RelayCommand]

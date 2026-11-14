@@ -1862,9 +1862,13 @@
             </Grid.RowDefinitions>
 
             <!-- Center Summary Content -->
-            <StackPanel Grid.Row="0"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
+            <Viewbox Grid.Row="0"
+                     Stretch="Uniform"
+                     StretchDirection="DownOnly"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"
+                     Margin="24,12">
+            <StackPanel>
                 <!-- Checkmark Circle (Odoo svg 115x115 #28a745) -->
                 <Viewbox Width="100" Height="100" Margin="0,0,0,16" HorizontalAlignment="Center">
                     <Canvas Width="133" Height="133">
@@ -1936,22 +1940,14 @@
                     </StackPanel>
                 </StackPanel>
             </StackPanel>
+            </Viewbox>
 
-            <!-- Bottom Buttons: Print & Continue (Removed Back & Send Receipt) -->
-            <Grid Grid.Row="1" Width="760" Height="70" Margin="0,0,0,40" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="16"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="16"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
+            <!-- Bottom Buttons: Print & Continue, centered & responsive -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,40">
                 <!-- Print Button -->
-                <Button Grid.Column="0"
-                        Command="{Binding PrintReceiptCommand}"
+                <Button Command="{Binding PrintReceiptCommand}"
                         Visibility="{Binding IsPrintButtonVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
-                        Height="70"
+                        Width="220" Height="70" Margin="0,0,16,0"
                         Cursor="Hand">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
@@ -1986,39 +1982,9 @@
                     </Button.Template>
                 </Button>
 
-                <!-- Print Last Receipt Button (Setting 7) -->
-                <Button Grid.Column="2"
-                        Command="{Binding PrintLastReceiptCommand}"
-                        Visibility="{Binding IsPrintLastReceiptVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
-                        Height="70"
-                        Cursor="Hand">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bdr"
-                                    Background="#F3F0F8"
-                                    BorderBrush="#71639E"
-                                    BorderThickness="1"
-                                    CornerRadius="8">
-                                <TextBlock Text="Print Last Receipt"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"
-                                           Foreground="#71639E"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bdr" Property="Background" Value="#DDDBE8"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
-
                 <!-- Continue Button -->
-                <Button Grid.Column="4"
-                        Command="{Binding ContinueAfterPaymentCommand}"
-                        Height="70"
+                <Button Command="{Binding ContinueAfterPaymentCommand}"
+                        Width="220" Height="70"
                         Cursor="Hand">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
@@ -2046,7 +2012,7 @@
                         </ControlTemplate>
                     </Button.Template>
                 </Button>
-            </Grid>
+            </StackPanel>
         </Grid>
 
         <!-- ======================================================================= -->

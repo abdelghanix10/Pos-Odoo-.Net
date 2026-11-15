@@ -179,6 +179,10 @@ public partial class UserManagementViewModel : ViewModelBase
     private void RefreshFilter()
     {
         string query = SearchText.Trim();
+        int? previousOdooId = SelectedUser?.OdooId;
+        string? previousLogin = SelectedUser?.Login;
+        string? previousName = SelectedUser?.Name;
+
         FilteredUsers.Clear();
 
         IEnumerable<PosUserRecord> source = _allUsers;
@@ -188,7 +192,7 @@ public partial class UserManagementViewModel : ViewModelBase
                 u.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                 u.Login.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                 u.Email.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                u.Role.Contains(query, StringComparison.OrdinalIgnoreCase));
+                u.RoleDisplay.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
         _matchingUsers.Clear();
@@ -198,15 +202,26 @@ public partial class UserManagementViewModel : ViewModelBase
         }
 
         IsEmptyStateVisible = _matchingUsers.Count == 0;
-        CurrentPage = 1;
-        ApplyPaging();
 
-        if (IsDetailViewVisible)
+        // Re-bind SelectedUser BEFORE ApplyPaging() so UpdatePager() keeps the exact same user
+        if (IsDetailViewVisible && _matchingUsers.Count > 0)
         {
-            if (SelectedUser != null)
+            var match = _matchingUsers.FirstOrDefault(u =>
+                (previousOdooId.HasValue && u.OdooId == previousOdooId.Value) ||
+                (!string.IsNullOrWhiteSpace(previousLogin) && string.Equals(u.Login, previousLogin, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(previousName) && string.Equals(u.Name, previousName, StringComparison.OrdinalIgnoreCase)));
+
+            if (match != null)
             {
-                var match = _matchingUsers.FirstOrDefault(u => u.Login == SelectedUser.Login);
-                SelectedUser = match ?? _matchingUsers.FirstOrDefault();
+                int matchIndex = _matchingUsers.IndexOf(match);
+                CurrentPage = (matchIndex / PageSize) + 1;
+                ApplyPaging();
+                SelectUser(match);
+                return;
+            }
+            else
+            {
+                SelectedUser = _matchingUsers.FirstOrDefault();
                 if (SelectedUser == null)
                 {
                     IsDetailViewVisible = false;
@@ -214,6 +229,8 @@ public partial class UserManagementViewModel : ViewModelBase
             }
         }
 
+        CurrentPage = 1;
+        ApplyPaging();
         UpdatePager();
     }
 

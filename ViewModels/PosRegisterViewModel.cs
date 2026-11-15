@@ -99,7 +99,19 @@ public partial class PosRegisterViewModel : ViewModelBase
     private int _pendingSyncCount;
 
     public bool HasPendingSync => PendingSyncCount > 0;
-    public string PendingSyncBadgeText => PendingSyncCount == 1 ? "1 Unsynced" : $"{PendingSyncCount} Unsynced";
+
+    [ObservableProperty]
+    private bool _showUnsyncedButtonInPos = true;
+
+    public bool IsUnsyncedButtonVisible => HasPendingSync && ShowUnsyncedButtonInPos;
+    public string PendingSyncBadgeText => IsArabicPos
+        ? $"{PendingSyncCount} غير متزامن"
+        : (PendingSyncCount == 1 ? "1 Unsynced" : $"{PendingSyncCount} Unsynced");
+
+    partial void OnShowUnsyncedButtonInPosChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsUnsyncedButtonVisible));
+    }
 
     // ==================== LANDING SCREEN (Screenshot 6) ====================
     [ObservableProperty]
@@ -554,6 +566,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         OnPropertyChanged(nameof(PaymentLineAmountDisplay));
         OnPropertyChanged(nameof(HasPaymentTendered));
         OnPropertyChanged(nameof(PaymentPrimaryButtonText));
+        OnPropertyChanged(nameof(SelectedPaymentMethodDisplay));
 
         foreach (var pm in AvailablePaymentMethods)
         {
@@ -577,7 +590,17 @@ public partial class PosRegisterViewModel : ViewModelBase
     [ObservableProperty]
     private string _confirmedPaymentMethodName = "Cash";
 
-    public string ConfirmedTenderMethodLabel => string.IsNullOrWhiteSpace(ConfirmedPaymentMethodName) ? "Cash" : ConfirmedPaymentMethodName;
+    public string ConfirmedTenderMethodLabel
+    {
+        get
+        {
+            string raw = string.IsNullOrWhiteSpace(ConfirmedPaymentMethodName) ? "Cash" : ConfirmedPaymentMethodName;
+            return PosPaymentMethodRecord.LocalizeMethodName(raw, null, IsArabicPos);
+        }
+    }
+
+    public string SelectedPaymentMethodDisplay =>
+        PosPaymentMethodRecord.LocalizeMethodName(SelectedPaymentMethod, null, IsArabicPos);
 
     public string ConfirmedIntegerPart
     {
@@ -688,8 +711,14 @@ public partial class PosRegisterViewModel : ViewModelBase
         CurrentConfig.IsOneClickPaymentEnabled &&
         CurrentConfig.OneClickPaymentMethodsList.Count > 0;
 
-    public string OneClickPaymentButtonLabel =>
-        CurrentConfig?.OneClickPaymentMethodsList.FirstOrDefault() ?? "Cash";
+    public string OneClickPaymentButtonLabel
+    {
+        get
+        {
+            string raw = CurrentConfig?.OneClickPaymentMethodsList.FirstOrDefault() ?? "Cash";
+            return PosPaymentMethodRecord.LocalizeMethodName(raw, null, IsArabicPos);
+        }
+    }
 
     public bool IsPrintLastReceiptVisible =>
         CurrentConfig != null && CurrentConfig.IsPrintLastReceiptEnabled;
@@ -871,6 +900,19 @@ public partial class PosRegisterViewModel : ViewModelBase
     private void NotifyLanguagePropertiesChanged()
     {
         UpdateLandingState();
+        PosPaymentMethodRecord.IsArabicLanguage = IsArabicPos;
+        PosOrderRecord.IsArabicLanguage = IsArabicPos;
+
+        foreach (var pm in AvailablePaymentMethods)
+            pm.RefreshLanguageDisplay();
+
+        foreach (var ord in FilteredInPosOrders)
+            ord.RefreshLanguageDisplay();
+
+        OnPropertyChanged(nameof(OneClickPaymentButtonLabel));
+        OnPropertyChanged(nameof(SelectedPaymentMethodDisplay));
+        OnPropertyChanged(nameof(ConfirmedTenderMethodLabel));
+        OnPropertyChanged(nameof(PendingSyncBadgeText));
         OnPropertyChanged(nameof(IsArabicPos));
         OnPropertyChanged(nameof(TxtRegisterTab));
         OnPropertyChanged(nameof(TxtOrdersTab));
@@ -991,6 +1033,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     partial void OnPendingSyncCountChanged(int value)
     {
         OnPropertyChanged(nameof(HasPendingSync));
+        OnPropertyChanged(nameof(IsUnsyncedButtonVisible));
         OnPropertyChanged(nameof(PendingSyncBadgeText));
     }
 
@@ -1127,6 +1170,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         try
         {
             var genSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            ShowUnsyncedButtonInPos = genSettings.ShowUnsyncedButtonInPos;
             SetPosLanguage(genSettings.PosLanguage);
         }
         catch { }

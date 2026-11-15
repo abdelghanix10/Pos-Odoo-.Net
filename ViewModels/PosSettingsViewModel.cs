@@ -205,8 +205,53 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         DeleteReceiptDesignCommand = new RelayCommand(async p => await DeleteReceiptDesignAsync(p as ReceiptDesignRecord ?? EditingReceiptDesign));
         LoadDefaultXmlTemplateCommand = new RelayCommand(_ =>
         {
-            DesignEditorReceiptXml = ReceiptDesignRecord.GetDefaultXmlTemplate();
+            DesignEditorReceiptXml = GetDefaultXmlForDesign(EditingReceiptDesign);
+            StatusMessage = $"Default XML restored for \"{EditingReceiptDesign?.Name ?? "Receipt Design"}\". Click 'Save Receipt Design' to persist.";
+            _ = ClearStatusAfterDelayAsync();
         });
+    }
+
+    private static string GetDefaultXmlForDesign(ReceiptDesignRecord? design)
+    {
+        if (design == null)
+            return ReceiptDesignRecord.GetDefaultXmlTemplate();
+
+        if (design.OpenCashDrawerOnly || design.Name.Contains("Drawer", StringComparison.OrdinalIgnoreCase))
+            return "<receipt open-cashdrawer=\"true\" />";
+
+        if (design.Name.Contains("Pastry", StringComparison.OrdinalIgnoreCase))
+            return ReceiptTemplateService.GetPastryDefaultXml();
+
+        if (design.Name.Contains("Cafe", StringComparison.OrdinalIgnoreCase))
+            return ReceiptTemplateService.GetCafeDefaultXml();
+
+        if (design.Name.Contains("Sales Details", StringComparison.OrdinalIgnoreCase) ||
+            design.Name.Contains("Sale Details", StringComparison.OrdinalIgnoreCase))
+            return ReceiptTemplateService.GetSaleDetailsReportDefaultXml();
+
+        if (design.Name.Contains("Simplified", StringComparison.OrdinalIgnoreCase) ||
+            design.Name.Contains("Kitchen", StringComparison.OrdinalIgnoreCase) ||
+            design.Name.Contains("Second", StringComparison.OrdinalIgnoreCase))
+        {
+            return """
+            <t t-name="point_of_sale.SecondReceipt">
+                <div class="pos-receipt">
+                    <div class="pos-receipt-order-data">
+                        <h2><t t-esc="receipt.name" /></h2>
+                        <div>Date: <t t-esc="receipt.date.localestring" /></div>
+                    </div>
+                    <br />
+                    <div class="orderlines">
+                        <t t-foreach="receipt.orderlines" t-as="line" t-key="line.id">
+                            <div><t t-esc="line.qty" /> x <t t-esc="line.product_name" /></div>
+                        </t>
+                    </div>
+                </div>
+            </t>
+            """;
+        }
+
+        return ReceiptDesignRecord.GetDefaultXmlTemplate();
     }
 
     public bool IsReceiptDesignsSubTabSelected
@@ -777,15 +822,18 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             }
 
             // Load Receipt Designs
+            long? previousDesignId = _editingReceiptDesign?.Id;
             var designs = await db.LoadAllReceiptDesignsAsync();
             ReceiptDesigns.Clear();
             foreach (var d in designs)
             {
                 ReceiptDesigns.Add(d);
             }
-            if (EditingReceiptDesign == null && ReceiptDesigns.Count > 0)
+            if (ReceiptDesigns.Count > 0)
             {
-                EditingReceiptDesign = ReceiptDesigns[0];
+                EditingReceiptDesign = previousDesignId.HasValue
+                    ? ReceiptDesigns.FirstOrDefault(d => d.Id == previousDesignId.Value) ?? ReceiptDesigns[0]
+                    : ReceiptDesigns[0];
             }
 
             // Load POS Configs

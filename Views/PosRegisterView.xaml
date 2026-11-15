@@ -756,7 +756,7 @@
                                 Margin="0,0,12,0"
                                 Cursor="Hand"
                                 ToolTip="View Unsynced POS Transactions Queue"
-                                Visibility="{Binding HasPendingSync, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                Visibility="{Binding IsUnsyncedButtonVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="SyncBdr"
@@ -1816,7 +1816,7 @@
                                                                 <Button.Template>
                                                                     <ControlTemplate TargetType="Button">
                                                                         <Border x:Name="Bd" Background="#F3F0F8" BorderBrush="#71639E" BorderThickness="1" CornerRadius="9" Padding="12,3">
-                                                                            <TextBlock Text="{Binding TxtPrintReceiptBtn}" FontSize="11.5" FontWeight="Bold" Foreground="#71639E"/>
+                                                                            <TextBlock Text="{Binding InPosPrintReceiptText}" FontSize="11.5" FontWeight="Bold" Foreground="#71639E"/>
                                                                         </Border>
                                                                         <ControlTemplate.Triggers>
                                                                             <Trigger Property="IsMouseOver" Value="True">
@@ -1830,7 +1830,7 @@
                                                                     CornerRadius="9"
                                                                     Padding="14,3"
                                                                     VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding TxtPaidBadge}"
+                                                                <TextBlock Text="{Binding InPosPaidText}"
                                                                            FontSize="11.5"
                                                                            FontWeight="Bold"
                                                                            Foreground="#FFFFFF"/>
@@ -1934,7 +1934,7 @@
                                                                VerticalAlignment="Center"
                                                                Margin="0,0,12,0"
                                                                RenderOptions.BitmapScalingMode="HighQuality"/>
-                                                        <TextBlock Text="{Binding Name}"
+                                                        <TextBlock Text="{Binding DisplayName}"
                                                                    FontSize="17.5"
                                                                    FontWeight="Medium"
                                                                    Foreground="#212529"
@@ -2137,7 +2137,7 @@
                                 Padding="24,0"
                                 Visibility="{Binding HasPaymentTendered, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                             <Grid>
-                                <TextBlock Text="{Binding SelectedPaymentMethod, FallbackValue=Cash}"
+                                <TextBlock Text="{Binding SelectedPaymentMethodDisplay, FallbackValue=Cash}"
                                            FontSize="21"
                                            FontWeight="Medium"
                                            Foreground="#000000"

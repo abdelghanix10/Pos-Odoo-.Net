@@ -557,23 +557,53 @@ public class PosOrderRecord : INotifyPropertyChanged
         string.Equals(State, "new", StringComparison.OrdinalIgnoreCase);
 
     // ==================== IN-POS ORDERS SCREEN DISPLAY (Screenshot 3) ====================
+    private static bool _isArabicLanguage;
+    public static bool IsArabicLanguage
+    {
+        get => _isArabicLanguage;
+        set => _isArabicLanguage = value;
+    }
+
     public string InPosDayDisplay
     {
         get
         {
-            if (!DateOrder.HasValue) return "Today";
+            if (!DateOrder.HasValue) return _isArabicLanguage ? "اليوم" : "Today";
             var dt = DateOrder.Value.Date;
             var today = DateTime.Now.Date;
-            if (dt == today) return "Today";
-            if (dt == today.AddDays(-1)) return "Yesterday";
-            return DateOrder.Value.ToString("MMM d", CultureInfo.InvariantCulture);
+            if (dt == today) return _isArabicLanguage ? "اليوم" : "Today";
+            if (dt == today.AddDays(-1)) return _isArabicLanguage ? "أمس" : "Yesterday";
+            return _isArabicLanguage
+                ? DateOrder.Value.ToString("dd MMM", new CultureInfo("ar-MA"))
+                : DateOrder.Value.ToString("MMM d", CultureInfo.InvariantCulture);
         }
     }
 
-    public string InPosTimeDisplay =>
-        DateOrder.HasValue
-            ? DateOrder.Value.ToString("h:mmtt", CultureInfo.InvariantCulture).ToLowerInvariant()
-            : DateTime.Now.ToString("h:mmtt", CultureInfo.InvariantCulture).ToLowerInvariant();
+    public string InPosTimeDisplay
+    {
+        get
+        {
+            var dt = DateOrder ?? DateTime.Now;
+            if (_isArabicLanguage)
+            {
+                string timePart = dt.ToString("h:mm", CultureInfo.InvariantCulture);
+                string amPm = dt.Hour < 12 ? "ص" : "م";
+                return $"{timePart} {amPm}";
+            }
+            return dt.ToString("h:mmtt", CultureInfo.InvariantCulture).ToLowerInvariant();
+        }
+    }
+
+    public string InPosPrintReceiptText => _isArabicLanguage ? "طباعة الإيصال" : "Print Receipt";
+    public string InPosPaidText => _isArabicLanguage ? "مدفوع" : "Paid";
+
+    public void RefreshLanguageDisplay()
+    {
+        OnPropertyChanged(nameof(InPosDayDisplay));
+        OnPropertyChanged(nameof(InPosTimeDisplay));
+        OnPropertyChanged(nameof(InPosPrintReceiptText));
+        OnPropertyChanged(nameof(InPosPaidText));
+    }
 
     public string InPosStatusText => State?.ToLowerInvariant() switch
     {

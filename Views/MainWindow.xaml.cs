@@ -35,7 +35,7 @@ public partial class MainWindow : Window
             MainShellModule.Visibility = Visibility.Collapsed;
             TopLoginHeaderBar.Visibility = Visibility.Visible;
             LoginWorkspaceGrid.Visibility = Visibility.Visible;
-            HeaderQuickSetupBtn.Visibility = Visibility.Visible;
+            HeaderQuickSetupBtn.Visibility = _showSetupButtonOnLogin ? Visibility.Visible : Visibility.Collapsed;
             _ = RefreshLoginCardsAsync();
         };
 
@@ -81,12 +81,28 @@ public partial class MainWindow : Window
         _ = InitializeGeneralSettingsAsync();
     }
 
+    private bool _showSetupButtonOnLogin = true;
+
+    public void ApplyLoginSetupButtonVisibility(bool isVisible)
+    {
+        _showSetupButtonOnLogin = isVisible;
+        Dispatcher.Invoke(() =>
+        {
+            if (TopLoginHeaderBar.Visibility == Visibility.Visible)
+            {
+                HeaderQuickSetupBtn.Visibility = _showSetupButtonOnLogin ? Visibility.Visible : Visibility.Collapsed;
+            }
+            OpenSetupFromLoginBtn.Visibility = _showSetupButtonOnLogin ? Visibility.Visible : Visibility.Collapsed;
+        });
+    }
+
     private async Task InitializeGeneralSettingsAsync()
     {
         try
         {
             var settings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
             ApplyScreenMode(settings.ScreenMode);
+            ApplyLoginSetupButtonVisibility(settings.ShowSetupButtonOnLogin);
         }
         catch { }
     }

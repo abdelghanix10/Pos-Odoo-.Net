@@ -1025,6 +1025,50 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- CARD 3: INTERFACE BUTTONS VISIBILITY -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="24,20"
+                                    Margin="0,0,0,20"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                        <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,12,0">
+                                            <Viewbox Width="20" Height="20">
+                                                <Canvas Width="24" Height="24">
+                                                    <Rectangle Canvas.Left="3" Canvas.Top="5" Width="18" Height="14" RadiusX="3" RadiusY="3" Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2"/>
+                                                    <Ellipse Canvas.Left="9" Canvas.Top="9" Width="6" Height="6" Fill="{StaticResource OdooTealBrush}"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Interface Buttons Visibility" FontSize="16" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Show or hide quick action buttons in the POS Register and on the Login screen." FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderLightBrush}" Margin="0,0,0,16"/>
+
+                                    <CheckBox x:Name="GeneralShowUnsyncedInPosCheckBox"
+                                              Content="Active button &quot;Unsynced&quot; in POS (Show the unsynced transactions queue button in the POS register header)"
+                                              FontSize="13.5"
+                                              FontWeight="SemiBold"
+                                              Foreground="{StaticResource PrimaryTextBrush}"
+                                              IsChecked="True"
+                                              Margin="0,0,0,14"/>
+
+                                    <CheckBox x:Name="GeneralShowSetupOnLoginCheckBox"
+                                              Content="Active button &quot;Odoo Setup &amp; Sync&quot; in Login Page (Show the setup &amp; sync button in the login header)"
+                                              FontSize="13.5"
+                                              FontWeight="SemiBold"
+                                              Foreground="{StaticResource PrimaryTextBrush}"
+                                              IsChecked="True"
+                                              Margin="0,0,0,4"/>
+                                </StackPanel>
+                            </Border>
+
                             <!-- SAVE BUTTON -->
                             <Button x:Name="SaveGeneralSettingsBtn"
                                     Style="{StaticResource OdooPrimaryActionButtonStyle}"

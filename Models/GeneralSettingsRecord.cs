@@ -27,6 +27,8 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
 
     // Language setting for POS interface ("English" or "Arabic")
     private string _posLanguage = "English";
+    private bool _showUnsyncedButtonInPos = true;
+    private bool _showSetupButtonOnLogin = true;
 
     public string ScreenMode
     {
@@ -141,6 +143,18 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
         string.Equals(_posLanguage, "Arabic", StringComparison.OrdinalIgnoreCase) ||
         _posLanguage.Contains("Arabic", StringComparison.OrdinalIgnoreCase) ||
         _posLanguage.Contains("العربية", StringComparison.OrdinalIgnoreCase);
+
+    public bool ShowUnsyncedButtonInPos
+    {
+        get => _showUnsyncedButtonInPos;
+        set { if (_showUnsyncedButtonInPos != value) { _showUnsyncedButtonInPos = value; OnPropertyChanged(); } }
+    }
+
+    public bool ShowSetupButtonOnLogin
+    {
+        get => _showSetupButtonOnLogin;
+        set { if (_showSetupButtonOnLogin != value) { _showSetupButtonOnLogin = value; OnPropertyChanged(); } }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? propName = null)

@@ -772,6 +772,11 @@ public partial class MainShellView : UserControl
             // Set POS Language Dropdown
             PosLanguageComboBox.SelectedIndex = settings.IsArabicPos ? 1 : 0;
             RegisterViewControl.VM.SetPosLanguage(settings.PosLanguage);
+
+            // Set Interface Buttons Visibility checkboxes
+            GeneralShowUnsyncedInPosCheckBox.IsChecked = settings.ShowUnsyncedButtonInPos;
+            GeneralShowSetupOnLoginCheckBox.IsChecked = settings.ShowSetupButtonOnLogin;
+            RegisterViewControl.VM.ShowUnsyncedButtonInPos = settings.ShowUnsyncedButtonInPos;
         }
         catch (Exception ex)
         {
@@ -1031,8 +1036,16 @@ public partial class MainShellView : UserControl
             current.ScreenMode = screenMode;
             current.DefaultCompanyId = compId;
             current.DefaultCompanyName = compName;
+            current.ShowUnsyncedButtonInPos = GeneralShowUnsyncedInPosCheckBox.IsChecked ?? true;
+            current.ShowSetupButtonOnLogin = GeneralShowSetupOnLoginCheckBox.IsChecked ?? true;
 
             await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
+
+            RegisterViewControl.VM.ShowUnsyncedButtonInPos = current.ShowUnsyncedButtonInPos;
+            if (Application.Current?.MainWindow is MainWindow mw)
+            {
+                mw.ApplyLoginSetupButtonVisibility(current.ShowSetupButtonOnLogin);
+            }
 
             // Apply screen mode immediately to MainWindow
             ApplyCurrentScreenMode(screenMode);

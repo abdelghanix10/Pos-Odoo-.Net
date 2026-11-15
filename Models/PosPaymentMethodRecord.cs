@@ -23,6 +23,13 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
     private BitmapImage? _imageBitmap;
     private bool _isSelected;
 
+    private static bool _isArabicLanguage;
+    public static bool IsArabicLanguage
+    {
+        get => _isArabicLanguage;
+        set => _isArabicLanguage = value;
+    }
+
     public bool IsSelected
     {
         get => _isSelected;
@@ -44,7 +51,7 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
     public string Name
     {
         get => _name;
-        set { if (_name != value) { _name = value; OnPropertyChanged(); } }
+        set { if (_name != value) { _name = value; OnPropertyChanged(); OnPropertyChanged(nameof(DisplayName)); } }
     }
 
     public string MethodType
@@ -61,6 +68,7 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
                 OnPropertyChanged(nameof(IsTypeBank));
                 OnPropertyChanged(nameof(IsTypeCustomerAccount));
                 OnPropertyChanged(nameof(IsTypeOnline));
+                OnPropertyChanged(nameof(DisplayName));
             }
         }
     }
@@ -182,6 +190,39 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
         "online" => "Online",
         _ => "Cash"
     };
+
+    public string DisplayName => LocalizeMethodName(_name, _methodType, _isArabicLanguage);
+
+    public static string LocalizeMethodName(string? name, string? methodType, bool isArabic)
+    {
+        string raw = name?.Trim() ?? "Cash";
+        if (!isArabic) return raw;
+
+        if (string.Equals(raw, "Cash", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(methodType, "cash", StringComparison.OrdinalIgnoreCase) && raw.Contains("Cash", StringComparison.OrdinalIgnoreCase))
+            return "نقداً";
+
+        if (string.Equals(raw, "Card", StringComparison.OrdinalIgnoreCase))
+            return "بطاقة بنكية";
+
+        if (string.Equals(raw, "Bank", StringComparison.OrdinalIgnoreCase))
+            return "بنك";
+
+        if (string.Equals(raw, "Customer Account", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(methodType, "pay_later", StringComparison.OrdinalIgnoreCase))
+            return "حساب العميل";
+
+        if (string.Equals(raw, "Online", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(raw, "Online Payment", StringComparison.OrdinalIgnoreCase))
+            return "دفع إلكتروني";
+
+        return raw;
+    }
+
+    public void RefreshLanguageDisplay()
+    {
+        OnPropertyChanged(nameof(DisplayName));
+    }
 
     public bool HasJournal => !string.IsNullOrWhiteSpace(JournalName);
     public string JournalKanbanDisplay => HasJournal ? JournalName : "No Journal";

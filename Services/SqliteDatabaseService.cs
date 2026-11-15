@@ -737,6 +737,8 @@ public class SqliteDatabaseService
             "ALTER TABLE GeneralSettings ADD COLUMN BackupFrequency TEXT DEFAULT 'Daily';",
             "ALTER TABLE GeneralSettings ADD COLUMN BackupTime TEXT DEFAULT '23:00';",
             "ALTER TABLE GeneralSettings ADD COLUMN PosLanguage TEXT DEFAULT 'English';",
+            "ALTER TABLE GeneralSettings ADD COLUMN ShowUnsyncedButtonInPos INTEGER DEFAULT 1;",
+            "ALTER TABLE GeneralSettings ADD COLUMN ShowSetupButtonOnLogin INTEGER DEFAULT 1;",
             "ALTER TABLE GeneralSettings ADD COLUMN LastBackupAt TEXT;",
             "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN CustomOrderReceiptDesignId INTEGER;",
@@ -3995,7 +3997,9 @@ public class SqliteDatabaseService
                    COALESCE(g.BackupFolderPath, ''), COALESCE(g.AutoBackupEnabled, 0),
                    COALESCE(g.BackupFrequency, 'Daily'), g.LastBackupAt,
                    COALESCE(g.BackupTime, '23:00'),
-                   COALESCE(g.PosLanguage, 'English')
+                   COALESCE(g.PosLanguage, 'English'),
+                   COALESCE(g.ShowUnsyncedButtonInPos, 1),
+                   COALESCE(g.ShowSetupButtonOnLogin, 1)
             FROM GeneralSettings g
             LEFT JOIN Companies c ON g.DefaultCompanyId = c.OdooId OR g.DefaultCompanyId = c.Id
             WHERE g.Id = 1;
@@ -4024,6 +4028,8 @@ public class SqliteDatabaseService
             record.BackupTime = string.IsNullOrWhiteSpace(bTime) ? "23:00" : bTime;
             string posLang = reader.IsDBNull(14) ? "English" : reader.GetString(14);
             record.PosLanguage = string.IsNullOrWhiteSpace(posLang) ? "English" : posLang;
+            record.ShowUnsyncedButtonInPos = reader.IsDBNull(15) || reader.GetInt32(15) != 0;
+            record.ShowSetupButtonOnLogin = reader.IsDBNull(16) || reader.GetInt32(16) != 0;
         }
         else
         {
@@ -4046,10 +4052,11 @@ public class SqliteDatabaseService
         cmd.CommandText = """
             INSERT INTO GeneralSettings (Id, ScreenMode, DefaultCompanyId, DefaultPrinterName, PaperWidth,
                                          AutoPrintReceipt, CashDrawerPulse, PrintHeaderLogo, PrinterEncoding,
-                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, PosLanguage, UpdatedAt)
+                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, PosLanguage, ShowUnsyncedButtonInPos, ShowSetupButtonOnLogin, UpdatedAt)
             VALUES (1, @screenMode, @companyId, @printerName, @paperWidth,
                     @autoPrint, @drawerPulse, @printLogo, @encoding,
-                    @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt, @posLanguage, CURRENT_TIMESTAMP)
+                    @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt,
+                    @posLanguage, @showUnsyncedPos, @showSetupLogin, CURRENT_TIMESTAMP)
             ON CONFLICT(Id) DO UPDATE SET
                 ScreenMode = @screenMode,
                 DefaultCompanyId = @companyId,
@@ -4065,6 +4072,8 @@ public class SqliteDatabaseService
                 BackupTime = @backupTime,
                 LastBackupAt = COALESCE(@lastBackupAt, GeneralSettings.LastBackupAt),
                 PosLanguage = @posLanguage,
+                ShowUnsyncedButtonInPos = @showUnsyncedPos,
+                ShowSetupButtonOnLogin = @showSetupLogin,
                 UpdatedAt = CURRENT_TIMESTAMP;
             """;
 
@@ -4082,6 +4091,8 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@backupTime", settings.BackupTime ?? "23:00");
         cmd.Parameters.AddWithValue("@lastBackupAt", (object?)settings.LastBackupAt ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@posLanguage", settings.PosLanguage ?? "English");
+        cmd.Parameters.AddWithValue("@showUnsyncedPos", settings.ShowUnsyncedButtonInPos ? 1 : 0);
+        cmd.Parameters.AddWithValue("@showSetupLogin", settings.ShowSetupButtonOnLogin ? 1 : 0);
 
         await cmd.ExecuteNonQueryAsync();
     }

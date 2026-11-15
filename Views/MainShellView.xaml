@@ -913,6 +913,7 @@
                         <Button x:Name="TabOdooSync" Style="{StaticResource OdooInactiveTabButtonStyle}" Content="Odoo Connection &amp; Sync" Click="TabButton_Click" Tag="OdooSync"/>
                         <Button x:Name="TabPrinter" Style="{StaticResource OdooInactiveTabButtonStyle}" Content="Printer" Click="TabButton_Click" Tag="Printer"/>
                         <Button x:Name="TabBackup" Style="{StaticResource OdooInactiveTabButtonStyle}" Content="Backup" Click="TabButton_Click" Tag="Backup"/>
+                        <Button x:Name="TabLanguage" Style="{StaticResource OdooInactiveTabButtonStyle}" Content="Language" Click="TabButton_Click" Tag="Language"/>
                     </StackPanel>
                 </Border>
 
@@ -2157,6 +2158,82 @@
                                     </Button>
                                 </StackPanel>
                             </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- 5. LANGUAGE TAB (POS INTERFACE LANGUAGE) -->
+                    <ScrollViewer x:Name="LanguageSettingsScrollViewer"
+                                  Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="28,22,28,32">
+                        <StackPanel MaxWidth="900" HorizontalAlignment="Left">
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="24,20"
+                                    Margin="0,0,0,20"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                        <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,12,0">
+                                            <Viewbox Width="20" Height="20">
+                                                <Canvas Width="24" Height="24">
+                                                    <Ellipse Canvas.Left="2" Canvas.Top="2" Width="20" Height="20" Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2"/>
+                                                    <Path Data="M 2,12 H 22 M 12,2 C 15,5.5 16.5,8.5 16.5,12 C 16.5,15.5 15,18.5 12,22 C 9,18.5 7.5,15.5 7.5,12 C 7.5,8.5 9,5.5 12,2 Z"
+                                                          Stroke="{StaticResource OdooTealBrush}"
+                                                          StrokeThickness="1.8"
+                                                          Fill="Transparent"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="POS Terminal Language" FontSize="16" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Select the display language for POS-Only mode, POS Register, POS Orders, Payment View, Change View, and the 3-Dot POS Menu."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource SecondaryTextBrush}"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Height="1" Background="{StaticResource SubtleBorderLightBrush}" Margin="0,0,0,16"/>
+
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="220"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="POS Interface Language" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Applies to all POS screens" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+
+                                        <ComboBox x:Name="PosLanguageComboBox"
+                                                  Grid.Column="1"
+                                                  Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                  Height="38"
+                                                  Width="280"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalContentAlignment="Center"
+                                                  FontSize="13.5"
+                                                  Padding="12,0">
+                                            <ComboBoxItem Content="English" Tag="English" IsSelected="True"/>
+                                            <ComboBoxItem Content="Arabic (العربية)" Tag="Arabic"/>
+                                        </ComboBox>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Button x:Name="SaveLanguageSettingsBtn"
+                                    Style="{StaticResource OdooPrimaryActionButtonStyle}"
+                                    Width="190"
+                                    Height="40"
+                                    HorizontalAlignment="Left"
+                                    Click="SaveLanguageSettingsBtn_Click">
+                                <TextBlock Text="Save Language Settings" FontSize="13.5"/>
+                            </Button>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

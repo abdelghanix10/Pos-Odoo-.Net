@@ -645,6 +645,7 @@ public partial class MainShellView : UserControl
         TabOdooSync.Style = inactiveStyle;
         TabPrinter.Style = inactiveStyle;
         TabBackup.Style = inactiveStyle;
+        TabLanguage.Style = inactiveStyle;
 
         clickedTab.Style = activeStyle;
 
@@ -654,6 +655,7 @@ public partial class MainShellView : UserControl
         OdooSyncScrollViewer.Visibility = Visibility.Collapsed;
         PrinterSettingsScrollViewer.Visibility = Visibility.Collapsed;
         BackupSettingsScrollViewer.Visibility = Visibility.Collapsed;
+        LanguageSettingsScrollViewer.Visibility = Visibility.Collapsed;
 
         switch (tabTag)
         {
@@ -671,6 +673,10 @@ public partial class MainShellView : UserControl
                 break;
             case "Backup":
                 BackupSettingsScrollViewer.Visibility = Visibility.Visible;
+                _ = LoadGeneralAndPrinterSettingsAsync();
+                break;
+            case "Language":
+                LanguageSettingsScrollViewer.Visibility = Visibility.Visible;
                 _ = LoadGeneralAndPrinterSettingsAsync();
                 break;
         }
@@ -762,6 +768,10 @@ public partial class MainShellView : UserControl
             BackupMinuteComboBox.SelectedItem = minPart;
 
             UpdateBackupStatusLabels(settings);
+
+            // Set POS Language Dropdown
+            PosLanguageComboBox.SelectedIndex = settings.IsArabicPos ? 1 : 0;
+            RegisterViewControl.VM.SetPosLanguage(settings.PosLanguage);
         }
         catch (Exception ex)
         {
@@ -973,6 +983,31 @@ public partial class MainShellView : UserControl
         finally
         {
             ImportRestoreDbBtn.IsEnabled = true;
+        }
+    }
+
+    private async void SaveLanguageSettingsBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string selectedLang = (PosLanguageComboBox.SelectedItem is ComboBoxItem item &&
+                                   string.Equals(item.Tag?.ToString(), "Arabic", StringComparison.OrdinalIgnoreCase))
+                ? "Arabic"
+                : "English";
+
+            var current = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            current.PosLanguage = selectedLang;
+
+            await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
+            RegisterViewControl.VM.SetPosLanguage(selectedLang);
+
+            ShowToast(selectedLang == "Arabic"
+                ? "POS language set to Arabic (العربية)."
+                : "POS language set to English.");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Failed to save language settings: {ex.Message}", isError: true);
         }
     }
 

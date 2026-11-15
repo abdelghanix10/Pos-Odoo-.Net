@@ -171,7 +171,9 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         IsRegisterOpenForLanding = isOpen;
         IsRegisterClosedForLanding = !isOpen;
-        LandingActionButtonText = isOpen ? "Continue" : "Open Register";
+        LandingActionButtonText = isOpen
+            ? (IsArabicPos ? "متابعة" : "Continue")
+            : (IsArabicPos ? "فتح الصندوق" : "Open Register");
     }
 
     public async Task LoadLastSessionInfoAsync()
@@ -757,10 +759,182 @@ public partial class PosRegisterViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isPosOnlyMode;
 
-    public string LandingBottomButtonText => IsPosOnlyMode ? "Logout" : "Backend";
-
     partial void OnIsPosOnlyModeChanged(bool value)
     {
+        OnPropertyChanged(nameof(LandingBottomButtonText));
+    }
+
+    // ==================== POS LANGUAGE LOCALIZATION (ENGLISH / ARABIC) ====================
+    [ObservableProperty]
+    private string _posLanguage = "English";
+
+    public bool IsArabicPos =>
+        string.Equals(PosLanguage, "Arabic", StringComparison.OrdinalIgnoreCase) ||
+        PosLanguage.Contains("Arabic", StringComparison.OrdinalIgnoreCase) ||
+        PosLanguage.Contains("العربية", StringComparison.OrdinalIgnoreCase);
+
+    public void SetPosLanguage(string? language)
+    {
+        PosLanguage = string.IsNullOrWhiteSpace(language) ? "English" : language.Trim();
+        NotifyLanguagePropertiesChanged();
+    }
+
+    partial void OnPosLanguageChanged(string value)
+    {
+        NotifyLanguagePropertiesChanged();
+    }
+
+    // Top Bar
+    public string TxtRegisterTab => IsArabicPos ? "نقطة البيع" : "Register";
+    public string TxtOrdersTab => IsArabicPos ? "الطلبات" : "Orders";
+    public string TxtNewOrderTooltip => IsArabicPos ? "طلب جديد" : "New Order";
+    public string TxtPrintLastReceipt => IsArabicPos ? "طباعة آخر إيصال" : "Print Last Receipt";
+    public string TxtSearchProductsPlaceholder => IsArabicPos ? "البحث عن المنتجات..." : "Search products...";
+    public string TxtMenuTooltip => IsArabicPos ? "القائمة" : "Menu";
+
+    // Register View (Standard & Split Layouts)
+    public string TxtItemColumn => IsArabicPos ? "المنتج" : "Item";
+    public string TxtPriceColumn => IsArabicPos ? "السعر" : "Price";
+    public string TxtUnitsColumn => IsArabicPos ? "الكمية" : "Units";
+    public string TxtTotalLabel => IsArabicPos ? "المجموع" : "Total";
+    public string TxtTaxesLabel => IsArabicPos ? "الضرائب: " : "Taxes: ";
+    public string TxtNextProductQty => IsArabicPos ? "كمية المنتج التالي:" : "Next Product Quantity:";
+    public string TxtNextQtyShort => IsArabicPos ? "الكمية التالية:" : "Next Qty:";
+    public string TxtQtyKey => IsArabicPos ? "الكمية" : "Qty";
+    public string TxtDeleteKey => IsArabicPos ? "حذف" : "Delete";
+    public string TxtPaymentBtn => IsArabicPos ? "الدفع" : "Payment";
+    public string TxtAllCategories => IsArabicPos ? "جميع الفئات" : "All Categories";
+    public string TxtVariantSubtitle => IsArabicPos ? "اختر خصائص ومتغيرات المنتج" : "Select product attributes & variant options";
+    public string TxtAddBtn => IsArabicPos ? "إضافة" : "Add";
+    public string TxtDiscardBtn => IsArabicPos ? "إلغاء" : "Discard";
+
+    // In-POS Orders View
+    public string TxtSearchPaidOrdersPlaceholder => IsArabicPos ? "البحث في الطلبات المدفوعة لهذه الجلسة..." : "Search Paid Orders in this Session...";
+    public string TxtPrintReceiptBtn => IsArabicPos ? "طباعة الإيصال" : "Print Receipt";
+    public string TxtPaidBadge => IsArabicPos ? "مدفوع" : "Paid";
+
+    // Payment View
+    public string TxtBackBtn => IsArabicPos ? "رجوع" : "Back";
+    public string TxtValidateBtn => IsArabicPos ? "تأكيد الدفع" : "Validate";
+    public string TxtRemainingLabel => IsArabicPos ? "المتبقي" : "Remaining";
+    public string TxtChangeLabel => IsArabicPos ? "الباقي" : "Change";
+
+    // Change / Confirmation View
+    public string TxtChangeTitle => IsArabicPos ? "الباقي" : "Change";
+    public string TxtAmountPaidLabel => IsArabicPos ? "المبلغ المدفوع: " : "Amount Paid: ";
+    public string TxtPrintBtn => IsArabicPos ? "طباعة" : "Print";
+    public string TxtContinueBtn => IsArabicPos ? "متابعة" : "Continue";
+
+    // 3-Dot Menu (Session Information)
+    public string TxtSessionInfoTitle => IsArabicPos ? "معلومات الجلسة" : "Session Information";
+    public string TxtSessionHeader => IsArabicPos ? "الجلسة" : "SESSION";
+    public string TxtTotalOrdersHeader => IsArabicPos ? "إجمالي الطلبات" : "TOTAL ORDERS";
+    public string TxtTotalPaymentHeader => IsArabicPos ? "إجمالي المدفوعات" : "TOTAL PAYMENT";
+    public string TxtZoomLabel => IsArabicPos ? "تكبير / تصغير" : "Zoom";
+    public string TxtOpeningControlBtn => IsArabicPos ? "مراقبة الافتتاح" : "Opening Control";
+    public string TxtCloseRegisterBtn => IsArabicPos ? "إغلاق الصندوق" : "Close Register";
+    public string TxtLogoutBtn => IsArabicPos ? "تسجيل الخروج" : "Logout";
+
+    // POS-Only / Opening Control Landing Screen & Modal
+    public string TxtLastSessionDetails => IsArabicPos ? "تفاصيل آخر جلسة" : "LAST SESSION DETAILS";
+    public string TxtPointOfSaleLabel => IsArabicPos ? "نقطة البيع" : "Point of Sale";
+    public string TxtSessionTitleLabel => IsArabicPos ? "عنوان الجلسة" : "Session Title";
+    public string TxtOpeningDateLabel => IsArabicPos ? "تاريخ الافتتاح" : "Opening Date";
+    public string TxtClosingDateLabel => IsArabicPos ? "تاريخ الإغلاق" : "Closing Date";
+    public string TxtOpeningCashLabel => IsArabicPos ? "النقد الافتتاحي" : "Opening cash";
+    public string TxtOpeningNoteLabel => IsArabicPos ? "ملاحظة الافتتاح" : "Opening note";
+    public string TxtOpeningNotePlaceholder => IsArabicPos ? "أضف ملاحظة افتتاح..." : "Add an opening note...";
+    public string TxtOpenRegisterBtn => IsArabicPos ? "فتح الصندوق" : "Open Register";
+
+    // Closing Register Modal
+    public string TxtClosingRegisterTitle => IsArabicPos ? "إغلاق الصندوق" : "Closing Register";
+    public string TxtOpeningSubLabel => IsArabicPos ? "الرصيد الافتتاحي" : "Opening";
+    public string TxtPaymentsInCashLabel => IsArabicPos ? "المدفوعات نقداً" : "Payments in Cash";
+    public string TxtCashInOutLabel => IsArabicPos ? "▸  إيداع / سحب نقدي" : "▸  Cash In / Out";
+    public string TxtCountedLabel => IsArabicPos ? "المبلغ المعدود" : "Counted";
+    public string TxtDifferenceLabel => IsArabicPos ? "الفرق" : "Difference";
+    public string TxtCashCountLabel => IsArabicPos ? "عد النقد" : "Cash Count";
+    public string TxtClosingNoteLabel => IsArabicPos ? "ملاحظة الإغلاق" : "Closing note";
+    public string TxtClosingNotePlaceholder => IsArabicPos ? "أضف ملاحظة إغلاق..." : "Add a closing note...";
+    public string TxtCashInOutBtn => IsArabicPos ? "إيداع/سحب" : "Cash In/Out";
+    public string TxtDailySaleBtn => IsArabicPos ? "المبيعات اليومية ⤓" : "Daily Sale ⤓";
+    public string TxtOhSnapTitle => IsArabicPos ? "تنبيه !" : "Oh snap !";
+    public string TxtDraftOrdersWarningMsg => IsArabicPos
+        ? "لا يمكنك إغلاق نقطة البيع مع وجود طلبات غير مكتملة لهذا اليوم."
+        : "You cannot close the POS while there are still draft orders for the day.";
+    public string TxtReviewOrdersBtn => IsArabicPos ? "مراجعة الطلبات" : "Review Orders";
+    public string TxtCancelOrdersBtn => IsArabicPos ? "إلغاء الطلبات" : "Cancel Orders";
+    public string LandingBottomButtonText => IsPosOnlyMode
+        ? (IsArabicPos ? "تسجيل الخروج" : "Logout")
+        : (IsArabicPos ? "الواجهة الخلفية" : "Backend");
+
+    private void NotifyLanguagePropertiesChanged()
+    {
+        UpdateLandingState();
+        OnPropertyChanged(nameof(IsArabicPos));
+        OnPropertyChanged(nameof(TxtRegisterTab));
+        OnPropertyChanged(nameof(TxtOrdersTab));
+        OnPropertyChanged(nameof(TxtNewOrderTooltip));
+        OnPropertyChanged(nameof(TxtPrintLastReceipt));
+        OnPropertyChanged(nameof(TxtSearchProductsPlaceholder));
+        OnPropertyChanged(nameof(TxtMenuTooltip));
+        OnPropertyChanged(nameof(TxtItemColumn));
+        OnPropertyChanged(nameof(TxtPriceColumn));
+        OnPropertyChanged(nameof(TxtUnitsColumn));
+        OnPropertyChanged(nameof(TxtTotalLabel));
+        OnPropertyChanged(nameof(TxtTaxesLabel));
+        OnPropertyChanged(nameof(TxtNextProductQty));
+        OnPropertyChanged(nameof(TxtNextQtyShort));
+        OnPropertyChanged(nameof(TxtQtyKey));
+        OnPropertyChanged(nameof(TxtDeleteKey));
+        OnPropertyChanged(nameof(TxtPaymentBtn));
+        OnPropertyChanged(nameof(TxtAllCategories));
+        OnPropertyChanged(nameof(TxtVariantSubtitle));
+        OnPropertyChanged(nameof(TxtAddBtn));
+        OnPropertyChanged(nameof(TxtDiscardBtn));
+        OnPropertyChanged(nameof(TxtSearchPaidOrdersPlaceholder));
+        OnPropertyChanged(nameof(TxtPrintReceiptBtn));
+        OnPropertyChanged(nameof(TxtPaidBadge));
+        OnPropertyChanged(nameof(TxtBackBtn));
+        OnPropertyChanged(nameof(TxtValidateBtn));
+        OnPropertyChanged(nameof(TxtRemainingLabel));
+        OnPropertyChanged(nameof(TxtChangeLabel));
+        OnPropertyChanged(nameof(TxtChangeTitle));
+        OnPropertyChanged(nameof(TxtAmountPaidLabel));
+        OnPropertyChanged(nameof(TxtPrintBtn));
+        OnPropertyChanged(nameof(TxtContinueBtn));
+        OnPropertyChanged(nameof(TxtSessionInfoTitle));
+        OnPropertyChanged(nameof(TxtSessionHeader));
+        OnPropertyChanged(nameof(TxtTotalOrdersHeader));
+        OnPropertyChanged(nameof(TxtTotalPaymentHeader));
+        OnPropertyChanged(nameof(TxtZoomLabel));
+        OnPropertyChanged(nameof(TxtOpeningControlBtn));
+        OnPropertyChanged(nameof(TxtCloseRegisterBtn));
+        OnPropertyChanged(nameof(TxtLogoutBtn));
+        OnPropertyChanged(nameof(TxtLastSessionDetails));
+        OnPropertyChanged(nameof(TxtPointOfSaleLabel));
+        OnPropertyChanged(nameof(TxtSessionTitleLabel));
+        OnPropertyChanged(nameof(TxtOpeningDateLabel));
+        OnPropertyChanged(nameof(TxtClosingDateLabel));
+        OnPropertyChanged(nameof(TxtOpeningCashLabel));
+        OnPropertyChanged(nameof(TxtOpeningNoteLabel));
+        OnPropertyChanged(nameof(TxtOpeningNotePlaceholder));
+        OnPropertyChanged(nameof(TxtOpenRegisterBtn));
+        OnPropertyChanged(nameof(TxtClosingRegisterTitle));
+        OnPropertyChanged(nameof(TxtOpeningSubLabel));
+        OnPropertyChanged(nameof(TxtPaymentsInCashLabel));
+        OnPropertyChanged(nameof(TxtCashInOutLabel));
+        OnPropertyChanged(nameof(TxtCountedLabel));
+        OnPropertyChanged(nameof(TxtDifferenceLabel));
+        OnPropertyChanged(nameof(TxtCashCountLabel));
+        OnPropertyChanged(nameof(TxtClosingNoteLabel));
+        OnPropertyChanged(nameof(TxtClosingNotePlaceholder));
+        OnPropertyChanged(nameof(TxtCashInOutBtn));
+        OnPropertyChanged(nameof(TxtDailySaleBtn));
+        OnPropertyChanged(nameof(TxtOhSnapTitle));
+        OnPropertyChanged(nameof(TxtDraftOrdersWarningMsg));
+        OnPropertyChanged(nameof(TxtReviewOrdersBtn));
+        OnPropertyChanged(nameof(TxtCancelOrdersBtn));
         OnPropertyChanged(nameof(LandingBottomButtonText));
     }
 
@@ -950,6 +1124,13 @@ public partial class PosRegisterViewModel : ViewModelBase
     // =========================================================================
     public async Task InitializeRegisterAsync(PosConfigRecord config, bool showOpeningControl = false, PosUserRecord? loggedInUser = null, bool isPosOnlyMode = false)
     {
+        try
+        {
+            var genSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            SetPosLanguage(genSettings.PosLanguage);
+        }
+        catch { }
+
         try
         {
             var freshConfigs = await SqliteDatabaseService.Instance.LoadAllPosConfigsAsync();

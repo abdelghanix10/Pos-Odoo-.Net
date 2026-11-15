@@ -25,6 +25,9 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     private string _backupTime = "23:00";      // "HH:mm" (24-hour format)
     private string? _lastBackupAt;
 
+    // Language setting for POS interface ("English" or "Arabic")
+    private string _posLanguage = "English";
+
     public string ScreenMode
     {
         get => _screenMode;
@@ -118,6 +121,26 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
         get => _lastBackupAt;
         set { if (_lastBackupAt != value) { _lastBackupAt = value; OnPropertyChanged(); } }
     }
+
+    public string PosLanguage
+    {
+        get => _posLanguage;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "English" : value.Trim();
+            if (_posLanguage != normalized)
+            {
+                _posLanguage = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsArabicPos));
+            }
+        }
+    }
+
+    public bool IsArabicPos =>
+        string.Equals(_posLanguage, "Arabic", StringComparison.OrdinalIgnoreCase) ||
+        _posLanguage.Contains("Arabic", StringComparison.OrdinalIgnoreCase) ||
+        _posLanguage.Contains("العربية", StringComparison.OrdinalIgnoreCase);
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? propName = null)

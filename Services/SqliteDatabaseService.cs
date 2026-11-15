@@ -736,6 +736,7 @@ public class SqliteDatabaseService
             "ALTER TABLE GeneralSettings ADD COLUMN AutoBackupEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE GeneralSettings ADD COLUMN BackupFrequency TEXT DEFAULT 'Daily';",
             "ALTER TABLE GeneralSettings ADD COLUMN BackupTime TEXT DEFAULT '23:00';",
+            "ALTER TABLE GeneralSettings ADD COLUMN PosLanguage TEXT DEFAULT 'English';",
             "ALTER TABLE GeneralSettings ADD COLUMN LastBackupAt TEXT;",
             "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN CustomOrderReceiptDesignId INTEGER;",
@@ -3993,7 +3994,8 @@ public class SqliteDatabaseService
                    g.CashDrawerPulse, g.PrintHeaderLogo, g.PrinterEncoding,
                    COALESCE(g.BackupFolderPath, ''), COALESCE(g.AutoBackupEnabled, 0),
                    COALESCE(g.BackupFrequency, 'Daily'), g.LastBackupAt,
-                   COALESCE(g.BackupTime, '23:00')
+                   COALESCE(g.BackupTime, '23:00'),
+                   COALESCE(g.PosLanguage, 'English')
             FROM GeneralSettings g
             LEFT JOIN Companies c ON g.DefaultCompanyId = c.OdooId OR g.DefaultCompanyId = c.Id
             WHERE g.Id = 1;
@@ -4020,6 +4022,8 @@ public class SqliteDatabaseService
             record.LastBackupAt = reader.IsDBNull(12) ? null : reader.GetString(12);
             string bTime = reader.IsDBNull(13) ? "23:00" : reader.GetString(13);
             record.BackupTime = string.IsNullOrWhiteSpace(bTime) ? "23:00" : bTime;
+            string posLang = reader.IsDBNull(14) ? "English" : reader.GetString(14);
+            record.PosLanguage = string.IsNullOrWhiteSpace(posLang) ? "English" : posLang;
         }
         else
         {
@@ -4042,10 +4046,10 @@ public class SqliteDatabaseService
         cmd.CommandText = """
             INSERT INTO GeneralSettings (Id, ScreenMode, DefaultCompanyId, DefaultPrinterName, PaperWidth,
                                          AutoPrintReceipt, CashDrawerPulse, PrintHeaderLogo, PrinterEncoding,
-                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, UpdatedAt)
+                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, PosLanguage, UpdatedAt)
             VALUES (1, @screenMode, @companyId, @printerName, @paperWidth,
                     @autoPrint, @drawerPulse, @printLogo, @encoding,
-                    @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt, CURRENT_TIMESTAMP)
+                    @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt, @posLanguage, CURRENT_TIMESTAMP)
             ON CONFLICT(Id) DO UPDATE SET
                 ScreenMode = @screenMode,
                 DefaultCompanyId = @companyId,
@@ -4060,6 +4064,7 @@ public class SqliteDatabaseService
                 BackupFrequency = @backupFreq,
                 BackupTime = @backupTime,
                 LastBackupAt = COALESCE(@lastBackupAt, GeneralSettings.LastBackupAt),
+                PosLanguage = @posLanguage,
                 UpdatedAt = CURRENT_TIMESTAMP;
             """;
 
@@ -4076,6 +4081,7 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@backupFreq", settings.BackupFrequency ?? "Daily");
         cmd.Parameters.AddWithValue("@backupTime", settings.BackupTime ?? "23:00");
         cmd.Parameters.AddWithValue("@lastBackupAt", (object?)settings.LastBackupAt ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@posLanguage", settings.PosLanguage ?? "English");
 
         await cmd.ExecuteNonQueryAsync();
     }

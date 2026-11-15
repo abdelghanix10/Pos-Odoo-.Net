@@ -583,7 +583,7 @@
                     <!-- LEFT: [Register | Orders] + [+] + | + [2001] [2002] -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- Register Button -->
-                        <Button Content="Register"
+                        <Button Content="{Binding TxtRegisterTab}"
                                 Command="{Binding SwitchToRegisterViewCommand}"
                                 Height="48"
                                 Padding="16,0"
@@ -622,7 +622,7 @@
                         </Button>
 
                         <!-- Orders Button -->
-                        <Button Content="Orders"
+                        <Button Content="{Binding TxtOrdersTab}"
                                 Command="{Binding SwitchToOrdersViewCommand}"
                                 Height="48"
                                 Padding="16,0"
@@ -665,7 +665,7 @@
                                 Width="48" Height="48"
                                 Margin="0,0,8,0"
                                 Cursor="Hand"
-                                ToolTip="New Order">
+                                ToolTip="{Binding TxtNewOrderTooltip}">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Bdr" Background="#F4F4F4" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1" CornerRadius="4">
@@ -797,7 +797,7 @@
                                             Padding="{TemplateBinding Padding}">
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                             <TextBlock Text="🖨 " FontSize="13" Foreground="#374151" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Print Last Receipt" FontSize="13" FontWeight="SemiBold" Foreground="#374151" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding TxtPrintLastReceipt}" FontSize="13" FontWeight="SemiBold" Foreground="#374151" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </Border>
                                     <ControlTemplate.Triggers>
@@ -838,7 +838,7 @@
                                          Foreground="{StaticResource TextPrimaryBrush}"
                                          VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="1"
-                                           Text="Search products..."
+                                           Text="{Binding TxtSearchProductsPlaceholder}"
                                            FontSize="14.5"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            VerticalAlignment="Center"
@@ -875,7 +875,7 @@
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Cursor="Hand"
-                                ToolTip="Menu">
+                                ToolTip="{Binding TxtMenuTooltip}">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="Bdr" Background="Transparent" CornerRadius="4">
@@ -975,7 +975,7 @@
                                 Padding="12,10"
                                 Visibility="{Binding HasCurrentOrderItems, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                             <Grid>
-                                <TextBlock Text="Total" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="{Binding TxtTotalLabel}" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                                 <TextBlock Text="{Binding CurrentOrder.TotalDisplay}" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
                             </Grid>
                         </Border>
@@ -997,11 +997,11 @@
                                         Visibility="{Binding CurrentConfig.IsNumbersFirst, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                                     <Grid>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="Next Product Quantity:" FontSize="12" FontWeight="SemiBold" Foreground="#71639E" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding TxtNextProductQty}" FontSize="12" FontWeight="SemiBold" Foreground="#71639E" VerticalAlignment="Center"/>
                                             <Button Content="⌫" Style="{StaticResource NumpadHeaderChipStyle}"
                                                     Command="{Binding NumpadPendingBackspaceCommand}"
                                                     ToolTip="Backspace the next product quantity"/>
-                                            <Button Content="Delete" Style="{StaticResource NumpadHeaderChipStyle}"
+                                            <Button Content="{Binding TxtDeleteKey}" Style="{StaticResource NumpadHeaderChipStyle}"
                                                     Command="{Binding NumpadPendingDeleteCommand}"
                                                     ToolTip="Clear the next product quantity"/>
                                         </StackPanel>
@@ -1035,7 +1035,7 @@
                                 <Button Grid.Row="0" Grid.Column="0" Content="1" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="1"/>
                                 <Button Grid.Row="0" Grid.Column="2" Content="2" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="2"/>
                                 <Button Grid.Row="0" Grid.Column="4" Content="3" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="3"/>
-                                <Button Grid.Row="0" Grid.Column="6" Content="Qty" Style="{StaticResource NumpadQtyButtonStyle}" Command="{Binding SetNumpadModeCommand}" CommandParameter="Qty"/>
+                                <Button Grid.Row="0" Grid.Column="6" Content="{Binding TxtQtyKey}" Style="{StaticResource NumpadQtyButtonStyle}" Command="{Binding SetNumpadModeCommand}" CommandParameter="Qty"/>
 
                                 <!-- Row 2: [4] [5] [6] [+] -->
                                 <Button Grid.Row="2" Grid.Column="0" Content="4" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="4"/>
@@ -1050,7 +1050,7 @@
                                 <Button Grid.Row="4" Grid.Column="6" Content="-" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="-" FontSize="24" FontWeight="SemiBold"/>
 
                                 <!-- Row 6: [Delete] [0] [.] [⌫] -->
-                                <Button Grid.Row="6" Grid.Column="0" Content="Delete" Style="{StaticResource NumpadAmberButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="Delete" FontSize="13.5" FontWeight="SemiBold"/>
+                                <Button Grid.Row="6" Grid.Column="0" Content="{Binding TxtDeleteKey}" Style="{StaticResource NumpadAmberButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="Delete" FontSize="13.5" FontWeight="SemiBold"/>
                                 <Button Grid.Row="6" Grid.Column="2" Content="0" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="0"/>
                                 <Button Grid.Row="6" Grid.Column="4" Content="." Style="{StaticResource NumpadPeachButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="."/>
                                 <Button Grid.Row="6" Grid.Column="6" Style="{StaticResource NumpadCoralButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="⌫">
@@ -1075,7 +1075,7 @@
                               Visibility="{Binding HasCurrentOrderItems, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
 
                             <!-- Standard Full-Width Payment Button (when One-click Payment is disabled) -->
-                            <Button Content="Payment"
+                            <Button Content="{Binding TxtPaymentBtn}"
                                     Command="{Binding OpenPaymentViewCommand}"
                                     Style="{StaticResource PosPrimaryButtonStyle}"
                                     Height="68"
@@ -1092,7 +1092,7 @@
                                 </Grid.ColumnDefinitions>
 
                                 <Button Grid.Column="0"
-                                        Content="Payment"
+                                        Content="{Binding TxtPaymentBtn}"
                                         Command="{Binding OpenPaymentViewCommand}"
                                         Style="{StaticResource PosPrimaryButtonStyle}"
                                         Height="68"
@@ -1363,10 +1363,10 @@
                                         <ColumnDefinition Width="1.0*"/>
                                         <ColumnDefinition Width="1.2*"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Item" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="Price" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
-                                    <TextBlock Grid.Column="2" Text="Units" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                                    <TextBlock Grid.Column="3" Text="Total" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="0" Text="{Binding TxtItemColumn}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding TxtPriceColumn}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding TxtUnitsColumn}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding TxtTotalLabel}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
                                 </Grid>
                             </Border>
 
@@ -1417,11 +1417,11 @@
                             <Border Grid.Row="2" Background="#F8F9FA" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,1,0,0" Padding="16,0">
                                 <Grid>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Taxes: " FontSize="13.5" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding TxtTaxesLabel}" FontSize="13.5" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                         <TextBlock Text="{Binding CurrentOrder.TaxesDisplay}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,18,0"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                        <TextBlock Text="Total" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                        <TextBlock Text="{Binding TxtTotalLabel}" FontSize="16" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
                                         <Border Background="#FFFFFF" BorderBrush="{StaticResource BorderMidBrush}" BorderThickness="1" CornerRadius="4" MinWidth="150" Height="38" Padding="14,0">
                                             <TextBlock Text="{Binding CurrentOrder.TotalDisplay}" FontSize="19" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </Border>
@@ -1444,9 +1444,9 @@
                                     Visibility="{Binding CurrentConfig.IsNumbersFirst, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                                 <Grid>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Next Qty:" FontSize="12" FontWeight="SemiBold" Foreground="#71639E" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding TxtNextQtyShort}" FontSize="12" FontWeight="SemiBold" Foreground="#71639E" VerticalAlignment="Center"/>
                                         <Button Content="⌫" Style="{StaticResource NumpadHeaderChipStyle}" Command="{Binding NumpadPendingBackspaceCommand}"/>
-                                        <Button Content="Delete" Style="{StaticResource NumpadHeaderChipStyle}" Command="{Binding NumpadPendingDeleteCommand}"/>
+                                        <Button Content="{Binding TxtDeleteKey}" Style="{StaticResource NumpadHeaderChipStyle}" Command="{Binding NumpadPendingDeleteCommand}"/>
                                     </StackPanel>
                                     <Border HorizontalAlignment="Right" Background="#71639E" CornerRadius="4" Padding="8,1">
                                         <TextBlock Text="{Binding NumbersFirstDisplayText}" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF"/>
@@ -1478,7 +1478,7 @@
                                     <Button Grid.Row="0" Grid.Column="0" Content="1" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="1"/>
                                     <Button Grid.Row="0" Grid.Column="2" Content="2" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="2"/>
                                     <Button Grid.Row="0" Grid.Column="4" Content="3" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="3"/>
-                                    <Button Grid.Row="0" Grid.Column="6" Content="Qty" Style="{StaticResource NumpadQtyButtonStyle}" Command="{Binding SetNumpadModeCommand}" CommandParameter="Qty"/>
+                                    <Button Grid.Row="0" Grid.Column="6" Content="{Binding TxtQtyKey}" Style="{StaticResource NumpadQtyButtonStyle}" Command="{Binding SetNumpadModeCommand}" CommandParameter="Qty"/>
                                     <Button Grid.Row="2" Grid.Column="0" Content="4" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="4"/>
                                     <Button Grid.Row="2" Grid.Column="2" Content="5" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="5"/>
                                     <Button Grid.Row="2" Grid.Column="4" Content="6" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="6"/>
@@ -1487,7 +1487,7 @@
                                     <Button Grid.Row="4" Grid.Column="2" Content="8" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="8"/>
                                     <Button Grid.Row="4" Grid.Column="4" Content="9" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="9"/>
                                     <Button Grid.Row="4" Grid.Column="6" Content="-" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="-" FontSize="24" FontWeight="SemiBold"/>
-                                    <Button Grid.Row="6" Grid.Column="0" Content="Delete" Style="{StaticResource NumpadAmberButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="Delete" FontSize="13.5" FontWeight="SemiBold"/>
+                                    <Button Grid.Row="6" Grid.Column="0" Content="{Binding TxtDeleteKey}" Style="{StaticResource NumpadAmberButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="Delete" FontSize="13.5" FontWeight="SemiBold"/>
                                     <Button Grid.Row="6" Grid.Column="2" Content="0" Style="{StaticResource NumpadButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="0"/>
                                     <Button Grid.Row="6" Grid.Column="4" Content="." Style="{StaticResource NumpadPeachButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="."/>
                                     <Button Grid.Row="6" Grid.Column="6" Style="{StaticResource NumpadCoralButtonStyle}" Command="{Binding NumpadKeyCommand}" CommandParameter="⌫">
@@ -1501,7 +1501,7 @@
                             </Border>
 
                             <Grid Grid.Row="2" Height="54">
-                                <Button Content="Payment" Command="{Binding OpenPaymentViewCommand}" IsEnabled="{Binding HasCurrentOrderItems}" Style="{StaticResource PosPrimaryButtonStyle}" Height="54" FontSize="16.5" FontWeight="Bold"
+                                <Button Content="{Binding TxtPaymentBtn}" Command="{Binding OpenPaymentViewCommand}" IsEnabled="{Binding HasCurrentOrderItems}" Style="{StaticResource PosPrimaryButtonStyle}" Height="54" FontSize="16.5" FontWeight="Bold"
                                         Visibility="{Binding IsOneClickPaymentVisible, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}"/>
                                 <Grid Visibility="{Binding IsOneClickPaymentVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                                     <Grid.ColumnDefinitions>
@@ -1509,7 +1509,7 @@
                                         <ColumnDefinition Width="6"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Content="Payment" Command="{Binding OpenPaymentViewCommand}" IsEnabled="{Binding HasCurrentOrderItems}" Style="{StaticResource PosPrimaryButtonStyle}" Height="54" FontSize="16.5" FontWeight="Bold"/>
+                                    <Button Grid.Column="0" Content="{Binding TxtPaymentBtn}" Command="{Binding OpenPaymentViewCommand}" IsEnabled="{Binding HasCurrentOrderItems}" Style="{StaticResource PosPrimaryButtonStyle}" Height="54" FontSize="16.5" FontWeight="Bold"/>
                                     <Button Grid.Column="2" Content="{Binding OneClickPaymentButtonLabel}" Command="{Binding OneClickPayCommand}" IsEnabled="{Binding HasCurrentOrderItems}" Height="54" Cursor="Hand">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
@@ -1558,7 +1558,7 @@
                                                                 <Rectangle Canvas.Left="13" Canvas.Top="14" Width="8" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="#495057"/>
                                                             </Canvas>
                                                         </Viewbox>
-                                                        <TextBlock Text="All Categories" FontSize="14" FontWeight="Bold" Foreground="#212529" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding TxtAllCategories}" FontSize="14" FontWeight="Bold" Foreground="#212529" VerticalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
@@ -1735,7 +1735,7 @@
                                          Padding="10,0"
                                          VerticalContentAlignment="Center"/>
                                 <TextBlock Grid.Column="1"
-                                           Text="Search Paid Orders in this Session..."
+                                           Text="{Binding TxtSearchPaidOrdersPlaceholder}"
                                            FontSize="13.5"
                                            Foreground="{StaticResource TextPlaceholderBrush}"
                                            Margin="12,0,0,0"
@@ -1816,7 +1816,7 @@
                                                                 <Button.Template>
                                                                     <ControlTemplate TargetType="Button">
                                                                         <Border x:Name="Bd" Background="#F3F0F8" BorderBrush="#71639E" BorderThickness="1" CornerRadius="9" Padding="12,3">
-                                                                            <TextBlock Text="Print Receipt" FontSize="11.5" FontWeight="Bold" Foreground="#71639E"/>
+                                                                            <TextBlock Text="{Binding TxtPrintReceiptBtn}" FontSize="11.5" FontWeight="Bold" Foreground="#71639E"/>
                                                                         </Border>
                                                                         <ControlTemplate.Triggers>
                                                                             <Trigger Property="IsMouseOver" Value="True">
@@ -1830,7 +1830,7 @@
                                                                     CornerRadius="9"
                                                                     Padding="14,3"
                                                                     VerticalAlignment="Center">
-                                                                <TextBlock Text="Paid"
+                                                                <TextBlock Text="{Binding TxtPaidBadge}"
                                                                            FontSize="11.5"
                                                                            FontWeight="Bold"
                                                                            Foreground="#FFFFFF"/>
@@ -2042,7 +2042,7 @@
                                             BorderBrush="#CCCCCC"
                                             BorderThickness="1"
                                             CornerRadius="4">
-                                        <TextBlock Text="Back"
+                                        <TextBlock Text="{Binding TxtBackBtn}"
                                                    FontSize="17.5"
                                                    FontWeight="Medium"
                                                    Foreground="#212529"
@@ -2074,7 +2074,7 @@
                                             BorderBrush="#71639E"
                                             BorderThickness="1"
                                             CornerRadius="4">
-                                        <TextBlock Text="Validate"
+                                        <TextBlock Text="{Binding TxtValidateBtn}"
                                                    FontSize="17.5"
                                                    FontWeight="Medium"
                                                    Foreground="#FFFFFF"
@@ -2177,7 +2177,7 @@
                             <Grid>
                                 <!-- Underpaid: Show REMAINING in RED (#D23F3A) -->
                                 <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                                    <TextBlock Text="Remaining"
+                                    <TextBlock Text="{Binding TxtRemainingLabel}"
                                                FontSize="21"
                                                FontWeight="Normal"
                                                Foreground="#D23F3A"
@@ -2193,7 +2193,7 @@
 
                                 <!-- Overpaid / Exact: Show CHANGE in GREEN (#28A745) -->
                                 <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
-                                    <TextBlock Text="Change"
+                                    <TextBlock Text="{Binding TxtChangeLabel}"
                                                FontSize="21"
                                                FontWeight="Normal"
                                                Foreground="#28A745"
@@ -2245,7 +2245,7 @@
                 </Viewbox>
 
                 <!-- Title: "Change" -->
-                <TextBlock Text="Change"
+                <TextBlock Text="{Binding TxtChangeTitle}"
                            FontSize="96"
                            FontWeight="Bold"
                            Foreground="#212529"
@@ -2289,7 +2289,7 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Amount Paid: "
+                        <TextBlock Text="{Binding TxtAmountPaidLabel}"
                                    FontSize="32"
                                    FontWeight="Medium"
                                    Foreground="#6C757D"
@@ -2325,7 +2325,7 @@
                                                   Fill="#212529"/>
                                         </Canvas>
                                     </Viewbox>
-                                    <TextBlock Text="Print"
+                                    <TextBlock Text="{Binding TxtPrintBtn}"
                                                FontSize="17.5"
                                                FontWeight="Medium"
                                                Foreground="#212529"
@@ -2355,7 +2355,7 @@
                                     BorderBrush="#71639E"
                                     BorderThickness="1"
                                     CornerRadius="8">
-                                <TextBlock Text="Continue"
+                                <TextBlock Text="{Binding TxtContinueBtn}"
                                            FontSize="17.5"
                                            FontWeight="Medium"
                                            Foreground="#FFFFFF"
@@ -2539,7 +2539,7 @@
                                                   Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="Transparent"/>
                                         </Canvas>
                                     </Viewbox>
-                                    <TextBlock Text="LAST SESSION DETAILS"
+                                    <TextBlock Text="{Binding TxtLastSessionDetails}"
                                                FontSize="11.5"
                                                FontWeight="Bold"
                                                Foreground="#64748B"
@@ -2576,31 +2576,31 @@
 
                             <!-- Row 0: Point of Sale & Title -->
                             <StackPanel Grid.Row="0" Grid.Column="0">
-                                <TextBlock Text="Point of Sale" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding TxtPointOfSaleLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
                                 <TextBlock Text="{Binding LastSessionPosName}" FontSize="13.5" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                             <StackPanel Grid.Row="0" Grid.Column="2">
-                                <TextBlock Text="Session Title" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding TxtSessionTitleLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
                                 <TextBlock Text="{Binding LastSessionTitle}" FontSize="13.5" FontWeight="SemiBold" Foreground="#1E293B" TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
 
                             <!-- Row 1: Opening Date & Closing Date -->
                             <StackPanel Grid.Row="2" Grid.Column="0">
-                                <TextBlock Text="Opening Date" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding TxtOpeningDateLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
                                 <TextBlock Text="{Binding LastSessionOpeningDateDisplay}" FontSize="13" FontWeight="Normal" Foreground="#334155"/>
                             </StackPanel>
                             <StackPanel Grid.Row="2" Grid.Column="2">
-                                <TextBlock Text="Closing Date" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding TxtClosingDateLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
                                 <TextBlock Text="{Binding LastSessionClosingDateDisplay}" FontSize="13" FontWeight="Normal" Foreground="#334155"/>
                             </StackPanel>
 
                             <!-- Row 2: Orders & Total -->
                             <StackPanel Grid.Row="4" Grid.Column="0">
-                                <TextBlock Text="Orders" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding TxtOrdersTab}" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
                                 <TextBlock Text="{Binding LastSessionOrdersCountDisplay}" FontSize="15" FontWeight="Bold" Foreground="#1E293B"/>
                             </StackPanel>
                             <StackPanel Grid.Row="4" Grid.Column="2">
-                                <TextBlock Text="Total" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <TextBlock Text="{Binding TxtTotalLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#64748B" Margin="0,0,0,2"/>
                                 <TextBlock Text="{Binding LastSessionTotalDisplay}" FontSize="15" FontWeight="Bold" Foreground="#16A34A"/>
                             </StackPanel>
                         </Grid>
@@ -2657,7 +2657,7 @@
                     Effect="{StaticResource ModalShadow}">
                 <StackPanel>
                     <Grid Margin="0,0,0,24">
-                        <TextBlock Text="Opening Control"
+                        <TextBlock Text="{Binding TxtOpeningControlBtn}"
                                    FontSize="24"
                                    FontWeight="Bold"
                                    Foreground="{StaticResource TextPrimaryBrush}"
@@ -2668,7 +2668,7 @@
                                 VerticalAlignment="Center"/>
                     </Grid>
 
-                    <TextBlock Text="Opening cash"
+                    <TextBlock Text="{Binding TxtOpeningCashLabel}"
                                FontSize="14.5"
                                Foreground="{StaticResource TextPrimaryBrush}"
                                Margin="0,0,0,8"/>
@@ -2725,7 +2725,7 @@
                         </Button>
                     </Grid>
 
-                    <TextBlock Text="Opening note"
+                    <TextBlock Text="{Binding TxtOpeningNoteLabel}"
                                FontSize="14.5"
                                Foreground="{StaticResource TextPrimaryBrush}"
                                Margin="0,0,0,8"/>
@@ -2744,7 +2744,7 @@
                                      TextWrapping="Wrap"
                                      FontSize="15"
                                      Foreground="{StaticResource TextPrimaryBrush}"/>
-                            <TextBlock Text="Add an opening note..."
+                            <TextBlock Text="{Binding TxtOpeningNotePlaceholder}"
                                        FontSize="15"
                                        Foreground="{StaticResource TextPlaceholderBrush}"
                                        IsHitTestVisible="False"
@@ -2753,7 +2753,7 @@
                     </Border>
 
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Open Register"
+                        <Button Content="{Binding TxtOpenRegisterBtn}"
                                 Command="{Binding OpenRegisterSubmitCommand}"
                                 Style="{StaticResource PosPrimaryButtonStyle}"
                                 Height="48"
@@ -2761,7 +2761,7 @@
                                 FontSize="15.5"
                                 FontWeight="SemiBold"
                                 Margin="0,0,10,0"/>
-                        <Button Content="Discard"
+                        <Button Content="{Binding TxtDiscardBtn}"
                                 Command="{Binding DiscardOpeningControlCommand}"
                                 Style="{StaticResource PosSecondaryButtonStyle}"
                                 Height="48"
@@ -2786,7 +2786,7 @@
                 <StackPanel>
                     <!-- Header: Title + Close Button -->
                     <Grid Margin="0,0,0,16">
-                        <TextBlock Text="Session Information"
+                        <TextBlock Text="{Binding TxtSessionInfoTitle}"
                                    FontSize="17.5"
                                    FontWeight="Bold"
                                    Foreground="#212529"
@@ -2807,7 +2807,7 @@
                             Margin="0,0,0,20">
                         <StackPanel>
                             <!-- Session Name -->
-                            <TextBlock Text="SESSION"
+                            <TextBlock Text="{Binding TxtSessionHeader}"
                                        FontSize="11"
                                        FontWeight="Bold"
                                        Foreground="#6C757D"
@@ -2829,7 +2829,7 @@
 
                                 <!-- Column 0: Total Orders -->
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="TOTAL ORDERS"
+                                    <TextBlock Text="{Binding TxtTotalOrdersHeader}"
                                                FontSize="11"
                                                FontWeight="Bold"
                                                Foreground="#6C757D"
@@ -2842,7 +2842,7 @@
 
                                 <!-- Column 1: Total Payment -->
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Text="TOTAL PAYMENT"
+                                    <TextBlock Text="{Binding TxtTotalPaymentHeader}"
                                                FontSize="11"
                                                FontWeight="Bold"
                                                Foreground="#6C757D"
@@ -2877,7 +2877,7 @@
                                         <Line X1="12" Y1="12" X2="19" Y2="19" Stroke="#495057" StrokeThickness="2.5" StrokeStartLineCap="Round"/>
                                     </Canvas>
                                 </Viewbox>
-                                <TextBlock Text="Zoom" FontSize="14.5" FontWeight="SemiBold" Foreground="#212529" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding TxtZoomLabel}" FontSize="14.5" FontWeight="SemiBold" Foreground="#212529" VerticalAlignment="Center"/>
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -2940,7 +2940,7 @@
                                                 <Ellipse Canvas.Left="10.5" Canvas.Top="13" Width="3" Height="3" Fill="#212529"/>
                                             </Canvas>
                                         </Viewbox>
-                                        <TextBlock Text="Opening Control"
+                                        <TextBlock Text="{Binding TxtOpeningControlBtn}"
                                                    FontSize="14.5"
                                                    FontWeight="SemiBold"
                                                    Foreground="#212529"
@@ -2978,7 +2978,7 @@
                                                 <Path Data="M 10,11.5 H 21 M 17,11.5 V 15 M 20,11.5 V 15" Stroke="#FFFFFF" StrokeThickness="1.8" StrokeStartLineCap="Round"/>
                                             </Canvas>
                                         </Viewbox>
-                                        <TextBlock Text="Close Register"
+                                        <TextBlock Text="{Binding TxtCloseRegisterBtn}"
                                                    FontSize="15"
                                                    FontWeight="Bold"
                                                    Foreground="#FFFFFF"
@@ -3017,7 +3017,7 @@
                                                 <Path Data="M 9,12 H 20 M 16,8 L 20,12 L 16,16" Stroke="#DC2626" StrokeThickness="2" StrokeStartLineCap="Round" StrokeLineJoin="Round"/>
                                             </Canvas>
                                         </Viewbox>
-                                        <TextBlock Text="Logout"
+                                        <TextBlock Text="{Binding TxtLogoutBtn}"
                                                    FontSize="14.5"
                                                    FontWeight="Bold"
                                                    Foreground="#DC2626"
@@ -3055,7 +3055,7 @@
                     Effect="{StaticResource ModalShadow}">
                 <StackPanel>
                     <Grid Margin="0,0,0,12">
-                        <TextBlock Text="Closing Register" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock Text="{Binding TxtClosingRegisterTitle}" FontSize="18.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                         <TextBlock Text="{Binding SessionSummaryText}" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
 
@@ -3071,23 +3071,23 @@
                         <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Margin="4,0,0,12" Padding="8,0,0,0">
                             <StackPanel>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Opening" FontSize="12.5" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding TxtOpeningSubLabel}" FontSize="12.5" Foreground="#6B7280"/>
                                     <TextBlock Text="{Binding CashOpening, StringFormat='$ {0:N2}'}" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Right"/>
                                 </Grid>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Payments in Cash" FontSize="12.5" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding TxtPaymentsInCashLabel}" FontSize="12.5" Foreground="#6B7280"/>
                                     <TextBlock Text="{Binding CashPayments, StringFormat='$ {0:N2}'}" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Right"/>
                                 </Grid>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="▸  Cash In / Out" FontSize="12.5" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding TxtCashInOutLabel}" FontSize="12.5" Foreground="#6B7280"/>
                                     <TextBlock Text="{Binding CashInOut, StringFormat='+ $ {0:N2}'}" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Right"/>
                                 </Grid>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Counted" FontSize="12.5" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding TxtCountedLabel}" FontSize="12.5" Foreground="#6B7280"/>
                                     <TextBlock Text="{Binding CashCounted, StringFormat='$ {0:N2}'}" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Right"/>
                                 </Grid>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Difference" FontSize="12.5" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding TxtDifferenceLabel}" FontSize="12.5" Foreground="#6B7280"/>
                                     <TextBlock Text="{Binding CashDifference, StringFormat='$ {0:N2}'}" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Right"/>
                                 </Grid>
                             </StackPanel>
@@ -3101,11 +3101,11 @@
                         <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Margin="4,0,0,12" Padding="8,0,0,0">
                             <StackPanel>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Counted" FontSize="12.5" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding TxtCountedLabel}" FontSize="12.5" Foreground="#6B7280"/>
                                     <TextBlock Text="{Binding CardCounted, StringFormat='$ {0:N2}'}" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Right"/>
                                 </Grid>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Difference" FontSize="12.5" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding TxtDifferenceLabel}" FontSize="12.5" Foreground="#6B7280"/>
                                     <TextBlock Text="{Binding CardDifference, StringFormat='$ {0:N2}'}" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Right"/>
                                 </Grid>
                             </StackPanel>
@@ -3119,11 +3119,11 @@
                         <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Margin="4,0,0,4" Padding="8,0,0,0">
                             <StackPanel>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Counted" FontSize="12.5" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding TxtCountedLabel}" FontSize="12.5" Foreground="#6B7280"/>
                                     <TextBlock Text="{Binding CustomerAccountCounted, StringFormat='$ {0:N2}'}" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Right"/>
                                 </Grid>
                                 <Grid Margin="0,2">
-                                    <TextBlock Text="Difference" FontSize="12.5" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding TxtDifferenceLabel}" FontSize="12.5" Foreground="#6B7280"/>
                                     <TextBlock Text="{Binding CustomerAccountDifference, StringFormat='$ {0:N2}'}" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Right"/>
                                 </Grid>
                             </StackPanel>
@@ -3133,7 +3133,7 @@
                     <Border Height="1" Background="{StaticResource BorderLightBrush}" Margin="0,0,0,14"/>
 
                     <!-- Cash Count Input -->
-                    <TextBlock Text="Cash Count" FontSize="12.5" Foreground="#374151" Margin="0,0,0,6"/>
+                    <TextBlock Text="{Binding TxtCashCountLabel}" FontSize="12.5" Foreground="#374151" Margin="0,0,0,6"/>
                     <Grid Margin="0,0,0,14">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -3181,7 +3181,7 @@
                     </Grid>
 
                     <!-- Closing Note -->
-                    <TextBlock Text="Closing note" FontSize="12.5" Foreground="#374151" Margin="0,0,0,6"/>
+                    <TextBlock Text="{Binding TxtClosingNoteLabel}" FontSize="12.5" Foreground="#374151" Margin="0,0,0,6"/>
                     <Border Height="68"
                             Background="#FFFFFF"
                             BorderBrush="{StaticResource BorderMidBrush}"
@@ -3195,7 +3195,7 @@
                                      AcceptsReturn="True"
                                      TextWrapping="Wrap"
                                      FontSize="12.5"/>
-                            <TextBlock Text="Add a closing note..."
+                            <TextBlock Text="{Binding TxtClosingNotePlaceholder}"
                                        FontSize="12.5"
                                        Foreground="{StaticResource TextPlaceholderBrush}"
                                        IsHitTestVisible="False"
@@ -3206,21 +3206,21 @@
                     <!-- Footer Actions -->
                     <Grid>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                            <Button Content="Close Register"
+                            <Button Content="{Binding TxtCloseRegisterBtn}"
                                     Command="{Binding SubmitCloseRegisterCommand}"
                                     Style="{StaticResource PosPrimaryButtonStyle}"
                                     Margin="0,0,8,0"/>
-                            <Button Content="Discard"
+                            <Button Content="{Binding TxtDiscardBtn}"
                                     Command="{Binding DiscardClosingRegisterCommand}"
                                     Style="{StaticResource PosSecondaryButtonStyle}"/>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="Cash In/Out"
+                            <Button Content="{Binding TxtCashInOutBtn}"
                                     Command="{Binding CashInOutTileCommand}"
                                     Style="{StaticResource PosSecondaryButtonStyle}"
                                     Margin="0,0,8,0"/>
-                            <Button Content="Daily Sale ⤓"
+                            <Button Content="{Binding TxtDailySaleBtn}"
                                     Command="{Binding PrintReceiptCommand}"
                                     Style="{StaticResource PosSecondaryButtonStyle}"/>
                         </StackPanel>
@@ -3240,7 +3240,7 @@
                         Effect="{StaticResource ModalShadow}">
                     <StackPanel>
                         <Grid Margin="0,0,0,12">
-                            <TextBlock Text="Oh snap !"
+                            <TextBlock Text="{Binding TxtOhSnapTitle}"
                                        FontSize="17.5"
                                        FontWeight="Bold"
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
@@ -3249,7 +3249,7 @@
                                     HorizontalAlignment="Right"/>
                         </Grid>
 
-                        <TextBlock Text="You cannot close the POS while there are still draft orders for the day."
+                        <TextBlock Text="{Binding TxtDraftOrdersWarningMsg}"
                                    FontSize="12.5"
                                    Foreground="#374151"
                                    TextWrapping="Wrap"
@@ -3257,11 +3257,11 @@
                                    Margin="0,0,0,22"/>
 
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="Review Orders"
+                            <Button Content="{Binding TxtReviewOrdersBtn}"
                                     Command="{Binding ReviewDraftOrdersCommand}"
                                     Style="{StaticResource PosPrimaryButtonStyle}"
                                     Margin="0,0,8,0"/>
-                            <Button Content="Cancel Orders"
+                            <Button Content="{Binding TxtCancelOrdersBtn}"
                                     Command="{Binding CancelDraftOrdersAndCloseCommand}"
                                     Style="{StaticResource PosSecondaryButtonStyle}"
                                     Background="#FFFFFF"/>
@@ -3293,7 +3293,7 @@
                     </Border>
                     <StackPanel Orientation="Horizontal">
                         <Button Content="Apply" Command="{Binding SaveNoteModalCommand}" Style="{StaticResource PosPrimaryButtonStyle}" Margin="0,0,8,0"/>
-                        <Button Content="Discard" Command="{Binding CloseNoteModalCommand}" Style="{StaticResource PosSecondaryButtonStyle}"/>
+                        <Button Content="{Binding TxtDiscardBtn}" Command="{Binding CloseNoteModalCommand}" Style="{StaticResource PosSecondaryButtonStyle}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -3332,7 +3332,7 @@
                                            FontWeight="Bold"
                                            Foreground="#111827"
                                            TextWrapping="Wrap"/>
-                                <TextBlock Text="Select product attributes &amp; variant options"
+                                <TextBlock Text="{Binding TxtVariantSubtitle}"
                                            FontSize="12.5"
                                            Foreground="#6B7280"
                                            Margin="0,3,0,0"/>
@@ -3449,7 +3449,7 @@
                     <!-- Footer: Add / Discard -->
                     <Border Grid.Row="2" BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,8,0,0">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                            <Button Content="Add"
+                            <Button Content="{Binding TxtAddBtn}"
                                     Command="{Binding ConfirmVariantSelectionCommand}"
                                     Style="{StaticResource PosPrimaryButtonStyle}"
                                     MinWidth="110"
@@ -3457,7 +3457,7 @@
                                     FontSize="15"
                                     FontWeight="Bold"
                                     Margin="0,0,10,0"/>
-                            <Button Content="Discard"
+                            <Button Content="{Binding TxtDiscardBtn}"
                                     Command="{Binding CloseVariantPopupCommand}"
                                     Style="{StaticResource PosSecondaryButtonStyle}"
                                     MinWidth="100"

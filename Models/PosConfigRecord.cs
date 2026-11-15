@@ -77,6 +77,7 @@ public class PosConfigRecord : INotifyPropertyChanged
     private bool _isHideReviewOrdersEnabled = false;
     private string _numbersFirstOrProducts = "products"; // "products" or "numbers"
     private string _posLayout = "standard"; // "standard" or "split"
+    private string _paymentLayout = "standard"; // "standard" or "centered"
 
     public string SelectedPaymentMethodsCsv
     {
@@ -271,6 +272,26 @@ public class PosConfigRecord : INotifyPropertyChanged
 
     public bool IsStandardLayout => !IsSplitLayout;
     public bool IsSplitLayout => string.Equals(_posLayout, "split", StringComparison.OrdinalIgnoreCase);
+
+    // POS Payment View Layout: "standard" (split left numpad / right total) or "centered"
+    public string PaymentLayout
+    {
+        get => _paymentLayout;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "standard" : value.Trim().ToLowerInvariant();
+            if (_paymentLayout != normalized)
+            {
+                _paymentLayout = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsStandardPaymentLayout));
+                OnPropertyChanged(nameof(IsCenteredPaymentLayout));
+            }
+        }
+    }
+
+    public bool IsStandardPaymentLayout => !IsCenteredPaymentLayout;
+    public bool IsCenteredPaymentLayout => string.Equals(_paymentLayout, "centered", StringComparison.OrdinalIgnoreCase);
 
     public ObservableCollection<SparklineDataPoint> SparklinePoints { get; } = [];
 

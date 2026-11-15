@@ -59,4 +59,35 @@ public partial class PosRegisterView : UserControl
             e.Handled = true;
         }
     }
+
+    // Clicking anywhere on the Change (confirmation) screen background continues the flow.
+    // Clicks that originate on a button (Print / Continue) are left to the button itself.
+    private void ChangeScreenBackground_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!VM.IsPaymentConfirmationOpen) return;
+        if (IsInsideButton(e.OriginalSource as System.Windows.DependencyObject)) return;
+
+        VM.ContinueAfterPaymentCommand.Execute(null);
+        e.Handled = true;
+    }
+
+    private static bool IsInsideButton(System.Windows.DependencyObject? source)
+    {
+        while (source != null)
+        {
+            if (source is System.Windows.Controls.Button) return true;
+            source = System.Windows.Media.VisualTreeHelper.GetParent(source);
+        }
+        return false;
+    }
+
+    // Clicking the dark backdrop outside the 3-dot session popup closes it.
+    private void HamburgerBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (ReferenceEquals(sender, e.OriginalSource) && VM.IsHamburgerMenuOpen)
+        {
+            VM.CloseHamburgerMenuCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
 }

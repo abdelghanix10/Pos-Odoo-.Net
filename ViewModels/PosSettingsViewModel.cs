@@ -62,6 +62,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     // 13. Numbers first, or products
     private string _numbersFirstOrProducts = "products";
     private string _posLayout = "standard";
+    private string _paymentLayout = "standard";
 
     // Receipt Designs Editor
     private ReceiptDesignRecord? _editingReceiptDesign;
@@ -709,6 +710,36 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         set { if (value) PosLayout = "split"; }
     }
 
+    // 15. POS Payment View Layout ("standard" or "centered")
+    public string PaymentLayout
+    {
+        get => _paymentLayout;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "standard" : value.Trim().ToLowerInvariant();
+            if (_paymentLayout != normalized)
+            {
+                _paymentLayout = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsStandardPaymentLayoutSelected));
+                OnPropertyChanged(nameof(IsCenteredPaymentLayoutSelected));
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
+    public bool IsStandardPaymentLayoutSelected
+    {
+        get => !string.Equals(_paymentLayout, "centered", StringComparison.OrdinalIgnoreCase);
+        set { if (value) PaymentLayout = "standard"; }
+    }
+
+    public bool IsCenteredPaymentLayoutSelected
+    {
+        get => string.Equals(_paymentLayout, "centered", StringComparison.OrdinalIgnoreCase);
+        set { if (value) PaymentLayout = "centered"; }
+    }
+
     // =========================================================================
     // RECEIPT DESIGNS EDITOR PROPERTIES
     // =========================================================================
@@ -936,6 +967,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             IsHideReviewOrdersEnabled = config.IsHideReviewOrdersEnabled;
             NumbersFirstOrProducts = string.IsNullOrWhiteSpace(config.NumbersFirstOrProducts) ? "products" : config.NumbersFirstOrProducts;
             PosLayout = string.IsNullOrWhiteSpace(config.PosLayout) ? "standard" : config.PosLayout;
+            PaymentLayout = string.IsNullOrWhiteSpace(config.PaymentLayout) ? "standard" : config.PaymentLayout;
         }
         finally
         {
@@ -999,6 +1031,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         _selectedConfig.IsHideReviewOrdersEnabled = IsHideReviewOrdersEnabled;
         _selectedConfig.NumbersFirstOrProducts = NumbersFirstOrProducts;
         _selectedConfig.PosLayout = PosLayout;
+        _selectedConfig.PaymentLayout = PaymentLayout;
 
         await SqliteDatabaseService.Instance.SavePosConfigSettingsAsync(_selectedConfig);
         SettingsSaved?.Invoke();

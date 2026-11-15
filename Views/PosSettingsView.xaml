@@ -510,6 +510,8 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="28"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- ========================================================= -->
@@ -765,6 +767,30 @@
                                                      Margin="0,0,0,8" Cursor="Hand"/>
                                         <RadioButton Content="Split Layout (Top Order &amp; Numpad / Bottom Categories &amp; Products)"
                                                      IsChecked="{Binding IsSplitLayoutSelected, Mode=TwoWay}"
+                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
+                                                     Cursor="Hand"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- ========================================================= -->
+                        <!-- 15. POS PAYMENT VIEW LAYOUT (Editable)                    -->
+                        <!-- ========================================================= -->
+                        <StackPanel Grid.Row="10" Grid.Column="0" Orientation="Horizontal">
+                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Margin="30,0,0,0" Width="440">
+                                <StackPanel>
+                                    <TextBlock Text="POS Payment View Layout" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <TextBlock Text="Choose between the standard split payment screen or the centered vertical payment screen (Total, Payment Methods, Change, and Numpad centered)."
+                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+
+                                    <StackPanel Orientation="Vertical" Margin="0,4,0,0">
+                                        <RadioButton Content="Standard Payment Layout (Left Numpad / Right Total)"
+                                                     IsChecked="{Binding IsStandardPaymentLayoutSelected, Mode=TwoWay}"
+                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
+                                                     Margin="0,0,0,8" Cursor="Hand"/>
+                                        <RadioButton Content="Centered Payment Layout (All Centered Vertically)"
+                                                     IsChecked="{Binding IsCenteredPaymentLayoutSelected, Mode=TwoWay}"
                                                      FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
                                                      Cursor="Hand"/>
                                     </StackPanel>

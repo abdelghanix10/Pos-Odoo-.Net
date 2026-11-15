@@ -728,6 +728,9 @@ public partial class PosRegisterViewModel : ViewModelBase
 
     public bool IsSplitPosLayout => CurrentConfig?.IsSplitLayout == true;
     public bool IsStandardPosLayout => !IsSplitPosLayout;
+
+    public bool IsCenteredPaymentLayout => CurrentConfig?.IsCenteredPaymentLayout == true;
+    public bool IsStandardPaymentLayout => !IsCenteredPaymentLayout;
     public bool IsAllCategoriesSelected => SelectedCategory == null;
 
     // ==================== MODAL 6: PRODUCT VARIANT SELECTION POPUP ====================
@@ -1111,6 +1114,8 @@ public partial class PosRegisterViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsPrintButtonVisible));
         OnPropertyChanged(nameof(IsSplitPosLayout));
         OnPropertyChanged(nameof(IsStandardPosLayout));
+        OnPropertyChanged(nameof(IsCenteredPaymentLayout));
+        OnPropertyChanged(nameof(IsStandardPaymentLayout));
         OnPropertyChanged(nameof(IsAllCategoriesSelected));
     }
 
@@ -1205,6 +1210,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 config.IsSecondReceiptEnabled = fresh.IsSecondReceiptEnabled;
                 config.SecondReceiptDesignId = fresh.SecondReceiptDesignId;
                 config.PosLayout = fresh.PosLayout;
+                config.PaymentLayout = fresh.PaymentLayout;
             }
         }
         catch { }
@@ -2230,16 +2236,16 @@ public partial class PosRegisterViewModel : ViewModelBase
                 }
                 else if (key == "+" || key == "Plus")
                 {
-                    PendingProductQuantity += 1m;
-                    _numbersFirstBuffer = PendingProductQuantity.ToString("G29", CultureInfo.InvariantCulture);
+                    PendingProductQuantity = Math.Round(PendingProductQuantity + 1m, 2);
+                    _numbersFirstBuffer = PendingProductQuantity.ToString("0.##", CultureInfo.InvariantCulture);
                     HasPendingProductQuantity = true;
                     OnPropertyChanged(nameof(NumbersFirstDisplayText));
                     return;
                 }
                 else if (key == "-" || key == "Minus")
                 {
-                    PendingProductQuantity = Math.Max(1m, PendingProductQuantity - 1m);
-                    _numbersFirstBuffer = PendingProductQuantity.ToString("G29", CultureInfo.InvariantCulture);
+                    PendingProductQuantity = Math.Max(1m, Math.Round(PendingProductQuantity - 1m, 2));
+                    _numbersFirstBuffer = PendingProductQuantity.ToString("0.##", CultureInfo.InvariantCulture);
                     HasPendingProductQuantity = true;
                     OnPropertyChanged(nameof(NumbersFirstDisplayText));
                     return;
@@ -2251,11 +2257,23 @@ public partial class PosRegisterViewModel : ViewModelBase
                 }
                 else if (!string.IsNullOrEmpty(key) && (char.IsDigit(key[0]) || key == "."))
                 {
-                    if (key == "." && _numbersFirstBuffer.Contains('.')) return;
-                    _numbersFirstBuffer += key;
+                    if (key == ".")
+                    {
+                        if (_numbersFirstBuffer.Contains('.')) return;
+                        _numbersFirstBuffer = string.IsNullOrEmpty(_numbersFirstBuffer) ? "0." : _numbersFirstBuffer + ".";
+                    }
+                    else
+                    {
+                        // Enforce maximum 2 decimal places
+                        int dotIdx = _numbersFirstBuffer.IndexOf('.');
+                        if (dotIdx >= 0 && (_numbersFirstBuffer.Length - dotIdx - 1) >= 2)
+                            return;
+                        _numbersFirstBuffer += key;
+                    }
+
                     if (decimal.TryParse(_numbersFirstBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
                     {
-                        PendingProductQuantity = val;
+                        PendingProductQuantity = Math.Round(val, 2);
                         HasPendingProductQuantity = true;
                     }
                     OnPropertyChanged(nameof(NumbersFirstDisplayText));
@@ -2272,7 +2290,7 @@ public partial class PosRegisterViewModel : ViewModelBase
             {
                 if (SelectedCartLine.Quantity > 0m)
                 {
-                    _numpadBuffer = SelectedCartLine.Quantity.ToString("G29", CultureInfo.InvariantCulture);
+                    _numpadBuffer = Math.Round(SelectedCartLine.Quantity, 2).ToString("0.##", CultureInfo.InvariantCulture);
                 }
                 else
                 {
@@ -2290,12 +2308,14 @@ public partial class PosRegisterViewModel : ViewModelBase
             if (_numpadBuffer.Length > 1)
             {
                 _numpadBuffer = _numpadBuffer[..^1];
-                if (_numpadBuffer == "-" || _numpadBuffer == ".")
+                if (_numpadBuffer.EndsWith('.'))
+                    _numpadBuffer = _numpadBuffer[..^1];
+                if (_numpadBuffer == "-" || _numpadBuffer == "." || string.IsNullOrEmpty(_numpadBuffer))
                     _numpadBuffer = "0";
 
                 if (decimal.TryParse(_numpadBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal val))
                 {
-                    SelectedCartLine.Quantity = val;
+                    SelectedCartLine.Quantity = Math.Round(val, 2);
                 }
             }
             else
@@ -2312,7 +2332,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
         else if (key == "+" || key == "Plus")
         {
-            SelectedCartLine.Quantity += 1m;
+            SelectedCartLine.Quantity = Math.Round(SelectedCartLine.Quantity + 1m, 2);
             _numpadBuffer = string.Empty;
             CurrentOrder.NotifyTotalsChanged();
             UpdateProductCartQuantities();
@@ -2324,7 +2344,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         {
             if (SelectedCartLine.Quantity > 1m)
             {
-                SelectedCartLine.Quantity -= 1m;
+                SelectedCartLine.Quantity = Math.Round(SelectedCartLine.Quantity - 1m, 2);
                 _numpadBuffer = string.Empty;
             }
             else if (SelectedCartLine.Quantity == 1m)
@@ -2377,9 +2397,20 @@ public partial class PosRegisterViewModel : ViewModelBase
             {
                 _numpadBuffer = string.IsNullOrEmpty(_numpadBuffer) ? "0." : _numpadBuffer + ".";
             }
+            else
+            {
+                return;
+            }
         }
         else
         {
+            // Enforce maximum 2 decimal places
+            int dotIndex = _numpadBuffer.IndexOf('.');
+            if (dotIndex >= 0 && (_numpadBuffer.Length - dotIndex - 1) >= 2)
+            {
+                return;
+            }
+
             if (_numpadBuffer == "0")
                 _numpadBuffer = key;
             else
@@ -2388,7 +2419,7 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         if (decimal.TryParse(_numpadBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal newVal))
         {
-            SelectedCartLine.Quantity = newVal;
+            SelectedCartLine.Quantity = Math.Round(newVal, 2);
         }
 
         CurrentOrder.NotifyTotalsChanged();
@@ -2987,12 +3018,26 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public void PaymentNumpadKey(string key)
     {
+        if (key == "Delete" || key == "ClearAll" || key == "C")
+        {
+            ClearPaymentLine();
+            return;
+        }
+
         if (key == "⌫" || key == "Back")
         {
+            if (_isFirstPaymentDigit)
+            {
+                _paymentInputBuffer = Math.Round(AmountTendered, 2).ToString("0.##", CultureInfo.InvariantCulture);
+                _isFirstPaymentDigit = false;
+            }
+
             if (_paymentInputBuffer.Length > 1)
             {
                 _paymentInputBuffer = _paymentInputBuffer[..^1];
-                if (_paymentInputBuffer == "-" || _paymentInputBuffer == ".")
+                if (_paymentInputBuffer.EndsWith('.'))
+                    _paymentInputBuffer = _paymentInputBuffer[..^1];
+                if (_paymentInputBuffer == "-" || _paymentInputBuffer == "." || string.IsNullOrEmpty(_paymentInputBuffer))
                     _paymentInputBuffer = "0";
             }
             else
@@ -3002,13 +3047,12 @@ public partial class PosRegisterViewModel : ViewModelBase
 
             if (decimal.TryParse(_paymentInputBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
             {
-                AmountTendered = parsed;
+                AmountTendered = Math.Round(parsed, 2);
             }
             else
             {
                 AmountTendered = 0m;
             }
-            _isFirstPaymentDigit = false;
         }
         else if (key == "+/-")
         {
@@ -3026,10 +3070,14 @@ public partial class PosRegisterViewModel : ViewModelBase
             {
                 _paymentInputBuffer = string.IsNullOrEmpty(_paymentInputBuffer) ? "0." : _paymentInputBuffer + ".";
             }
+            else
+            {
+                return;
+            }
 
             if (decimal.TryParse(_paymentInputBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
             {
-                AmountTendered = parsed;
+                AmountTendered = Math.Round(parsed, 2);
             }
         }
         else
@@ -3041,12 +3089,18 @@ public partial class PosRegisterViewModel : ViewModelBase
             }
             else
             {
+                // Enforce maximum 2 decimal places
+                int dotIndex = _paymentInputBuffer.IndexOf('.');
+                if (dotIndex >= 0 && (_paymentInputBuffer.Length - dotIndex - 1) >= 2)
+                {
+                    return;
+                }
                 _paymentInputBuffer += key;
             }
 
             if (decimal.TryParse(_paymentInputBuffer, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal parsed))
             {
-                AmountTendered = parsed;
+                AmountTendered = Math.Round(parsed, 2);
             }
         }
 
@@ -3059,7 +3113,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         if (decimal.TryParse(amountStr, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal add))
         {
-            AmountTendered += add;
+            AmountTendered = Math.Round(AmountTendered + add, 2);
             _paymentInputBuffer = AmountTendered.ToString("0.##", CultureInfo.InvariantCulture);
             _isFirstPaymentDigit = false;
             ChangeDue = Math.Max(0.00m, AmountTendered - AmountDue);

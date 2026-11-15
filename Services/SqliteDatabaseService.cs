@@ -750,6 +750,7 @@ public class SqliteDatabaseService
             "ALTER TABLE PosConfigs ADD COLUMN CustomSalesReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN IsHideReviewOrdersEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN NumbersFirstOrProducts TEXT DEFAULT 'products';",
+            "ALTER TABLE PosConfigs ADD COLUMN PaymentLayout TEXT DEFAULT 'standard';",
             "ALTER TABLE PosReceiptDesigns ADD COLUMN CompanyId INTEGER;"
         ];
 
@@ -3609,7 +3610,8 @@ public class SqliteDatabaseService
                    COALESCE(c.NumbersFirstOrProducts, 'products'),
                    c.LastReceiptDesignId,
                    COALESCE(c.IsPrintButtonEnabled, 1),
-                   COALESCE(c.PosLayout, 'standard')
+                   COALESCE(c.PosLayout, 'standard'),
+                   COALESCE(c.PaymentLayout, 'standard')
             FROM PosConfigs c
             LEFT JOIN Users u ON c.ActiveUserId = u.OdooId
             ORDER BY COALESCE(c.OdooId, c.Id) ASC;
@@ -3654,7 +3656,8 @@ public class SqliteDatabaseService
                 NumbersFirstOrProducts = reader.IsDBNull(31) ? "products" : reader.GetString(31),
                 LastReceiptDesignId = reader.IsDBNull(32) ? null : reader.GetInt64(32),
                 IsPrintButtonEnabled = reader.IsDBNull(33) || reader.GetInt32(33) != 0,
-                PosLayout = reader.IsDBNull(34) ? "standard" : reader.GetString(34)
+                PosLayout = reader.IsDBNull(34) ? "standard" : reader.GetString(34),
+                PaymentLayout = reader.IsDBNull(35) ? "standard" : reader.GetString(35)
             });
         }
 
@@ -3861,6 +3864,7 @@ public class SqliteDatabaseService
                 IsHideReviewOrdersEnabled = @hideReviewOrders,
                 NumbersFirstOrProducts = @numbersFirst,
                 PosLayout = @posLayout,
+                PaymentLayout = @paymentLayout,
                 UpdatedAt = CURRENT_TIMESTAMP
             WHERE Id = @id OR OdooId = @odooId;
             """;
@@ -3880,6 +3884,7 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@hideReviewOrders", config.IsHideReviewOrdersEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@numbersFirst", config.NumbersFirstOrProducts ?? "products");
         cmd.Parameters.AddWithValue("@posLayout", config.PosLayout ?? "standard");
+        cmd.Parameters.AddWithValue("@paymentLayout", config.PaymentLayout ?? "standard");
         cmd.Parameters.AddWithValue("@id", config.Id);
         cmd.Parameters.AddWithValue("@odooId", config.OdooId);
 

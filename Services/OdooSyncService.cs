@@ -82,6 +82,9 @@ public class OdooSyncService
     private readonly ConcurrentDictionary<string, (int Uid, DateTime Expires)> _uidCache = new();
     private readonly ConcurrentDictionary<int, (List<(int Id, string Name, string Type, bool IsCash)> Methods, DateTime Expires)> _sessionPmCache = new();
     private readonly ConcurrentDictionary<(int Id, int Company), (int VariantId, List<int> TaxIds, DateTime Expires)> _variantTaxCache = new();
+    private readonly ConcurrentDictionary<int, (OdooTaxInfo Info, DateTime Expires)> _taxInfoCache = new();
+    private readonly ConcurrentDictionary<int, (int SessionOdooId, int? CompanyId, DateTime Expires)> _openSessionByConfigCache = new();
+    private int _cachedFallbackProductId;
     private readonly System.Threading.Timer _backgroundFlushTimer;
     private int _flushRunning;
 
@@ -732,6 +735,70 @@ public class OdooSyncService
                 if (nextItem == null)
                     break;
 
+                // If the next operation is CREATE_ORDER, batch all consecutive ready CREATE_ORDER
+                // items for the same shop into a single upload (1 search_read, 1 create, 1 payment create, 1 paid).
+                if (nextItem.OperationType == "CREATE_ORDER")
+                {
+                    var batchItems = new List<(PendingSyncItemRecord QueueItem, CreateOrderSyncPayload Payload, int? EffectiveSessionOdooId)>();
+
+                    foreach (var candidate in queueItems)
+                    {
+                        if (attemptedInThisRun.Contains(candidate.Id)) continue;
+                        if (candidate.PosConfigOdooId != nextItem.PosConfigOdooId) continue;
+
+                        // Stop batching when a non-CREATE_ORDER op (e.g. CLOSE_SESSION) appears for this
+                        // shop so strict FIFO order is preserved.
+                        if (candidate.OperationType != "CREATE_ORDER")
+                            break;
+
+                        attemptedInThisRun.Add(candidate.Id);
+                        var payload = JsonSerializer.Deserialize<CreateOrderSyncPayload>(candidate.PayloadJson);
+                        if (payload != null)
+                        {
+                            int? resolvedLocalOdooId = payload.LocalSessionId.HasValue && payload.LocalSessionId.Value > 0
+                                ? await SqliteDatabaseService.Instance.GetOdooSessionIdForLocalSessionAsync(payload.LocalSessionId.Value)
+                                : null;
+                            int? effectiveSessionOdooId = resolvedLocalOdooId ?? candidate.SessionOdooId ?? payload.SessionOdooId;
+                            batchItems.Add((candidate, payload, effectiveSessionOdooId));
+                        }
+                    }
+
+                    if (batchItems.Count > 0)
+                    {
+                        try
+                        {
+                            await PushPosOrdersBatchToOdooAsync(config, uid, batchItems);
+                            foreach (var b in batchItems)
+                            {
+                                await SqliteDatabaseService.Instance.MarkSyncQueueItemCompletedAsync(b.QueueItem.Id);
+                                processedCount++;
+                            }
+                            NotifyQueueUpdated();
+                            continue;
+                        }
+                        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+                        {
+                            UpdateStatus(false, "Offline (Local Mode)");
+                            await SqliteDatabaseService.Instance.MarkSyncQueueItemFailedAsync(nextItem.Id, ex.Message);
+                            NotifyQueueUpdated();
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            foreach (var b in batchItems)
+                            {
+                                await SqliteDatabaseService.Instance.MarkSyncQueueItemFailedAsync(b.QueueItem.Id, ex.Message);
+                            }
+                            NotifyQueueUpdated();
+                            if (nextItem.PosConfigOdooId.HasValue)
+                                blockedConfigIds.Add(nextItem.PosConfigOdooId.Value);
+                            else
+                                blockGlobal = true;
+                            continue;
+                        }
+                    }
+                }
+
                 attemptedInThisRun.Add(nextItem.Id);
 
                 try
@@ -749,6 +816,8 @@ public class OdooSyncService
                         }
                         case "CREATE_ORDER":
                         {
+                            // Safety net: the batch path above normally consumes CREATE_ORDER items.
+                            // If one reaches here (e.g. it was skipped there), upload it as a single-item batch.
                             var payload = JsonSerializer.Deserialize<CreateOrderSyncPayload>(nextItem.PayloadJson);
                             if (payload != null)
                             {
@@ -756,7 +825,7 @@ public class OdooSyncService
                                     ? await SqliteDatabaseService.Instance.GetOdooSessionIdForLocalSessionAsync(payload.LocalSessionId.Value)
                                     : null;
                                 int? effectiveSessionOdooId = resolvedLocalOdooId ?? nextItem.SessionOdooId;
-                                await PushPosOrderToOdooAsync(config, uid, payload, effectiveSessionOdooId);
+                                await PushPosOrdersBatchToOdooAsync(config, uid, [(nextItem, payload, effectiveSessionOdooId)]);
                             }
                             break;
                         }
@@ -1360,94 +1429,120 @@ public class OdooSyncService
         var distinct = taxIds.Where(id => id > 0).Distinct().ToArray();
         if (distinct.Length == 0) return map;
 
+        var missing = new List<int>();
+        DateTime now = DateTime.UtcNow;
+        foreach (int id in distinct)
+        {
+            if (_taxInfoCache.TryGetValue(id, out var cached) && cached.Expires > now)
+                map[id] = cached.Info;
+            else
+                missing.Add(id);
+        }
+
+        if (missing.Count == 0) return map;
+
         try
         {
             var fields = await FilterValidFieldsAsync(config, uid, "account.tax", "id", "amount", "amount_type", "price_include");
-            using var doc = await SearchReadAsync(config, uid, "account.tax", [new object[] { "id", "in", distinct }], fields);
+            using var doc = await SearchReadAsync(config, uid, "account.tax", [new object[] { "id", "in", missing.ToArray() }], fields);
             if (doc.RootElement.TryGetProperty("result", out var arr) && arr.ValueKind == JsonValueKind.Array)
             {
+                DateTime expires = now.AddMinutes(30);
                 foreach (var el in arr.EnumerateArray())
                 {
                     int id = GetIntOrDefault(el, "id");
                     decimal amt = GetDecimalOrDefault(el, "amount");
                     string amtType = GetStringOrDefault(el, "amount_type", "percent");
                     bool priceIncl = GetBoolOrDefault(el, "price_include", false);
-                    if (id > 0) map[id] = new OdooTaxInfo(id, amt, amtType, priceIncl);
+                    if (id > 0)
+                    {
+                        var info = new OdooTaxInfo(id, amt, amtType, priceIncl);
+                        map[id] = info;
+                        _taxInfoCache[id] = (info, expires);
+                    }
                 }
             }
         }
         catch { }
+
         return map;
     }
 
-    private async Task<(decimal PriceSubtotal, decimal PriceSubtotalIncl)> ComputeOdooLineTaxAmountsAsync(
-        OdooConfigRecord config,
-        int uid,
+    // =========================================================================
+    // PURE LOCAL C# TAX & LINE CALIBRATION MATH (MATCHING ODOO HALF-UP ROUNDING)
+    // =========================================================================
+    private static decimal OdooRound(decimal value) =>
+        Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    private static (decimal PriceSubtotal, decimal PriceSubtotalIncl) ComputeLocalLineTaxAmounts(
         List<int> taxIds,
         Dictionary<int, OdooTaxInfo> taxInfoMap,
         decimal unitPrice,
         decimal qty,
-        decimal discount)
+        decimal discount,
+        decimal fallbackTaxRate = 0m)
     {
         decimal effUnit = unitPrice * (1.0m - (discount / 100.0m));
+        decimal raw = effUnit * qty;
 
         if (taxIds.Count == 0)
         {
-            decimal amt = Math.Round(effUnit * qty, 2);
+            if (fallbackTaxRate > 0m)
+            {
+                decimal excl = OdooRound(raw);
+                decimal tax = OdooRound(excl * (fallbackTaxRate / 100.0m));
+                return (excl, excl + tax);
+            }
+            decimal amt = OdooRound(raw);
             return (amt, amt);
         }
 
-        try
+        decimal sumInclRate = 0m;
+        foreach (int tid in taxIds)
         {
-            using var doc = await ExecuteKwAsync(
-                config,
-                uid,
-                "account.tax",
-                "compute_all",
-                [taxIds.ToArray(), (double)effUnit],
-                new { quantity = (double)qty }
-            );
-
-            if (doc.RootElement.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.Object)
+            if (taxInfoMap.TryGetValue(tid, out var t) &&
+                !string.Equals(t.AmountType, "fixed", StringComparison.OrdinalIgnoreCase) &&
+                t.PriceInclude)
             {
-                decimal excl = GetDecimalOrDefault(res, "total_excluded");
-                decimal incl = GetDecimalOrDefault(res, "total_included");
-                return (Math.Round(excl, 2), Math.Round(incl, 2));
+                sumInclRate += t.Amount;
             }
         }
-        catch { }
 
-        // Fallback math for percentage taxes
-        decimal sumExclRate = 0m;
-        decimal sumInclRate = 0m;
-        decimal fixedSum = 0m;
+        // Base tax-excluded amount rounded using Odoo's HALF-UP rule
+        decimal baseAmt = sumInclRate > 0m
+            ? OdooRound(raw / (1.0m + (sumInclRate / 100.0m)))
+            : OdooRound(raw);
+
+        // Sum each price-excluded tax individually using Odoo's HALF-UP rule
+        decimal exclTaxTotal = 0m;
         foreach (int tid in taxIds)
         {
             if (!taxInfoMap.TryGetValue(tid, out var t)) continue;
             if (string.Equals(t.AmountType, "fixed", StringComparison.OrdinalIgnoreCase))
-                fixedSum += t.Amount * qty;
-            else if (t.PriceInclude)
-                sumInclRate += t.Amount;
-            else
-                sumExclRate += t.Amount;
+            {
+                exclTaxTotal += OdooRound(t.Amount * qty);
+            }
+            else if (!t.PriceInclude)
+            {
+                exclTaxTotal += OdooRound(baseAmt * (t.Amount / 100.0m));
+            }
         }
 
-        decimal raw = effUnit * qty;
-        decimal baseAmt = sumInclRate > 0m ? Math.Round(raw / (1.0m + sumInclRate / 100.0m), 2) : Math.Round(raw, 2);
-        decimal taxExclPart = Math.Round(baseAmt * (sumExclRate / 100.0m), 2);
-        decimal inclAmt = sumInclRate > 0m ? Math.Round(raw + taxExclPart + fixedSum, 2) : Math.Round(baseAmt + taxExclPart + fixedSum, 2);
+        decimal inclAmt = sumInclRate > 0m
+            ? OdooRound(raw) + exclTaxTotal
+            : baseAmt + exclTaxTotal;
+
         return (baseAmt, inclAmt);
     }
 
-    private async Task<(decimal CalibratedPriceUnit, decimal SubExcl, decimal SubIncl)> CalibrateLineToTargetInclAsync(
-        OdooConfigRecord config,
-        int uid,
+    private static (decimal CalibratedPriceUnit, decimal SubExcl, decimal SubIncl) CalibrateLineToTargetInclLocal(
         List<int> taxIds,
         Dictionary<int, OdooTaxInfo> taxInfoMap,
         decimal targetIncl,
         decimal qty,
         decimal discount,
-        decimal fallbackUnitPrice)
+        decimal fallbackUnitPrice,
+        decimal fallbackTaxRate = 0m)
     {
         decimal mult = qty * (1.0m - (discount / 100.0m));
         if (qty == 0m || (1.0m - (discount / 100.0m)) <= 0m)
@@ -1455,268 +1550,232 @@ public class OdooSyncService
             return (fallbackUnitPrice, 0m, 0m);
         }
 
+        // 1. First check if the original fallbackUnitPrice already produces the target (within 1 cent)
+        if (fallbackUnitPrice > 0m)
+        {
+            var (directExcl, directIncl) = ComputeLocalLineTaxAmounts(
+                taxIds, taxInfoMap, fallbackUnitPrice, qty, discount, fallbackTaxRate);
+
+            if (Math.Abs(directIncl - targetIncl) <= 0.02m)
+            {
+                // Keep the clean product unit price and use the exact Odoo-rounded base & incl
+                return (fallbackUnitPrice, directExcl, directIncl);
+            }
+        }
+
         if (taxIds.Count == 0)
         {
-            decimal unit = Math.Round(targetIncl / mult, 6);
-            decimal amt = Math.Round(targetIncl, 2);
+            decimal unit = Math.Round(targetIncl / mult, 4, MidpointRounding.AwayFromZero);
+            decimal amt = OdooRound(unit * mult);
             return (unit, amt, amt);
         }
 
-        // Determine exact total_included per 1.0 of effective unit price
-        var (_, oneIncl) = await ComputeOdooLineTaxAmountsAsync(config, uid, taxIds, taxInfoMap, 1.0m, 1.0m, 0m);
-        decimal factor = oneIncl > 0m ? oneIncl : 1.0m;
-        decimal calibratedUnit = Math.Round(targetIncl / (mult * factor), 6);
-        var (finalExcl, finalIncl) = await ComputeOdooLineTaxAmountsAsync(config, uid, taxIds, taxInfoMap, calibratedUnit, qty, discount);
+        decimal sumExclRate = 0m;
+        decimal fixedSum = 0m;
+        foreach (int tid in taxIds)
+        {
+            if (!taxInfoMap.TryGetValue(tid, out var t)) continue;
+            if (string.Equals(t.AmountType, "fixed", StringComparison.OrdinalIgnoreCase))
+                fixedSum += OdooRound(t.Amount * qty);
+            else if (!t.PriceInclude)
+                sumExclRate += t.Amount;
+        }
+
+        decimal exclFactor = 1.0m + (sumExclRate / 100.0m);
+        if (exclFactor <= 0m) exclFactor = 1.0m;
+
+        decimal netTargetAfterFixed = targetIncl - fixedSum;
+        decimal calibratedUnit = Math.Round(netTargetAfterFixed / (mult * exclFactor), 4, MidpointRounding.AwayFromZero);
+
+        var (finalExcl, finalIncl) = ComputeLocalLineTaxAmounts(
+            taxIds, taxInfoMap, calibratedUnit, qty, discount, fallbackTaxRate);
+
         return (calibratedUnit, finalExcl, finalIncl);
     }
 
-    private async Task PushPosOrderToOdooAsync(
+    // =========================================================================
+    // FAST BATCH POS ORDER UPLOAD (1 RPC FOR ALL ORDERS, 1 FOR PAYMENTS, 1 FOR PAID)
+    // =========================================================================
+    private async Task PushPosOrdersBatchToOdooAsync(
         OdooConfigRecord config,
         int uid,
-        CreateOrderSyncPayload payload,
-        int? sessionOdooId)
+        List<(PendingSyncItemRecord QueueItem, CreateOrderSyncPayload Payload, int? EffectiveSessionOdooId)> batch)
     {
-        // 1. Idempotency check: see if an order with this pos_reference already exists in Odoo
-        if (!string.IsNullOrWhiteSpace(payload.PosReference))
+        if (batch.Count == 0) return;
+
+        var firstPayload = batch[0].Payload;
+        string effectiveCashierName = !string.IsNullOrWhiteSpace(firstPayload.CashierName)
+            ? firstPayload.CashierName
+            : (CurrentPosUser?.Name ?? "");
+
+        var (execConfig, execUid) = await ResolveExecutionCredentialsAsync(config, uid, firstPayload.CashierId, effectiveCashierName);
+        int? resolvedCashierId = await ResolvePosUserOdooIdAsync(execConfig, execUid, firstPayload.CashierId ?? execUid, effectiveCashierName);
+
+        // 1. Single Batch Idempotency Check for all pos_references in the batch
+        var allRefs = batch
+            .Select(b => b.Payload.PosReference)
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Distinct()
+            .ToArray();
+
+        var existingRefMap = new Dictionary<string, (int OdooId, string Name, string State)>(StringComparer.OrdinalIgnoreCase);
+        if (allRefs.Length > 0)
         {
             using var existingDoc = await SearchReadAsync(
-                config,
-                uid,
+                execConfig,
+                execUid,
                 "pos.order",
-                [new object[] { "pos_reference", "=", payload.PosReference }],
-                ["id", "name"]
+                [new object[] { "pos_reference", "in", allRefs }],
+                ["id", "name", "pos_reference", "state"]
             );
 
             if (existingDoc.RootElement.TryGetProperty("result", out var arr) &&
-                arr.ValueKind == JsonValueKind.Array &&
-                arr.GetArrayLength() > 0)
+                arr.ValueKind == JsonValueKind.Array)
             {
-                int existingOdooId = GetIntOrDefault(arr[0], "id");
-                string existingName = GetStringOrDefault(arr[0], "name", payload.Name);
-                if (existingOdooId > 0)
+                foreach (var el in arr.EnumerateArray())
                 {
-                    await SqliteDatabaseService.Instance.BindLocalOrderToOdooOrderAsync(
-                        payload.LocalOrderId,
-                        payload.OrderUuid,
-                        existingOdooId,
-                        existingName
-                    );
-                    return;
+                    int exId = GetIntOrDefault(el, "id");
+                    string exName = GetStringOrDefault(el, "name");
+                    string exRef = GetStringOrDefault(el, "pos_reference");
+                    string exState = GetStringOrDefault(el, "state", "draft");
+                    if (exId > 0 && !string.IsNullOrWhiteSpace(exRef))
+                    {
+                        existingRefMap[exRef] = (exId, exName, exState);
+                    }
                 }
             }
         }
 
-        var (execConfig, execUid) = await ResolveExecutionCredentialsAsync(config, uid, payload.CashierId, payload.CashierName);
-        config = execConfig;
-        uid = execUid;
-
-        // Resolve the logged-in cashier's Odoo res.users ID and display name
-        string effectiveCashierName = !string.IsNullOrWhiteSpace(payload.CashierName)
-            ? payload.CashierName
-            : (CurrentPosUser?.Name ?? "");
-        int? resolvedCashierId = await ResolvePosUserOdooIdAsync(config, uid, payload.CashierId, effectiveCashierName);
-
-        // 2. Ensure we have an active Odoo session ID (and ensure it is in 'opened' state).
-        // Single read for state + company + bank statement to cut RPC round-trips.
-        int activeSessionId = await EnsureOdooOpenSessionIdAsync(config, uid, payload.ConfigOdooId, sessionOdooId, payload.LocalSessionId, resolvedCashierId);
-        int? sessionCompanyId = null;
-        try
+        var remainingBatch = new List<(PendingSyncItemRecord QueueItem, CreateOrderSyncPayload Payload, int? EffectiveSessionOdooId)>();
+        foreach (var item in batch)
         {
-            using var sessStateDoc = await SearchReadAsync(
-                config,
-                uid,
-                "pos.session",
-                [new object[] { "id", "=", activeSessionId }],
-                ["id", "state", "company_id", "bank_statement_id"]
-            );
-            if (sessStateDoc.RootElement.TryGetProperty("result", out var sArr) &&
-                sArr.ValueKind == JsonValueKind.Array &&
-                sArr.GetArrayLength() > 0)
+            if (!string.IsNullOrWhiteSpace(item.Payload.PosReference) &&
+                existingRefMap.TryGetValue(item.Payload.PosReference, out var existing))
             {
-                var sEl = sArr[0];
-                var (cid, _) = GetMany2One(sEl, "company_id");
-                sessionCompanyId = cid;
-
-                string st = GetStringOrDefault(sEl, "state", "opened");
-                if (string.Equals(st, "opening_control", StringComparison.OrdinalIgnoreCase))
+                // If an existing order on Odoo was stuck in 'draft' ('New') from an earlier attempt, mark it Paid now
+                if (string.Equals(existing.State, "draft", StringComparison.OrdinalIgnoreCase))
                 {
-                    decimal openBal = 0m;
-                    if (payload.LocalSessionId.HasValue)
-                    {
-                        openBal = await SqliteDatabaseService.Instance.GetSessionOpeningBalanceAsync((int)payload.LocalSessionId.Value);
-                    }
-                    if (openBal == 0m && payload.SessionOdooId.HasValue)
-                    {
-                        openBal = await SqliteDatabaseService.Instance.GetSessionOpeningBalanceAsync(payload.SessionOdooId.Value);
-                    }
-
                     try
                     {
-                        using var _ = await ExecuteKwAsync(config, uid, "pos.session", "set_opening_control", [new[] { activeSessionId }, (double)openBal, ""]);
-                    }
-                    catch
-                    {
-                        try
-                        {
-                            using var _ = await ExecuteKwAsync(config, uid, "pos.session", "action_pos_session_open", [new[] { activeSessionId }]);
-                        }
-                        catch { }
-                    }
-
-                    try
-                    {
-                        int stId = 0;
-                        if (sEl.TryGetProperty("bank_statement_id", out var bVal))
-                        {
-                            if (bVal.ValueKind == JsonValueKind.Array && bVal.GetArrayLength() > 0)
-                                stId = bVal[0].GetInt32();
-                            else if (bVal.ValueKind == JsonValueKind.Number)
-                                stId = bVal.GetInt32();
-                        }
-                        if (stId > 0)
-                        {
-                            using var _ = await ExecuteKwAsync(
-                                config, uid, "account.bank.statement", "write",
-                                [new[] { stId }, new Dictionary<string, object> { ["balance_start"] = (double)openBal }]
-                            );
-                        }
+                        using var _ = await ExecuteKwAsync(execConfig, execUid, "pos.order", "action_pos_order_paid", [new[] { existing.OdooId }]);
                     }
                     catch { }
                 }
+
+                await SqliteDatabaseService.Instance.BindLocalOrderToOdooOrderAsync(
+                    item.Payload.LocalOrderId,
+                    item.Payload.OrderUuid,
+                    existing.OdooId,
+                    existing.Name
+                );
+            }
+            else
+            {
+                remainingBatch.Add(item);
             }
         }
-        catch { }
 
-        // 3. Resolve product.template IDs -> product.product variant IDs + taxes
-        var tmplIds = payload.Lines
+        if (remainingBatch.Count == 0)
+            return;
+
+        // 2. Resolve open session ID and company ID (cached per PosConfigOdooId)
+        int configOdooId = firstPayload.ConfigOdooId;
+        int? knownSessId = remainingBatch[0].EffectiveSessionOdooId;
+        int activeSessionId;
+        int? sessionCompanyId = null;
+
+        if (_openSessionByConfigCache.TryGetValue(configOdooId, out var sessCached) &&
+            sessCached.Expires > DateTime.UtcNow &&
+            (!knownSessId.HasValue || knownSessId.Value == sessCached.SessionOdooId))
+        {
+            activeSessionId = sessCached.SessionOdooId;
+            sessionCompanyId = sessCached.CompanyId;
+        }
+        else
+        {
+            activeSessionId = await EnsureOdooOpenSessionIdAsync(
+                execConfig, execUid, configOdooId, knownSessId, firstPayload.LocalSessionId, resolvedCashierId);
+
+            try
+            {
+                using var sessStateDoc = await SearchReadAsync(
+                    execConfig,
+                    execUid,
+                    "pos.session",
+                    [new object[] { "id", "=", activeSessionId }],
+                    ["id", "state", "company_id"]
+                );
+                if (sessStateDoc.RootElement.TryGetProperty("result", out var sArr) &&
+                    sArr.ValueKind == JsonValueKind.Array &&
+                    sArr.GetArrayLength() > 0)
+                {
+                    var sEl = sArr[0];
+                    var (cid, _) = GetMany2One(sEl, "company_id");
+                    sessionCompanyId = cid;
+
+                    string st = GetStringOrDefault(sEl, "state", "opened");
+                    if (string.Equals(st, "opening_control", StringComparison.OrdinalIgnoreCase))
+                    {
+                        decimal openBal = firstPayload.LocalSessionId.HasValue
+                            ? await SqliteDatabaseService.Instance.GetSessionOpeningBalanceAsync((int)firstPayload.LocalSessionId.Value)
+                            : 0m;
+                        try
+                        {
+                            using var _ = await ExecuteKwAsync(execConfig, execUid, "pos.session", "set_opening_control", [new[] { activeSessionId }, (double)openBal, ""]);
+                        }
+                        catch
+                        {
+                            try
+                            {
+                                using var _ = await ExecuteKwAsync(execConfig, execUid, "pos.session", "action_pos_session_open", [new[] { activeSessionId }]);
+                            }
+                            catch { }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            _openSessionByConfigCache[configOdooId] = (activeSessionId, sessionCompanyId, DateTime.UtcNow.AddMinutes(15));
+        }
+
+        // 3. Resolve all product variants & taxes across the entire batch at once (cached in memory)
+        var allTmplIds = remainingBatch
+            .SelectMany(b => b.Payload.Lines)
             .Where(l => l.ProductOdooId.HasValue)
-            .Select(l => l.ProductOdooId!.Value);
-        var variantMap = await ResolveProductVariantsAndTaxesAsync(config, uid, tmplIds, sessionCompanyId);
-        var taxInfoMap = await FetchTaxInfoMapAsync(config, uid, variantMap.Values.SelectMany(v => v.TaxIds));
-        decimal calOrderTotal = 0m;
-        decimal calOrderTax = 0m;
+            .Select(l => l.ProductOdooId!.Value)
+            .Distinct();
+
+        var variantMap = await ResolveProductVariantsAndTaxesAsync(execConfig, execUid, allTmplIds, sessionCompanyId);
+        var taxInfoMap = await FetchTaxInfoMapAsync(execConfig, execUid, variantMap.Values.SelectMany(v => v.TaxIds));
 
         int fallbackProductId = variantMap.Values.Select(v => v.VariantId).FirstOrDefault();
         if (fallbackProductId == 0)
         {
-            using var anyProdDoc = await SearchReadAsync(
-                config,
-                uid,
-                "product.product",
-                [new object[] { "available_in_pos", "=", true }],
-                ["id"]
-            );
-            if (anyProdDoc.RootElement.TryGetProperty("result", out var pArr) &&
-                pArr.ValueKind == JsonValueKind.Array &&
-                pArr.GetArrayLength() > 0)
+            if (_cachedFallbackProductId > 0)
             {
-                fallbackProductId = GetIntOrDefault(pArr[0], "id");
+                fallbackProductId = _cachedFallbackProductId;
+            }
+            else
+            {
+                using var anyProdDoc = await SearchReadAsync(
+                    execConfig,
+                    execUid,
+                    "product.product",
+                    [new object[] { "available_in_pos", "=", true }],
+                    ["id"]
+                );
+                if (anyProdDoc.RootElement.TryGetProperty("result", out var pArr) &&
+                    pArr.ValueKind == JsonValueKind.Array &&
+                    pArr.GetArrayLength() > 0)
+                {
+                    fallbackProductId = GetIntOrDefault(pArr[0], "id");
+                    _cachedFallbackProductId = fallbackProductId;
+                }
             }
         }
 
-        // 4. Build pos.order.line tuples: [0, 0, { ... }]
-        var orderLineFields = await GetAvailableFieldsAsync(config, uid, "pos.order.line");
-        var lineTuples = new List<object>();
-
-        foreach (var l in payload.Lines)
-        {
-            int prodId = fallbackProductId;
-            List<int> taxIds = [];
-            if (l.ProductOdooId.HasValue && variantMap.TryGetValue(l.ProductOdooId.Value, out var vInfo))
-            {
-                prodId = vInfo.VariantId;
-                taxIds = vInfo.TaxIds;
-            }
-            else if (l.ProductOdooId.HasValue && l.ProductOdooId.Value > 0)
-            {
-                prodId = l.ProductOdooId.Value;
-            }
-
-            var (calUnit, subExcl, subIncl) = await CalibrateLineToTargetInclAsync(
-                config, uid, taxIds, taxInfoMap, l.PriceSubtotalIncl, l.Qty, l.Discount, l.PriceUnit);
-
-            calOrderTotal += subIncl;
-            calOrderTax += (subIncl - subExcl);
-
-            var lineDict = new Dictionary<string, object>
-            {
-                ["product_id"] = prodId,
-                ["qty"] = (double)l.Qty,
-                ["price_unit"] = (double)calUnit,
-                ["discount"] = (double)l.Discount,
-                ["price_subtotal"] = (double)subExcl,
-                ["price_subtotal_incl"] = (double)subIncl
-            };
-
-            if (orderLineFields.Count == 0 || orderLineFields.Contains("full_product_name"))
-                lineDict["full_product_name"] = l.ProductName;
-            if (orderLineFields.Count == 0 || orderLineFields.Contains("name"))
-                lineDict["name"] = l.ProductName;
-            if (orderLineFields.Count == 0 || orderLineFields.Contains("tax_ids"))
-                lineDict["tax_ids"] = new object[] { new object[] { 6, 0, taxIds.ToArray() } };
-            if (!string.IsNullOrWhiteSpace(l.CustomerNote) && (orderLineFields.Count == 0 || orderLineFields.Contains("customer_note")))
-                lineDict["customer_note"] = l.CustomerNote;
-
-            lineTuples.Add(new object[] { 0, 0, lineDict });
-        }
-
-        // 5. Build pos.order values matching Odoo 20's exact schema
-        var paymentMethods = await SqliteDatabaseService.Instance.LoadAllPaymentMethodsAsync();
-        var orderFields = await GetAvailableFieldsAsync(config, uid, "pos.order");
-        int seqNumber = ExtractSequenceNumber(payload.PosReference, payload.Name);
-
-        var orderVals = new Dictionary<string, object>
-        {
-            ["name"] = payload.Name,
-            ["session_id"] = activeSessionId,
-            ["pos_reference"] = payload.PosReference,
-            ["amount_total"] = (double)calOrderTotal,
-            ["amount_tax"] = (double)calOrderTax,
-            ["amount_paid"] = (double)calOrderTotal,
-            ["amount_return"] = 0.0,
-            ["lines"] = lineTuples
-        };
-
-        if (orderFields.Count == 0 || orderFields.Contains("sequence_number"))
-            orderVals["sequence_number"] = seqNumber;
-        if (orderFields.Count == 0 || orderFields.Contains("user_id"))
-            orderVals["user_id"] = resolvedCashierId ?? uid;
-        if (orderFields.Count == 0 || orderFields.Contains("date_order"))
-            orderVals["date_order"] = payload.DateOrder.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-        if (!string.IsNullOrWhiteSpace(payload.TrackingNumber) && (orderFields.Count == 0 || orderFields.Contains("tracking_number")))
-            orderVals["tracking_number"] = payload.TrackingNumber;
-        if (!string.IsNullOrWhiteSpace(effectiveCashierName) && (orderFields.Count == 0 || orderFields.Contains("cashier")))
-            orderVals["cashier"] = effectiveCashierName;
-        if (payload.PartnerId.HasValue && payload.PartnerId.Value > 0 && (orderFields.Count == 0 || orderFields.Contains("partner_id")))
-            orderVals["partner_id"] = payload.PartnerId.Value;
-        if (payload.IsToInvoice && (orderFields.Count == 0 || orderFields.Contains("to_invoice")))
-            orderVals["to_invoice"] = true;
-        if (!string.IsNullOrWhiteSpace(payload.Note))
-        {
-            if (orderFields.Contains("general_note"))
-                orderVals["general_note"] = payload.Note;
-            else if (orderFields.Contains("note"))
-                orderVals["note"] = payload.Note;
-        }
-        if (orderFields.Contains("uuid"))
-            orderVals["uuid"] = payload.OrderUuid;
-
-        int createdOrderId = 0;
-        using (var createOrderDoc = await ExecuteKwAsync(config, uid, "pos.order", "create", [orderVals]))
-        {
-            if (createOrderDoc.RootElement.TryGetProperty("result", out var res))
-            {
-                if (res.ValueKind == JsonValueKind.Number && res.TryGetInt32(out int oid))
-                    createdOrderId = oid;
-                else if (res.ValueKind == JsonValueKind.Array && res.GetArrayLength() > 0 && res[0].TryGetInt32(out int aoid))
-                    createdOrderId = aoid;
-            }
-        }
-
-        if (createdOrderId <= 0)
-            throw new InvalidOperationException("Failed to create pos.order in Odoo.");
-
-        // 6. Resolve allowed payment_method_ids for this POS session (cached per session)
+        // 4. Resolve allowed payment methods for this session (cached per session)
         List<(int Id, string Name, string Type, bool IsCash)> allowedSessionMethods;
         if (_sessionPmCache.TryGetValue(activeSessionId, out var pmCached) && pmCached.Expires > DateTime.UtcNow)
         {
@@ -1724,140 +1783,324 @@ public class OdooSyncService
         }
         else
         {
-            allowedSessionMethods = await ResolveSessionPaymentMethodsAsync(config, uid, activeSessionId, payload.ConfigOdooId);
-            _sessionPmCache[activeSessionId] = (allowedSessionMethods, DateTime.UtcNow.AddMinutes(10));
+            allowedSessionMethods = await ResolveSessionPaymentMethodsAsync(execConfig, execUid, activeSessionId, configOdooId);
+            _sessionPmCache[activeSessionId] = (allowedSessionMethods, DateTime.UtcNow.AddMinutes(30));
         }
 
-        // Create payments in Odoo and mark the order as Paid
-        bool hasPartner = payload.PartnerId.HasValue && payload.PartnerId.Value > 0;
-        foreach (var pay in payload.Payments)
+        var localPaymentMethods = await SqliteDatabaseService.Instance.LoadAllPaymentMethodsAsync();
+        var orderLineFields = await GetAvailableFieldsAsync(execConfig, execUid, "pos.order.line");
+        var orderFields = await GetAvailableFieldsAsync(execConfig, execUid, "pos.order");
+
+        // 5. Build all order dictionaries using 100% LOCAL C# MATH (0 RPCs)
+        var orderValsList = new List<Dictionary<string, object>>(remainingBatch.Count);
+        var calibratedTotals = new List<decimal>(remainingBatch.Count);
+
+        foreach (var item in remainingBatch)
         {
-            int? methodOdooId = null;
-            string reqName = pay.PaymentMethodName?.Trim() ?? "Cash";
-            bool wantsCash = reqName.Contains("Cash", StringComparison.OrdinalIgnoreCase);
-            bool wantsCard = reqName.Contains("Card", StringComparison.OrdinalIgnoreCase) || reqName.Contains("Bank", StringComparison.OrdinalIgnoreCase);
-            bool wantsAccount = reqName.Contains("Customer", StringComparison.OrdinalIgnoreCase) || reqName.Contains("Account", StringComparison.OrdinalIgnoreCase);
+            var payload = item.Payload;
+            decimal calOrderTotal = 0m;
+            decimal calOrderTax = 0m;
+            var lineTuples = new List<object>(payload.Lines.Count);
 
-            if (allowedSessionMethods.Count > 0)
+            foreach (var l in payload.Lines)
             {
-                // 1. Check if the requested ID is already in the session's allowed payment methods
-                if (pay.PaymentMethodOdooId.HasValue)
+                int prodId = fallbackProductId;
+                List<int> taxIds = [];
+                if (l.ProductOdooId.HasValue && variantMap.TryGetValue(l.ProductOdooId.Value, out var vInfo))
                 {
-                    var exactIdMatch = allowedSessionMethods.FirstOrDefault(m => m.Id == pay.PaymentMethodOdooId.Value);
-                    if (exactIdMatch.Id > 0 && (hasPartner || !string.Equals(exactIdMatch.Type, "pay_later", StringComparison.OrdinalIgnoreCase)))
-                    {
-                        methodOdooId = exactIdMatch.Id;
-                    }
+                    prodId = vInfo.VariantId;
+                    taxIds = vInfo.TaxIds;
+                }
+                else if (l.ProductOdooId.HasValue && l.ProductOdooId.Value > 0)
+                {
+                    prodId = l.ProductOdooId.Value;
                 }
 
-                // 2. Match by exact payment method name among allowed methods for this session
-                if (!methodOdooId.HasValue)
-                {
-                    var nameMatch = allowedSessionMethods.FirstOrDefault(m =>
-                        string.Equals(m.Name, reqName, StringComparison.OrdinalIgnoreCase) &&
-                        (hasPartner || !string.Equals(m.Type, "pay_later", StringComparison.OrdinalIgnoreCase)));
-                    if (nameMatch.Id > 0)
-                        methodOdooId = nameMatch.Id;
-                }
+                var (calUnit, subExcl, subIncl) = CalibrateLineToTargetInclLocal(
+                    taxIds, taxInfoMap, l.PriceSubtotalIncl, l.Qty, l.Discount, l.PriceUnit, l.TaxRate);
 
-                // 3. Match by payment method category/type (Cash / Card / Customer Account) among allowed methods
-                if (!methodOdooId.HasValue)
-                {
-                    if (wantsCash)
-                    {
-                        var cashMatch = allowedSessionMethods.FirstOrDefault(m =>
-                            m.IsCash ||
-                            string.Equals(m.Type, "cash", StringComparison.OrdinalIgnoreCase) ||
-                            m.Name.Contains("Cash", StringComparison.OrdinalIgnoreCase));
-                        if (cashMatch.Id > 0)
-                            methodOdooId = cashMatch.Id;
-                    }
-                    else if (wantsCard)
-                    {
-                        var cardMatch = allowedSessionMethods.FirstOrDefault(m =>
-                            string.Equals(m.Type, "bank", StringComparison.OrdinalIgnoreCase) ||
-                            m.Name.Contains("Card", StringComparison.OrdinalIgnoreCase) ||
-                            m.Name.Contains("Bank", StringComparison.OrdinalIgnoreCase));
-                        if (cardMatch.Id > 0)
-                            methodOdooId = cardMatch.Id;
-                    }
-                    else if (wantsAccount && hasPartner)
-                    {
-                        var accMatch = allowedSessionMethods.FirstOrDefault(m =>
-                            string.Equals(m.Type, "pay_later", StringComparison.OrdinalIgnoreCase) ||
-                            m.Name.Contains("Customer", StringComparison.OrdinalIgnoreCase) ||
-                            m.Name.Contains("Account", StringComparison.OrdinalIgnoreCase));
-                        if (accMatch.Id > 0)
-                            methodOdooId = accMatch.Id;
-                    }
-                }
+                calOrderTotal += subIncl;
+                calOrderTax += (subIncl - subExcl);
 
-                // 4. Fallback to first allowed non-pay_later method (or first allowed method) of the session
-                if (!methodOdooId.HasValue)
+                var lineDict = new Dictionary<string, object>
                 {
-                    var fallbackAllowed = allowedSessionMethods.FirstOrDefault(m =>
-                        !string.Equals(m.Type, "pay_later", StringComparison.OrdinalIgnoreCase));
-                    methodOdooId = fallbackAllowed.Id > 0 ? fallbackAllowed.Id : allowedSessionMethods[0].Id;
-                }
-            }
-            else
-            {
-                methodOdooId = pay.PaymentMethodOdooId;
-                if (!methodOdooId.HasValue || methodOdooId.Value <= 0)
-                {
-                    var matchedMethod = paymentMethods.FirstOrDefault(m =>
-                        string.Equals(m.Name, reqName, StringComparison.OrdinalIgnoreCase));
-                    methodOdooId = matchedMethod?.OdooId;
-                }
+                    ["product_id"] = prodId,
+                    ["qty"] = (double)l.Qty,
+                    ["price_unit"] = (double)calUnit,
+                    ["discount"] = (double)l.Discount,
+                    ["price_subtotal"] = (double)subExcl,
+                    ["price_subtotal_incl"] = (double)subIncl
+                };
 
-                if (!methodOdooId.HasValue || methodOdooId.Value <= 0)
-                {
-                    methodOdooId = paymentMethods.FirstOrDefault()?.OdooId ?? 1;
-                }
+                if (orderLineFields.Count == 0 || orderLineFields.Contains("full_product_name"))
+                    lineDict["full_product_name"] = l.ProductName;
+                if (orderLineFields.Count == 0 || orderLineFields.Contains("name"))
+                    lineDict["name"] = l.ProductName;
+                if (orderLineFields.Count == 0 || orderLineFields.Contains("tax_ids"))
+                    lineDict["tax_ids"] = new object[] { new object[] { 6, 0, taxIds.ToArray() } };
+                if (!string.IsNullOrWhiteSpace(l.CustomerNote) && (orderLineFields.Count == 0 || orderLineFields.Contains("customer_note")))
+                    lineDict["customer_note"] = l.CustomerNote;
+
+                lineTuples.Add(new object[] { 0, 0, lineDict });
             }
 
-            var payVals = new Dictionary<string, object>
+            calibratedTotals.Add(calOrderTotal);
+
+            int seqNumber = ExtractSequenceNumber(payload.PosReference, payload.Name);
+            string ordCashierName = !string.IsNullOrWhiteSpace(payload.CashierName) ? payload.CashierName : effectiveCashierName;
+
+            var orderVals = new Dictionary<string, object>
             {
-                ["pos_order_id"] = createdOrderId,
+                ["name"] = payload.Name,
                 ["session_id"] = activeSessionId,
-                ["payment_method_id"] = methodOdooId.Value,
-                ["amount"] = (double)pay.Amount,
-                ["payment_date"] = pay.PaymentDate.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                ["pos_reference"] = payload.PosReference,
+                ["amount_total"] = (double)calOrderTotal,
+                ["amount_tax"] = (double)calOrderTax,
+                ["amount_paid"] = (double)calOrderTotal,
+                ["amount_return"] = 0.0,
+                ["lines"] = lineTuples
             };
-            using var _ = await ExecuteKwAsync(config, uid, "pos.payment", "create", [payVals]);
-        }
 
-        try
-        {
-            using var _ = await ExecuteKwAsync(config, uid, "pos.order", "action_pos_order_paid", [new[] { createdOrderId }]);
-        }
-        catch { }
-
-        string? odooOrderName = null;
-        try
-        {
-            using var readOrderDoc = await SearchReadAsync(
-                config,
-                uid,
-                "pos.order",
-                [new object[] { "id", "=", createdOrderId }],
-                ["id", "name"]
-            );
-            if (readOrderDoc.RootElement.TryGetProperty("result", out var arr) &&
-                arr.ValueKind == JsonValueKind.Array &&
-                arr.GetArrayLength() > 0)
+            if (orderFields.Count == 0 || orderFields.Contains("sequence_number"))
+                orderVals["sequence_number"] = seqNumber;
+            if (orderFields.Count == 0 || orderFields.Contains("user_id"))
+                orderVals["user_id"] = payload.CashierId ?? resolvedCashierId ?? execUid;
+            if (orderFields.Count == 0 || orderFields.Contains("date_order"))
+                orderVals["date_order"] = payload.DateOrder.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            if (!string.IsNullOrWhiteSpace(payload.TrackingNumber) && (orderFields.Count == 0 || orderFields.Contains("tracking_number")))
+                orderVals["tracking_number"] = payload.TrackingNumber;
+            if (!string.IsNullOrWhiteSpace(ordCashierName) && (orderFields.Count == 0 || orderFields.Contains("cashier")))
+                orderVals["cashier"] = ordCashierName;
+            if (payload.PartnerId.HasValue && payload.PartnerId.Value > 0 && (orderFields.Count == 0 || orderFields.Contains("partner_id")))
+                orderVals["partner_id"] = payload.PartnerId.Value;
+            if (payload.IsToInvoice && (orderFields.Count == 0 || orderFields.Contains("to_invoice")))
+                orderVals["to_invoice"] = true;
+            if (!string.IsNullOrWhiteSpace(payload.Note))
             {
-                odooOrderName = GetStringOrDefault(arr[0], "name");
+                if (orderFields.Contains("general_note"))
+                    orderVals["general_note"] = payload.Note;
+                else if (orderFields.Contains("note"))
+                    orderVals["note"] = payload.Note;
+            }
+            if (orderFields.Contains("uuid"))
+                orderVals["uuid"] = payload.OrderUuid;
+
+            orderValsList.Add(orderVals);
+        }
+
+        // 6. Create all orders in ONE single RPC call
+        var createdOrderIds = new List<int>(remainingBatch.Count);
+        using (var createOrdersDoc = await ExecuteKwAsync(execConfig, execUid, "pos.order", "create", [orderValsList]))
+        {
+            if (createOrdersDoc.RootElement.TryGetProperty("result", out var res))
+            {
+                if (res.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var el in res.EnumerateArray())
+                    {
+                        if (el.ValueKind == JsonValueKind.Number && el.TryGetInt32(out int oid))
+                            createdOrderIds.Add(oid);
+                    }
+                }
+                else if (res.ValueKind == JsonValueKind.Number && res.TryGetInt32(out int singleOid))
+                {
+                    createdOrderIds.Add(singleOid);
+                }
             }
         }
-        catch { }
 
-        await SqliteDatabaseService.Instance.BindLocalOrderToOdooOrderAsync(
-            payload.LocalOrderId,
-            payload.OrderUuid,
-            createdOrderId,
-            odooOrderName
-        );
+        if (createdOrderIds.Count != remainingBatch.Count || createdOrderIds.Any(id => id <= 0))
+            throw new InvalidOperationException("Failed to batch-create pos.order records in Odoo.");
+
+        // 7. Build all pos.payment records across the batch and create them in ONE single RPC call
+        var allPaymentValsList = new List<Dictionary<string, object>>();
+        for (int i = 0; i < remainingBatch.Count; i++)
+        {
+            int createdOrderId = createdOrderIds[i];
+            var payload = remainingBatch[i].Payload;
+            decimal targetOrderTotal = calibratedTotals[i];
+            bool hasPartner = payload.PartnerId.HasValue && payload.PartnerId.Value > 0;
+
+            decimal sumPrevPayments = 0m;
+            for (int pIdx = 0; pIdx < payload.Payments.Count; pIdx++)
+            {
+                var pay = payload.Payments[pIdx];
+                int methodOdooId = ResolveAllowedPaymentMethodId(
+                    pay, hasPartner, allowedSessionMethods, localPaymentMethods);
+
+                // Ensure the sum of payments for the order matches calOrderTotal to the exact cent
+                decimal payAmount = (pIdx == payload.Payments.Count - 1)
+                    ? Math.Round(targetOrderTotal - sumPrevPayments, 2)
+                    : Math.Round(pay.Amount, 2);
+                sumPrevPayments += payAmount;
+
+                allPaymentValsList.Add(new Dictionary<string, object>
+                {
+                    ["pos_order_id"] = createdOrderId,
+                    ["session_id"] = activeSessionId,
+                    ["payment_method_id"] = methodOdooId,
+                    ["amount"] = (double)payAmount,
+                    ["payment_date"] = pay.PaymentDate.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                });
+            }
+        }
+
+        if (allPaymentValsList.Count > 0)
+        {
+            using var _ = await ExecuteKwAsync(execConfig, execUid, "pos.payment", "create", [allPaymentValsList]);
+        }
+
+        // 8. Mark each created order as Paid (Odoo's action_pos_order_paid has self.ensure_one(), so pass 1 ID per call)
+        foreach (int createdOrderId in createdOrderIds)
+        {
+            try
+            {
+                using var _ = await ExecuteKwAsync(
+                    execConfig,
+                    execUid,
+                    "pos.order",
+                    "action_pos_order_paid",
+                    [new[] { createdOrderId }]
+                );
+            }
+            catch
+            {
+                try
+                {
+                    using var _ = await ExecuteKwAsync(
+                        execConfig,
+                        execUid,
+                        "pos.order",
+                        "write",
+                        [
+                            new[] { createdOrderId },
+                            new Dictionary<string, object> { ["state"] = "paid" }
+                        ]
+                    );
+                }
+                catch { }
+            }
+        }
+
+        // 9. Persist the cashier name on all created orders in 1 batch write (prevents Odoo's _compute_cashier from clearing it)
+        if (!string.IsNullOrWhiteSpace(effectiveCashierName) && (orderFields.Count == 0 || orderFields.Contains("cashier")))
+        {
+            try
+            {
+                using var _ = await ExecuteKwAsync(
+                    execConfig,
+                    execUid,
+                    "pos.order",
+                    "write",
+                    [
+                        createdOrderIds.ToArray(),
+                        new Dictionary<string, object> { ["cashier"] = effectiveCashierName }
+                    ]
+                );
+            }
+            catch { }
+        }
+
+        // 10. Bind all local orders to their Odoo IDs
+        for (int i = 0; i < remainingBatch.Count; i++)
+        {
+            var payload = remainingBatch[i].Payload;
+            await SqliteDatabaseService.Instance.BindLocalOrderToOdooOrderAsync(
+                payload.LocalOrderId,
+                payload.OrderUuid,
+                createdOrderIds[i],
+                payload.Name
+            );
+        }
+    }
+
+    private static int ResolveAllowedPaymentMethodId(
+        PosPaymentSyncPayload pay,
+        bool hasPartner,
+        List<(int Id, string Name, string Type, bool IsCash)> allowedSessionMethods,
+        List<PosPaymentMethodRecord> localPaymentMethods)
+    {
+        int? methodOdooId = null;
+        string reqName = pay.PaymentMethodName?.Trim() ?? "Cash";
+        bool wantsCash = reqName.Contains("Cash", StringComparison.OrdinalIgnoreCase);
+        bool wantsCard = reqName.Contains("Card", StringComparison.OrdinalIgnoreCase) || reqName.Contains("Bank", StringComparison.OrdinalIgnoreCase);
+        bool wantsAccount = reqName.Contains("Customer", StringComparison.OrdinalIgnoreCase) || reqName.Contains("Account", StringComparison.OrdinalIgnoreCase);
+
+        if (allowedSessionMethods.Count > 0)
+        {
+            if (pay.PaymentMethodOdooId.HasValue)
+            {
+                var exactIdMatch = allowedSessionMethods.FirstOrDefault(m => m.Id == pay.PaymentMethodOdooId.Value);
+                if (exactIdMatch.Id > 0 && (hasPartner || !string.Equals(exactIdMatch.Type, "pay_later", StringComparison.OrdinalIgnoreCase)))
+                {
+                    methodOdooId = exactIdMatch.Id;
+                }
+            }
+
+            if (!methodOdooId.HasValue)
+            {
+                var nameMatch = allowedSessionMethods.FirstOrDefault(m =>
+                    string.Equals(m.Name, reqName, StringComparison.OrdinalIgnoreCase) &&
+                    (hasPartner || !string.Equals(m.Type, "pay_later", StringComparison.OrdinalIgnoreCase)));
+                if (nameMatch.Id > 0)
+                    methodOdooId = nameMatch.Id;
+            }
+
+            if (!methodOdooId.HasValue)
+            {
+                if (wantsCash)
+                {
+                    var cashMatch = allowedSessionMethods.FirstOrDefault(m =>
+                        m.IsCash ||
+                        string.Equals(m.Type, "cash", StringComparison.OrdinalIgnoreCase) ||
+                        m.Name.Contains("Cash", StringComparison.OrdinalIgnoreCase));
+                    if (cashMatch.Id > 0)
+                        methodOdooId = cashMatch.Id;
+                }
+                else if (wantsCard)
+                {
+                    var cardMatch = allowedSessionMethods.FirstOrDefault(m =>
+                        string.Equals(m.Type, "bank", StringComparison.OrdinalIgnoreCase) ||
+                        m.Name.Contains("Card", StringComparison.OrdinalIgnoreCase) ||
+                        m.Name.Contains("Bank", StringComparison.OrdinalIgnoreCase));
+                    if (cardMatch.Id > 0)
+                        methodOdooId = cardMatch.Id;
+                }
+                else if (wantsAccount && hasPartner)
+                {
+                    var accMatch = allowedSessionMethods.FirstOrDefault(m =>
+                        string.Equals(m.Type, "pay_later", StringComparison.OrdinalIgnoreCase) ||
+                        m.Name.Contains("Customer", StringComparison.OrdinalIgnoreCase) ||
+                        m.Name.Contains("Account", StringComparison.OrdinalIgnoreCase));
+                    if (accMatch.Id > 0)
+                        methodOdooId = accMatch.Id;
+                }
+            }
+
+            if (!methodOdooId.HasValue)
+            {
+                var fallbackAllowed = allowedSessionMethods.FirstOrDefault(m =>
+                    !string.Equals(m.Type, "pay_later", StringComparison.OrdinalIgnoreCase));
+                methodOdooId = fallbackAllowed.Id > 0 ? fallbackAllowed.Id : allowedSessionMethods[0].Id;
+            }
+        }
+        else
+        {
+            methodOdooId = pay.PaymentMethodOdooId;
+            if (!methodOdooId.HasValue || methodOdooId.Value <= 0)
+            {
+                var matchedMethod = localPaymentMethods.FirstOrDefault(m =>
+                    string.Equals(m.Name, reqName, StringComparison.OrdinalIgnoreCase));
+                methodOdooId = matchedMethod?.OdooId;
+            }
+
+            if (!methodOdooId.HasValue || methodOdooId.Value <= 0)
+            {
+                methodOdooId = localPaymentMethods.FirstOrDefault()?.OdooId ?? 1;
+            }
+        }
+
+        return methodOdooId.Value;
     }
 
     private async Task<List<(int Id, string Name, string Type, bool IsCash)>> ResolveSessionPaymentMethodsAsync(
@@ -1987,6 +2230,49 @@ public class OdooSyncService
         return "";
     }
 
+    // =========================================================================
+    // SESSION REPAIR & CLOSE (RECOVERS CANCELLED/DRAFT ORDERS & BALANCES ENTRIES)
+    // =========================================================================
+    private async Task<(decimal PriceSubtotal, decimal PriceSubtotalIncl)> ComputeOdooLineTaxAmountsAsync(
+        OdooConfigRecord config,
+        int uid,
+        List<int> taxIds,
+        Dictionary<int, OdooTaxInfo> taxInfoMap,
+        decimal unitPrice,
+        decimal qty,
+        decimal discount)
+    {
+        decimal effUnit = unitPrice * (1.0m - (discount / 100.0m));
+
+        if (taxIds.Count == 0)
+        {
+            decimal amt = OdooRound(effUnit * qty);
+            return (amt, amt);
+        }
+
+        try
+        {
+            using var doc = await ExecuteKwAsync(
+                config,
+                uid,
+                "account.tax",
+                "compute_all",
+                [taxIds.ToArray(), (double)effUnit],
+                new { quantity = (double)qty }
+            );
+
+            if (doc.RootElement.TryGetProperty("result", out var res) && res.ValueKind == JsonValueKind.Object)
+            {
+                decimal excl = GetDecimalOrDefault(res, "total_excluded");
+                decimal incl = GetDecimalOrDefault(res, "total_included");
+                return (OdooRound(excl), OdooRound(incl));
+            }
+        }
+        catch { }
+
+        return ComputeLocalLineTaxAmounts(taxIds, taxInfoMap, unitPrice, qty, discount);
+    }
+
     private async Task RepairSessionOrdersAndPaymentsForCloseAsync(
         OdooConfigRecord config, int uid, int targetSessionId, DateTime closedAt)
     {
@@ -2002,23 +2288,24 @@ public class OdooSyncService
             }
         }
 
+        // 1. Fetch ALL orders in this session (including 'cancel' and 'draft' orders)
         var ordFields = await FilterValidFieldsAsync(config, uid, "pos.order",
             "id", "state", "amount_total", "amount_tax", "amount_paid", "amount_return", "to_invoice", "account_move");
         using var ordDoc = await SearchReadAsync(
             config, uid, "pos.order",
-            [new object[] { "session_id", "=", targetSessionId }, new object[] { "state", "!=", "cancel" }],
+            [new object[] { "session_id", "=", targetSessionId }],
             ordFields);
 
         if (!ordDoc.RootElement.TryGetProperty("result", out var ordArr) || ordArr.ValueKind != JsonValueKind.Array)
             return;
 
-        var orderIds = new List<int>();
+        var allOrderIds = new List<int>();
         var orderStateMap = new Dictionary<int, (string State, decimal Total, decimal Tax, decimal Paid, decimal Ret, bool ToInv, bool HasMove)>();
         foreach (var oEl in ordArr.EnumerateArray())
         {
             int oid = GetIntOrDefault(oEl, "id");
             if (oid <= 0) continue;
-            orderIds.Add(oid);
+            allOrderIds.Add(oid);
             bool hasMove = oEl.TryGetProperty("account_move", out var mv) && mv.ValueKind == JsonValueKind.Array && mv.GetArrayLength() > 0;
             orderStateMap[oid] = (
                 GetStringOrDefault(oEl, "state", "paid"),
@@ -2031,13 +2318,14 @@ public class OdooSyncService
             );
         }
 
-        if (orderIds.Count == 0) return;
+        if (allOrderIds.Count == 0) return;
 
+        // 2. Fetch all lines for these orders
         var lineFields = await FilterValidFieldsAsync(config, uid, "pos.order.line",
             "id", "order_id", "qty", "price_unit", "discount", "price_subtotal", "price_subtotal_incl", "tax_ids");
         using var lineDoc = await SearchReadAsync(
             config, uid, "pos.order.line",
-            [new object[] { "order_id", "in", orderIds.ToArray() }],
+            [new object[] { "order_id", "in", allOrderIds.ToArray() }],
             lineFields);
 
         var linesByOrder = new Dictionary<int, List<(int LineId, decimal Qty, decimal PriceUnit, decimal Discount, decimal SubExcl, decimal SubIncl, List<int> TaxIds)>>();
@@ -2070,11 +2358,11 @@ public class OdooSyncService
 
         var taxInfoMap = await FetchTaxInfoMapAsync(config, uid, allTaxIds);
 
-        // Sum actual pos.payment rows per order
-        var paySumByOrder = new Dictionary<int, decimal>();
+        // 3. Fetch all payments in this session
+        var paymentsByOrder = new Dictionary<int, List<(int PayId, decimal Amount, int MethodId)>>();
         var orphanPaymentIds = new List<int>();
         using (var pDoc = await SearchReadAsync(config, uid, "pos.payment",
-            [new object[] { "session_id", "=", targetSessionId }], ["id", "pos_order_id", "amount"]))
+            [new object[] { "session_id", "=", targetSessionId }], ["id", "pos_order_id", "amount", "payment_method_id"]))
         {
             if (pDoc.RootElement.TryGetProperty("result", out var pArr) && pArr.ValueKind == JsonValueKind.Array)
             {
@@ -2082,27 +2370,84 @@ public class OdooSyncService
                 {
                     int pid = GetIntOrDefault(pEl, "id");
                     var (pOid, _) = GetMany2One(pEl, "pos_order_id");
+                    var (pmId, _) = GetMany2One(pEl, "payment_method_id");
                     decimal pAmt = GetDecimalOrDefault(pEl, "amount");
                     if (!pOid.HasValue || !orderStateMap.ContainsKey(pOid.Value))
                     {
                         if (pid > 0) orphanPaymentIds.Add(pid);
                         continue;
                     }
-                    paySumByOrder[pOid.Value] = paySumByOrder.TryGetValue(pOid.Value, out var cur) ? cur + pAmt : pAmt;
+                    if (!paymentsByOrder.TryGetValue(pOid.Value, out var pList))
+                    {
+                        pList = [];
+                        paymentsByOrder[pOid.Value] = pList;
+                    }
+                    pList.Add((pid, pAmt, pmId ?? repairMethodId));
                 }
             }
+        }
+
+        // 4. Recover orders that were accidentally set to 'cancel' or left in 'draft' despite having lines & payments
+        var activeOrderIds = new List<int>();
+        foreach (int oid in allOrderIds)
+        {
+            var ord = orderStateMap[oid];
+            bool hasLines = linesByOrder.TryGetValue(oid, out var lns) && lns.Count > 0;
+            bool hasPayments = paymentsByOrder.TryGetValue(oid, out var pys) && pys.Sum(p => p.Amount) != 0m;
+
+            if (string.Equals(ord.State, "cancel", StringComparison.OrdinalIgnoreCase))
+            {
+                if (hasLines && hasPayments)
+                {
+                    // This order was accidentally cancelled by the old batch step 4b! Restore it to 'paid'
+                    try
+                    {
+                        using var _ = await ExecuteKwAsync(config, uid, "pos.order", "write",
+                            [new[] { oid }, new Dictionary<string, object> { ["state"] = "paid" }]);
+                        orderStateMap[oid] = ord with { State = "paid" };
+                        activeOrderIds.Add(oid);
+                        continue;
+                    }
+                    catch { }
+                }
+
+                // Truly cancelled order: remove any payments attached to it so they don't unbalance the session
+                if (paymentsByOrder.TryGetValue(oid, out var cancelPays))
+                {
+                    foreach (var cp in cancelPays)
+                    {
+                        orphanPaymentIds.Add(cp.PayId);
+                    }
+                }
+                continue;
+            }
+
+            activeOrderIds.Add(oid);
         }
 
         if (orphanPaymentIds.Count > 0)
         {
             try
             {
-                using var _ = await ExecuteKwAsync(config, uid, "pos.payment", "unlink", [orphanPaymentIds.ToArray()]);
+                using var _ = await ExecuteKwAsync(config, uid, "pos.payment", "unlink", [orphanPaymentIds.Distinct().ToArray()]);
             }
-            catch { }
+            catch
+            {
+                // If unlink is restricted, zero out the orphan payment amounts
+                foreach (int opId in orphanPaymentIds.Distinct())
+                {
+                    try
+                    {
+                        using var _ = await ExecuteKwAsync(config, uid, "pos.payment", "write",
+                            [new[] { opId }, new Dictionary<string, object> { ["amount"] = 0.0 }]);
+                    }
+                    catch { }
+                }
+            }
         }
 
-        foreach (int oid in orderIds)
+        // 5. Reconcile lines, totals, and payments on all active orders
+        foreach (int oid in activeOrderIds)
         {
             var ord = orderStateMap[oid];
             bool canEditOrder = !string.Equals(ord.State, "done", StringComparison.OrdinalIgnoreCase);
@@ -2129,20 +2474,16 @@ public class OdooSyncService
 
                     if (canEditOrder && (Math.Abs(curExcl - ln.SubExcl) >= 0.01m || Math.Abs(curIncl - ln.SubIncl) >= 0.01m))
                     {
-                        var (calUnit, newExcl, newIncl) = await CalibrateLineToTargetInclAsync(
-                            config, uid, ln.TaxIds, taxInfoMap, ln.SubIncl, ln.Qty, ln.Discount, ln.PriceUnit);
-
                         try
                         {
                             using var _ = await ExecuteKwAsync(config, uid, "pos.order.line", "write",
                                 [new[] { ln.LineId }, new Dictionary<string, object>
                                 {
-                                    ["price_unit"] = (double)calUnit,
-                                    ["price_subtotal"] = (double)newExcl,
-                                    ["price_subtotal_incl"] = (double)newIncl
+                                    ["price_subtotal"] = (double)curExcl,
+                                    ["price_subtotal_incl"] = (double)curIncl
                                 }]);
-                            linesTotalIncl += newIncl;
-                            linesTotalTax += (newIncl - newExcl);
+                            linesTotalIncl += curIncl;
+                            linesTotalTax += (curIncl - curExcl);
                             continue;
                         }
                         catch { }
@@ -2161,6 +2502,7 @@ public class OdooSyncService
             if (canEditOrder &&
                 (Math.Abs(ord.Total - linesTotalIncl) >= 0.01m ||
                  Math.Abs(ord.Tax - linesTotalTax) >= 0.01m ||
+                 Math.Abs(ord.Paid - linesTotalIncl) >= 0.01m ||
                  Math.Abs(ord.Ret) >= 0.01m))
             {
                 try
@@ -2170,34 +2512,73 @@ public class OdooSyncService
                         {
                             ["amount_total"] = (double)linesTotalIncl,
                             ["amount_tax"] = (double)linesTotalTax,
+                            ["amount_paid"] = (double)linesTotalIncl,
                             ["amount_return"] = 0.0
                         }]);
                 }
                 catch { }
             }
 
-            decimal paidSum = paySumByOrder.TryGetValue(oid, out var ps) ? ps : 0m;
-            decimal payDiff = Math.Round(linesTotalIncl - paidSum, 2);
-            if (Math.Abs(payDiff) >= 0.01m && repairMethodId > 0)
+            var ordPays = paymentsByOrder.TryGetValue(oid, out var pList) ? pList : [];
+            decimal paidSum = ordPays.Sum(p => p.Amount);
+            decimal payDiff = OdooRound(linesTotalIncl - paidSum);
+
+            if (Math.Abs(payDiff) >= 0.01m)
+            {
+                bool updatedExistingPay = false;
+                if (ordPays.Count > 0)
+                {
+                    var lastPay = ordPays[^1];
+                    try
+                    {
+                        using var _ = await ExecuteKwAsync(config, uid, "pos.payment", "write",
+                            [new[] { lastPay.PayId }, new Dictionary<string, object>
+                            {
+                                ["amount"] = (double)OdooRound(lastPay.Amount + payDiff)
+                            }]);
+                        updatedExistingPay = true;
+                    }
+                    catch { }
+                }
+
+                if (!updatedExistingPay && repairMethodId > 0)
+                {
+                    try
+                    {
+                        var adjVals = new Dictionary<string, object>
+                        {
+                            ["pos_order_id"] = oid,
+                            ["session_id"] = targetSessionId,
+                            ["payment_method_id"] = repairMethodId,
+                            ["amount"] = (double)payDiff,
+                            ["payment_date"] = closedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+                        };
+                        using var _ = await ExecuteKwAsync(config, uid, "pos.payment", "create", [adjVals]);
+                    }
+                    catch { }
+                }
+            }
+
+            // Ensure any 'draft' order is marked 'paid' (passing singleton [oid])
+            if (string.Equals(ord.State, "draft", StringComparison.OrdinalIgnoreCase))
             {
                 try
                 {
-                    var adjVals = new Dictionary<string, object>
-                    {
-                        ["pos_order_id"] = oid,
-                        ["session_id"] = targetSessionId,
-                        ["payment_method_id"] = repairMethodId,
-                        ["amount"] = (double)payDiff,
-                        ["payment_date"] = closedAt.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
-                    };
-                    using var _ = await ExecuteKwAsync(config, uid, "pos.payment", "create", [adjVals]);
+                    using var _ = await ExecuteKwAsync(config, uid, "pos.order", "action_pos_order_paid", [new[] { oid }]);
                 }
-                catch { }
+                catch
+                {
+                    try
+                    {
+                        using var _ = await ExecuteKwAsync(config, uid, "pos.order", "write",
+                            [new[] { oid }, new Dictionary<string, object> { ["state"] = "paid" }]);
+                    }
+                    catch { }
+                }
             }
         }
 
-        // Clear any leftover draft account.move from a prior failed close attempt
-        // so Odoo regenerates a balanced journal entry from the repaired orders.
+        // 6. Clear any leftover draft account.move from a prior failed close attempt
         try
         {
             using var sessMoveDoc = await SearchReadAsync(
@@ -2254,14 +2635,11 @@ public class OdooSyncService
     {
         var (sessUserId, sessUserName) = await SqliteDatabaseService.Instance.GetSessionUserAsync(payload.LocalSessionId, sessionOdooId ?? payload.SessionOdooId);
         var (execConfig, execUid) = await ResolveExecutionCredentialsAsync(config, uid, sessUserId, sessUserName);
-        config = execConfig;
-        uid = execUid;
 
-        // 1. Prefer the session this close was queued for; fall back to any open session
         int targetSessionId = 0;
         if (sessionOdooId.HasValue && sessionOdooId.Value > 0)
         {
-            string knownState = await GetOdooSessionStateAsync(config, uid, sessionOdooId.Value);
+            string knownState = await GetOdooSessionStateAsync(execConfig, execUid, sessionOdooId.Value);
             if (!string.IsNullOrWhiteSpace(knownState) &&
                 !string.Equals(knownState, "closed", StringComparison.OrdinalIgnoreCase))
             {
@@ -2272,8 +2650,8 @@ public class OdooSyncService
         if (targetSessionId <= 0)
         {
             using var searchDoc = await SearchReadAsync(
-                config,
-                uid,
+                execConfig,
+                execUid,
                 "pos.session",
                 [
                     new object[] { "config_id", "=", payload.ConfigOdooId },
@@ -2291,34 +2669,34 @@ public class OdooSyncService
 
         if (targetSessionId <= 0)
         {
-            // No non-closed session exists on Odoo for this shop — already closed
+            _openSessionByConfigCache.TryRemove(payload.ConfigOdooId, out _);
             return;
         }
 
-        string currentState = await GetOdooSessionStateAsync(config, uid, targetSessionId);
+        string currentState = await GetOdooSessionStateAsync(execConfig, execUid, targetSessionId);
         if (string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
         {
+            _openSessionByConfigCache.TryRemove(payload.ConfigOdooId, out _);
             return;
         }
 
-        // 2. If the session is still in 'opening_control', transition it to 'opened' first
         if (string.Equals(currentState, "opening_control", StringComparison.OrdinalIgnoreCase))
         {
             try
             {
-                using var _ = await ExecuteKwAsync(config, uid, "pos.session", "set_opening_control", [new[] { targetSessionId }, (double)payload.OpeningBalance, ""]);
+                using var _ = await ExecuteKwAsync(execConfig, execUid, "pos.session", "set_opening_control", [new[] { targetSessionId }, (double)payload.OpeningBalance, ""]);
             }
             catch
             {
                 try
                 {
-                    using var _ = await ExecuteKwAsync(config, uid, "pos.session", "action_pos_session_open", [new[] { targetSessionId }]);
+                    using var _ = await ExecuteKwAsync(execConfig, execUid, "pos.session", "action_pos_session_open", [new[] { targetSessionId }]);
                 }
                 catch { }
             }
         }
 
-        // 3. Post closing cash details and ensure account.bank.statement has correct balance_start and balance_end_real
+        // Write bank_statement_id balances
         try
         {
             using var sessDoc = await SearchReadAsync(
@@ -2360,12 +2738,9 @@ public class OdooSyncService
                 }
             }
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[PushCloseSession] Could not write bank_statement_id balance: {ex.Message}");
-        }
+        catch { }
 
-        // 3b. Update start_at (Opening Date) and stop_at (Closing Date) on pos.session
+        // Update start_at and stop_at on pos.session
         try
         {
             var sessVals = new Dictionary<string, object>
@@ -2377,8 +2752,8 @@ public class OdooSyncService
                 sessVals["start_at"] = payload.OpenedAt.Value.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss");
             }
             using var _ = await ExecuteKwAsync(
-                config,
-                uid,
+                execConfig,
+                execUid,
                 "pos.session",
                 "write",
                 [new[] { targetSessionId }, sessVals]
@@ -2389,8 +2764,8 @@ public class OdooSyncService
         try
         {
             using var _ = await ExecuteKwAsync(
-                config,
-                uid,
+                execConfig,
+                execUid,
                 "pos.session",
                 "post_closing_cash_details",
                 [new[] { targetSessionId }, (double)payload.ClosingCashCount]
@@ -2398,14 +2773,13 @@ public class OdooSyncService
         }
         catch { }
 
-        // 4. Update closing notes if present
         if (!string.IsNullOrWhiteSpace(payload.ClosingNote))
         {
             try
             {
                 using var _ = await ExecuteKwAsync(
-                    config,
-                    uid,
+                    execConfig,
+                    execUid,
                     "pos.session",
                     "update_closing_control_state_session",
                     [new[] { targetSessionId }, payload.ClosingNote]
@@ -2414,12 +2788,12 @@ public class OdooSyncService
             catch { }
         }
 
-        // 4b. Reconcile any remaining draft pos.orders on Odoo to unblock session closing
+        // Reconcile any draft pos.orders on Odoo ONE BY ONE (singleton) so self.ensure_one() succeeds
         try
         {
             using var draftDoc = await SearchReadAsync(
-                config,
-                uid,
+                execConfig,
+                execUid,
                 "pos.order",
                 [
                     new object[] { "session_id", "=", targetSessionId },
@@ -2429,23 +2803,20 @@ public class OdooSyncService
             );
             if (draftDoc.RootElement.TryGetProperty("result", out var dArr) && dArr.ValueKind == JsonValueKind.Array)
             {
-                var draftIds = new List<int>();
                 foreach (var el in dArr.EnumerateArray())
                 {
                     int oid = GetIntOrDefault(el, "id");
-                    if (oid > 0) draftIds.Add(oid);
-                }
-                if (draftIds.Count > 0)
-                {
+                    if (oid <= 0) continue;
                     try
                     {
-                        using var _ = await ExecuteKwAsync(config, uid, "pos.order", "action_pos_order_paid", [draftIds.ToArray()]);
+                        using var _ = await ExecuteKwAsync(execConfig, execUid, "pos.order", "action_pos_order_paid", [new[] { oid }]);
                     }
                     catch
                     {
                         try
                         {
-                            using var _ = await ExecuteKwAsync(config, uid, "pos.order", "action_pos_order_cancel", [draftIds.ToArray()]);
+                            using var _ = await ExecuteKwAsync(execConfig, execUid, "pos.order", "write",
+                                [new[] { oid }, new Dictionary<string, object> { ["state"] = "paid" }]);
                         }
                         catch { }
                     }
@@ -2454,19 +2825,15 @@ public class OdooSyncService
         }
         catch { }
 
-        // 4c. Repair unbalanced orders/lines/payments before closing so the session
-        // accounting entry balances and close/post succeeds.
-        await RepairSessionOrdersAndPaymentsForCloseAsync(config, uid, targetSessionId, payload.ClosedAt);
+        _openSessionByConfigCache.TryRemove(payload.ConfigOdooId, out _);
 
-        // 5. Close session from UI (empty diff dict; counted cash is already set via
-        // post_closing_cash_details). Sending per-method counts here previously caused
-        // "The entry is not balanced".
+        // 1. Try fast optimistic close first
         string? lastCloseError = null;
         try
         {
             using var closeDoc = await ExecuteKwAsync(
-                config,
-                uid,
+                execConfig,
+                execUid,
                 "pos.session",
                 "close_session_from_ui",
                 [new[] { targetSessionId }, new Dictionary<string, object>()]
@@ -2482,43 +2849,55 @@ public class OdooSyncService
         catch (Exception ex1)
         {
             lastCloseError = ex1.Message;
-            try
-            {
-                using var _ = await ExecuteKwAsync(
-                    config,
-                    uid,
-                    "pos.session",
-                    "close_session_from_ui",
-                    [new[] { targetSessionId }, Array.Empty<object>()]
-                );
-            }
-            catch { }
         }
 
-        // 6. Verify session state; if the UI close did not finish, run the backend close
-        // (action_pos_session_close) which posts orders and creates accounting entries.
-        // Never force-write state='closed': that skips order posting and leaves orders Paid.
-        currentState = await GetOdooSessionStateAsync(config, uid, targetSessionId);
+        currentState = await GetOdooSessionStateAsync(execConfig, execUid, targetSessionId);
+
+        // 2. If not closed yet (e.g. Session #386 with unbalanced/cancelled orders), run full repair and retry
         if (!string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
         {
+            await RepairSessionOrdersAndPaymentsForCloseAsync(config, uid, targetSessionId, payload.ClosedAt);
+
             try
             {
-                using var _ = await ExecuteKwAsync(
-                    config,
-                    uid,
+                using var closeDoc2 = await ExecuteKwAsync(
+                    execConfig,
+                    execUid,
                     "pos.session",
-                    "action_pos_session_close",
-                    [new[] { targetSessionId }]
+                    "close_session_from_ui",
+                    [new[] { targetSessionId }, new Dictionary<string, object>()]
                 );
-            }
-            catch (Exception ex)
-            {
-                if (string.IsNullOrWhiteSpace(lastCloseError))
+                if (closeDoc2.RootElement.TryGetProperty("result", out var resEl2) &&
+                    resEl2.ValueKind == JsonValueKind.Object &&
+                    resEl2.TryGetProperty("status", out var stEl2) && stEl2.GetBoolean())
                 {
-                    lastCloseError = ex.Message;
+                    lastCloseError = null;
                 }
             }
-            currentState = await GetOdooSessionStateAsync(config, uid, targetSessionId);
+            catch (Exception ex2)
+            {
+                lastCloseError = ex2.Message;
+            }
+
+            currentState = await GetOdooSessionStateAsync(execConfig, execUid, targetSessionId);
+            if (!string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    using var _ = await ExecuteKwAsync(
+                        execConfig,
+                        execUid,
+                        "pos.session",
+                        "action_pos_session_close",
+                        [new[] { targetSessionId }]
+                    );
+                }
+                catch (Exception ex3)
+                {
+                    lastCloseError = ex3.Message;
+                }
+                currentState = await GetOdooSessionStateAsync(execConfig, execUid, targetSessionId);
+            }
         }
 
         _sessionPmCache.TryRemove(targetSessionId, out _);

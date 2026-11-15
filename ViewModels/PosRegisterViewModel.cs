@@ -3221,6 +3221,12 @@ public partial class PosRegisterViewModel : ViewModelBase
             foreach (var p in payments) order.Payments.Add(p);
             _lastPaidOrder = order;
 
+            // Update in-memory orders list & breakdown in <1ms without re-reading SQLite from HDD
+            _allInPosOrders.RemoveAll(o => o.Id == order.Id || o.Uuid == order.Uuid);
+            _allInPosOrders.Insert(0, order);
+            FilterInPosOrders();
+            UpdateSessionBreakdownFromMemory();
+
             ConfirmedPaidAmount = total;
             ConfirmedCashAmount = AmountTendered;
             ConfirmedChangeAmount = Math.Max(0.00m, AmountTendered - total);
@@ -3235,7 +3241,6 @@ public partial class PosRegisterViewModel : ViewModelBase
                 ExecuteOrderReceiptPrint(order, isAutoPrint: true);
             }
 
-            await ReloadInPosOrdersAsync();
             await RefreshPendingSyncCountAsync();
 
             // Immediately push the order to Odoo (guaranteed not to be dropped by _queueLock)
@@ -3377,27 +3382,49 @@ public partial class PosRegisterViewModel : ViewModelBase
             ? (HasSecondReceiptPreview ? "Main & Second Receipts printed automatically." : "Receipt printed automatically.")
             : "Receipt printed.");
 
-        // Physical print output via PosPrinterService
+        // Physical print output via PosPrinterService — format AND print on a background thread
+        // so the UI never stutters. Snapshot everything the worker needs first.
+        string shopNameCopy = ActiveShopName;
+        var companiesSnapshot = _allCompanies.ToList();
+        var mainDesignCopy = mainDesign;
+        var secondDesignCopy = secondDesign;
+        bool mainIsDrawerOnly = mainDesign?.OpenCashDrawerOnly == true;
+
         _ = Task.Run(async () =>
         {
             try
             {
                 var gen = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+
+                CompanyRecord? company = null;
+                if (mainDesignCopy?.CompanyId != null)
+                {
+                    company = companiesSnapshot.FirstOrDefault(c => c.Id == mainDesignCopy.CompanyId.Value);
+                }
+
+                string mainText = mainIsDrawerOnly
+                    ? string.Empty
+                    : ReceiptTemplateService.FormatOrderReceiptText(order, mainDesignCopy, company, shopNameCopy, isSimplified: false);
+
                 PosPrinterService.PrintReceiptText(
                     gen.DefaultPrinterName,
-                    ReceiptPreviewMainText,
-                    cashDrawerPulse: gen.CashDrawerPulse || (mainDesign?.OpenCashDrawerOnly == true),
+                    string.IsNullOrWhiteSpace(mainText) ? " " : mainText,
+                    cashDrawerPulse: gen.CashDrawerPulse || mainIsDrawerOnly,
                     encodingName: gen.PrinterEncoding
                 );
 
-                if (secondDesign != null && !secondDesign.OpenCashDrawerOnly && !string.IsNullOrWhiteSpace(ReceiptPreviewSecondText))
+                if (secondDesignCopy != null && !secondDesignCopy.OpenCashDrawerOnly)
                 {
-                    PosPrinterService.PrintReceiptText(
-                        gen.DefaultPrinterName,
-                        ReceiptPreviewSecondText,
-                        cashDrawerPulse: false,
-                        encodingName: gen.PrinterEncoding
-                    );
+                    string secondText = ReceiptTemplateService.FormatOrderReceiptText(order, secondDesignCopy, company, shopNameCopy, isSimplified: true);
+                    if (!string.IsNullOrWhiteSpace(secondText))
+                    {
+                        PosPrinterService.PrintReceiptText(
+                            gen.DefaultPrinterName,
+                            secondText,
+                            cashDrawerPulse: false,
+                            encodingName: gen.PrinterEncoding
+                        );
+                    }
                 }
             }
             catch (Exception ex)
@@ -3435,9 +3462,10 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public void OpenHamburgerMenu()
     {
-        _ = RefreshPendingSyncCountAsync();
-        _ = UpdateSessionBreakdownAsync();
+        // Open the popup immediately in 0ms and compute breakdown from in-memory orders
+        UpdateSessionBreakdownFromMemory();
         IsHamburgerMenuOpen = true;
+        _ = RefreshPendingSyncCountAsync();
     }
 
     [RelayCommand]
@@ -3570,20 +3598,10 @@ public partial class PosRegisterViewModel : ViewModelBase
         IsDraftOrdersWarningModalOpen = !hideReviewOrders && (dbDraftCount > 0 || localDraftCount > 0);
     }
 
-    private async Task UpdateSessionBreakdownAsync()
+    private void UpdateSessionBreakdownFromMemory()
     {
-        int sessId = CurrentConfig?.CurrentSessionId ?? 1;
-        string shopName = CurrentConfig?.Name ?? ActiveShopName;
         string sessName = CurrentConfig?.CurrentSessionName ?? (CurrentSession?.Name ?? $"{ActiveShopName}/00001");
         CurrentSessionNameDisplay = sessName;
-
-        try
-        {
-            var loaded = await SqliteDatabaseService.Instance.LoadAllOrdersAsync(shopName);
-            _allInPosOrders.Clear();
-            _allInPosOrders.AddRange(loaded);
-        }
-        catch { }
 
         var sessOrders = _allInPosOrders.Where(o => OrderMatchesCurrentSession(o) && !o.IsCancelled && !o.IsDraft).ToList();
 
@@ -3624,13 +3642,11 @@ public partial class PosRegisterViewModel : ViewModelBase
         decimal totalSessionSales = cashSales + cardSales + custAccountSales;
         SessionTotalPaymentsAmount = totalSessionSales;
         decimal openBal = CurrentConfig?.OpeningBalance ?? 0.00m;
-        decimal cashMoves = await SqliteDatabaseService.Instance.GetSessionCashInOutTotalAsync(sessId);
 
         CashOpening = openBal;
         CashPayments = cashSales;
-        CashInOut = cashMoves;
 
-        decimal expectedCash = openBal + cashSales + cashMoves;
+        decimal expectedCash = openBal + cashSales + CashInOut;
         SessionSummaryText = $"{count} orders: $ {totalSessionSales:N2}";
 
         OnPropertyChanged(nameof(CurrentSessionDisplayName));
@@ -3648,6 +3664,13 @@ public partial class PosRegisterViewModel : ViewModelBase
         CustomerAccountTotal = custAccountSales;
         CustomerAccountCounted = custAccountSales;
         CustomerAccountDifference = 0.00m;
+    }
+
+    private async Task UpdateSessionBreakdownAsync()
+    {
+        int sessId = CurrentConfig?.CurrentSessionId ?? 1;
+        CashInOut = await SqliteDatabaseService.Instance.GetSessionCashInOutTotalAsync(sessId);
+        UpdateSessionBreakdownFromMemory();
     }
 
     [RelayCommand]

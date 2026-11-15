@@ -12,11 +12,31 @@ namespace OdooPosLogin;
 
 public static class PosImageUtils
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, BitmapImage?> _bitmapCache = new();
+
     public static BitmapImage? Base64ToBitmapImage(string? base64)
     {
-        string? cleaned = CleanBase64(base64);
-        if (string.IsNullOrEmpty(cleaned))
+        if (string.IsNullOrWhiteSpace(base64))
             return null;
+
+        // Fast cache key using length + head/tail sample to avoid hashing megabyte strings repeatedly
+        string trimmed = base64.Trim();
+        if (trimmed.Length < 24)
+            return null;
+
+        string cacheKey = trimmed.Length > 128
+            ? $"{trimmed.Length}:{trimmed[..48]}:{trimmed[^48..]}"
+            : trimmed;
+
+        if (_bitmapCache.TryGetValue(cacheKey, out var cachedBitmap))
+            return cachedBitmap;
+
+        string? cleaned = CleanBase64(trimmed);
+        if (string.IsNullOrEmpty(cleaned))
+        {
+            _bitmapCache[cacheKey] = null;
+            return null;
+        }
 
         byte[] bytes;
         try
@@ -25,45 +45,51 @@ public static class PosImageUtils
         }
         catch
         {
+            _bitmapCache[cacheKey] = null;
             return null;
         }
 
         if (bytes.Length < 24)
+        {
+            _bitmapCache[cacheKey] = null;
             return null;
+        }
 
-        // 1. If the payload is an SVG XML image (e.g. Odoo letter avatars like "T")
+        BitmapImage? decoded = null;
+
+        // 1. SVG payload
         if (IsSvgPayload(bytes))
         {
-            var svgBitmap = RenderSvgToBitmapImage(bytes);
-            if (svgBitmap != null)
-                return svgBitmap;
+            decoded = RenderSvgToBitmapImage(bytes);
+        }
+        // 2. WebP payload
+        else if (IsWebpPayload(bytes))
+        {
+            decoded = DecodeWithImageSharp(bytes);
+        }
+        // 3. Standard PNG / JPEG with DecodePixelWidth = 128 to save 99% RAM on 2GB machines
+        else
+        {
+            try
+            {
+                using var stream = new MemoryStream(bytes);
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.DecodePixelWidth = 128;
+                bitmap.StreamSource = stream;
+                bitmap.EndInit();
+                bitmap.Freeze();
+                decoded = bitmap;
+            }
+            catch
+            {
+                decoded = DecodeWithImageSharp(bytes);
+            }
         }
 
-        // 2. If the payload is WebP (Odoo 17-20 default image format: RIFF....WEBP), decode via ImageSharp
-        if (IsWebpPayload(bytes))
-        {
-            var webpBitmap = DecodeWithImageSharp(bytes);
-            if (webpBitmap != null)
-                return webpBitmap;
-        }
-
-        // 3. Try native WPF BitmapImage (for standard PNG / JPEG)
-        try
-        {
-            using var stream = new MemoryStream(bytes);
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.StreamSource = stream;
-            bitmap.EndInit();
-            bitmap.Freeze();
-            return bitmap;
-        }
-        catch
-        {
-            // 4. Fallback to ImageSharp for any other format or color profile that WPF rejected
-            return DecodeWithImageSharp(bytes);
-        }
+        _bitmapCache[cacheKey] = decoded;
+        return decoded;
     }
 
     private static BitmapImage? DecodeWithImageSharp(byte[] bytes)
@@ -78,6 +104,7 @@ public static class PosImageUtils
             var bitmap = new BitmapImage();
             bitmap.BeginInit();
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.DecodePixelWidth = 128;
             bitmap.StreamSource = pngStream;
             bitmap.EndInit();
             bitmap.Freeze();

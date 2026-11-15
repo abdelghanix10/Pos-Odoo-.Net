@@ -1270,6 +1270,13 @@ public class OdooSyncService
         }
         catch { }
 
+        // Write opening balance to pos.session (cash_register_balance_start) and the linked
+        // cash register / bank statement, so Odoo's session form shows the real opening amount.
+        await WriteSessionBalancesToOdooAsync(
+            execConfig, execUid, config, uid, odooSessionId,
+            payload.OpeningBalance, null,
+            payload.OpenedAt, null, payload.OpeningNote, null, resolvedUserId);
+
         await SqliteDatabaseService.Instance.BindLocalSessionToOdooSessionAsync(
             payload.LocalSessionId,
             payload.ConfigOdooId,
@@ -2211,6 +2218,123 @@ public class OdooSyncService
         );
     }
 
+    private async Task WriteSessionBalancesToOdooAsync(
+        OdooConfigRecord execConfig,
+        int execUid,
+        OdooConfigRecord adminConfig,
+        int adminUid,
+        int odooSessionId,
+        decimal openingBalance,
+        decimal? closingBalance = null,
+        DateTime? openedAt = null,
+        DateTime? closedAt = null,
+        string? openingNote = null,
+        string? closingNote = null,
+        int? userId = null)
+    {
+        try
+        {
+            var sessionFields = await GetAvailableFieldsAsync(execConfig, execUid, "pos.session");
+            var sessVals = new Dictionary<string, object>();
+
+            if (openedAt.HasValue && (sessionFields.Count == 0 || sessionFields.Contains("start_at")))
+                sessVals["start_at"] = openedAt.Value.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+            if (closedAt.HasValue && (sessionFields.Count == 0 || sessionFields.Contains("stop_at")))
+                sessVals["stop_at"] = closedAt.Value.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+            if (userId.HasValue && userId.Value > 0 && (sessionFields.Count == 0 || sessionFields.Contains("user_id")))
+                sessVals["user_id"] = userId.Value;
+
+            if (sessionFields.Count == 0 || sessionFields.Contains("cash_register_balance_start"))
+                sessVals["cash_register_balance_start"] = (double)openingBalance;
+
+            if (sessionFields.Contains("opening_balance"))
+                sessVals["opening_balance"] = (double)openingBalance;
+
+            if (!string.IsNullOrWhiteSpace(openingNote) && (sessionFields.Count == 0 || sessionFields.Contains("opening_notes")))
+                sessVals["opening_notes"] = openingNote;
+
+            if (closingBalance.HasValue)
+            {
+                if (sessionFields.Count == 0 || sessionFields.Contains("cash_register_balance_end_real"))
+                    sessVals["cash_register_balance_end_real"] = (double)closingBalance.Value;
+
+                if (sessionFields.Contains("closing_balance"))
+                    sessVals["closing_balance"] = (double)closingBalance.Value;
+            }
+
+            if (!string.IsNullOrWhiteSpace(closingNote) && (sessionFields.Count == 0 || sessionFields.Contains("closing_notes")))
+                sessVals["closing_notes"] = closingNote;
+
+            if (sessVals.Count > 0)
+            {
+                try
+                {
+                    using var _ = await ExecuteKwAsync(execConfig, execUid, "pos.session", "write", [new[] { odooSessionId }, sessVals]);
+                }
+                catch
+                {
+                    using var _ = await ExecuteKwAsync(adminConfig, adminUid, "pos.session", "write", [new[] { odooSessionId }, sessVals]);
+                }
+            }
+
+            // Also update linked cash_register_id / bank_statement_id if present on this Odoo version
+            var stmtFieldCandidates = new[] { "cash_register_id", "bank_statement_id" }
+                .Where(f => sessionFields.Contains(f))
+                .ToArray();
+
+            if (stmtFieldCandidates.Length > 0)
+            {
+                using var sessDoc = await SearchReadAsync(
+                    adminConfig,
+                    adminUid,
+                    "pos.session",
+                    [new object[] { "id", "=", odooSessionId }],
+                    ["id", .. stmtFieldCandidates]
+                );
+
+                if (sessDoc.RootElement.TryGetProperty("result", out var sArr) &&
+                    sArr.ValueKind == JsonValueKind.Array &&
+                    sArr.GetArrayLength() > 0)
+                {
+                    var el = sArr[0];
+                    int stmtId = 0;
+                    foreach (string sf in stmtFieldCandidates)
+                    {
+                        var (idVal, _) = GetMany2One(el, sf);
+                        if (idVal.HasValue && idVal.Value > 0)
+                        {
+                            stmtId = idVal.Value;
+                            break;
+                        }
+                    }
+
+                    if (stmtId > 0)
+                    {
+                        var stmtVals = new Dictionary<string, object>
+                        {
+                            ["balance_start"] = (double)openingBalance
+                        };
+                        if (closingBalance.HasValue)
+                        {
+                            stmtVals["balance_end_real"] = (double)closingBalance.Value;
+                        }
+
+                        using var _ = await ExecuteKwAsync(
+                            adminConfig,
+                            adminUid,
+                            "account.bank.statement",
+                            "write",
+                            [new[] { stmtId }, stmtVals]
+                        );
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
     private async Task<string> GetOdooSessionStateAsync(OdooConfigRecord config, int uid, int sessionId)
     {
         using var doc = await SearchReadAsync(
@@ -2773,6 +2897,12 @@ public class OdooSyncService
         }
         catch { }
 
+        // 1. Set Opening & Closing Balances before closing
+        await WriteSessionBalancesToOdooAsync(
+            execConfig, execUid, config, uid, targetSessionId,
+            payload.OpeningBalance, payload.ClosingCashCount,
+            payload.OpenedAt, payload.ClosedAt, null, payload.ClosingNote);
+
         if (!string.IsNullOrWhiteSpace(payload.ClosingNote))
         {
             try
@@ -2901,6 +3031,13 @@ public class OdooSyncService
         }
 
         _sessionPmCache.TryRemove(targetSessionId, out _);
+
+        // 2. Write Opening & Closing Balances again AFTER session close so Odoo's closed session
+        // form view ("Opening Balance" & "Closing Balance") retains the exact counted amounts
+        await WriteSessionBalancesToOdooAsync(
+            execConfig, execUid, config, uid, targetSessionId,
+            payload.OpeningBalance, payload.ClosingCashCount,
+            payload.OpenedAt, payload.ClosedAt, null, payload.ClosingNote);
 
         if (!string.Equals(currentState, "closed", StringComparison.OrdinalIgnoreCase))
         {

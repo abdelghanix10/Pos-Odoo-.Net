@@ -247,6 +247,29 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
     public bool HasImage => ImageBitmap != null;
     public bool HasNoImage => ImageBitmap == null;
 
+    private static readonly ImageSource? CachedMoneyIcon = LoadPackIcon("pack://application:,,,/Assets/money.png");
+    private static readonly ImageSource? CachedPayLaterIcon = LoadPackIcon("pack://application:,,,/Assets/pay-later.png");
+    private static readonly ImageSource? CachedCardBankIcon = LoadPackIcon("pack://application:,,,/Assets/card-bank.png");
+
+    private static ImageSource? LoadPackIcon(string uri)
+    {
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.UriSource = new Uri(uri, UriKind.Absolute);
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.DecodePixelWidth = 48;
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public ImageSource? IconSource
     {
         get
@@ -254,26 +277,11 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
             if (ImageBitmap != null) return ImageBitmap;
             var t = (MethodType ?? string.Empty).ToLowerInvariant();
             var n = (Name ?? string.Empty).ToLowerInvariant();
-            string asset = (t == "cash" || n.Contains("cash"))
-                ? "pack://application:,,,/Assets/money.png"
-                : (t == "pay_later" || t == "customer_account" || n.Contains("customer") || n.Contains("account") || n.Contains("later"))
-                    ? "pack://application:,,,/Assets/pay-later.png"
-                    : "pack://application:,,,/Assets/card-bank.png";
-
-            try
-            {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.UriSource = new Uri(asset, UriKind.Absolute);
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.EndInit();
-                bmp.Freeze();
-                return bmp;
-            }
-            catch
-            {
-                return null;
-            }
+            if (t == "cash" || n.Contains("cash"))
+                return CachedMoneyIcon;
+            if (t == "pay_later" || t == "customer_account" || n.Contains("customer") || n.Contains("account") || n.Contains("later"))
+                return CachedPayLaterIcon;
+            return CachedCardBankIcon;
         }
     }
 

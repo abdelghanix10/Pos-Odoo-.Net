@@ -623,6 +623,50 @@ public static class PosImageUtils
     public static string GetCustomLogoFilePath() =>
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "custom_program_logo.png");
 
+    /// <summary>
+    /// Writes the login-page logo out as a real Windows .ico (128x128 PNG payload) so the
+    /// project can embed it via &lt;ApplicationIcon&gt;. Runs once; a second call is a no-op.
+    /// </summary>
+    public static void EnsureAppIconFileExists()
+    {
+        try
+        {
+            string projectAssetsDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\Assets"));
+            string targetIcoPath = Directory.Exists(projectAssetsDir)
+                ? Path.Combine(projectAssetsDir, "app_logo.ico")
+                : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app_logo.ico");
+
+            if (File.Exists(targetIcoPath))
+                return;
+
+            var bmp = GetDefaultProgramIcon();
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bmp));
+
+            using var pngStream = new MemoryStream();
+            encoder.Save(pngStream);
+            byte[] pngBytes = pngStream.ToArray();
+
+            // Write standard Windows ICO header wrapping the 128x128 PNG
+            using var fs = new FileStream(targetIcoPath, FileMode.Create, FileAccess.Write);
+            using var bw = new BinaryWriter(fs);
+
+            bw.Write((short)0);           // Reserved
+            bw.Write((short)1);           // Type: 1 = ICO
+            bw.Write((short)1);           // Image count: 1
+            bw.Write((byte)128);          // Width: 128px
+            bw.Write((byte)128);          // Height: 128px
+            bw.Write((byte)0);            // Palette colors
+            bw.Write((byte)0);            // Reserved
+            bw.Write((short)1);           // Color planes
+            bw.Write((short)32);          // Bits per pixel (32-bit RGBA)
+            bw.Write(pngBytes.Length);    // PNG data size
+            bw.Write(22);                 // Offset to PNG data (6 + 16 = 22)
+            bw.Write(pngBytes);           // PNG payload
+        }
+        catch { }
+    }
+
     public static BitmapImage? LoadCustomProgramLogoFromDisk()
     {
         try

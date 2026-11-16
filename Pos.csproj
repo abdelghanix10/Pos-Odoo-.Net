@@ -6,6 +6,18 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+
+    <!-- Executable Name & Embedded Windows Icon -->
+    <AssemblyName>OdooPOS</AssemblyName>
+    <ApplicationIcon>Assets\app_logo.ico</ApplicationIcon>
+    <Product>Odoo 20 Point of Sale</Product>
+    <Version>1.0.0</Version>
+
+    <!-- Native pre-compilation for fast startup on 2GB RAM + HDD -->
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <ReadyToRun>true</ReadyToRun>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>

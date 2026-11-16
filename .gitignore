@@ -1,5 +1,11 @@
 /bin
 /obj
+/publish
+/Installer
+/.vs
+scratch/
+*.user
+*.suo
 *.log
 *.db
 codebase.md

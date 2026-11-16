@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Icon = PosImageUtils.GetDefaultProgramIcon();
+        PosImageUtils.EnsureAppIconFileExists();
 
         _pinDots = [PinDot1, PinDot2, PinDot3, PinDot4];
 

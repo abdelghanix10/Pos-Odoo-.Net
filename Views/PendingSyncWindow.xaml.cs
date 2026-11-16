@@ -34,6 +34,7 @@ public partial class PendingSyncWindow : Window
     public PendingSyncWindow()
     {
         InitializeComponent();
+        Icon = PosImageUtils.LoadCustomProgramLogoFromDisk() ?? PosImageUtils.GetDefaultProgramIcon();
         QueueItemsControl.ItemsSource = _items;
 
         UpdateOnlineIndicator(OdooSyncService.Instance.IsOnline);

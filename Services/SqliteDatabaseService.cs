@@ -5094,7 +5094,7 @@ public class SqliteDatabaseService
                 isToInvoice,
                 order.AmountTotal,
                 order.AmountTax,
-                order.AmountPaid,
+                order.AmountTotal,
                 order.Note ?? "",
                 syncLines,
                 syncPayments

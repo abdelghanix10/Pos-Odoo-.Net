@@ -1802,11 +1802,11 @@
                                                     BorderThickness="0,0,0,1">
                                                 <StackPanel>
                                                     <!-- Order Header Row -->
-                                                    <Grid Height="54" Margin="16,0">
+                                                    <Grid Height="58" Margin="16,0">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="150"/>
-                                                            <ColumnDefinition Width="280"/>
-                                                            <ColumnDefinition Width="180"/>
+                                                            <ColumnDefinition Width="260"/>
+                                                            <ColumnDefinition Width="260"/>
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
@@ -1821,19 +1821,25 @@
                                                             <TextBlock Text="{Binding PosReference}" FontSize="11.5" Foreground="#6B7280"/>
                                                         </StackPanel>
 
-                                                        <TextBlock Grid.Column="2"
-                                                                   Text="{Binding TotalDisplay}"
-                                                                   FontSize="13.5"
-                                                                   FontWeight="Bold"
-                                                                   Foreground="#4C4268"
-                                                                   VerticalAlignment="Center"/>
+                                                        <!-- Total + Light-Text Cash & Change Summary -->
+                                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding TotalDisplay}"
+                                                                       FontSize="14"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="#4C4268"/>
+                                                            <TextBlock Text="{Binding InPosCashAndChangeSummary}"
+                                                                       FontSize="11.5"
+                                                                       FontWeight="Light"
+                                                                       Foreground="#6B7280"
+                                                                       Margin="0,2,0,0"/>
+                                                        </StackPanel>
 
                                                         <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
                                                             <Button Command="{Binding DataContext.PrintOrderReceiptCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                                     CommandParameter="{Binding}"
                                                                     Visibility="{Binding DataContext.IsPrintLastReceiptVisible, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
                                                                     Margin="0,0,8,0" Cursor="Hand"
-                                                                    ToolTip="Print this order's receipt">
+                                                                    ToolTip="{Binding InPosPrintReceiptText}">
                                                                 <Button.Template>
                                                                     <ControlTemplate TargetType="Button">
                                                                         <Border x:Name="Bd" Background="#F3F0F8" BorderBrush="#71639E" BorderThickness="1" CornerRadius="9" Padding="12,3">
@@ -1859,38 +1865,68 @@
                                                         </StackPanel>
                                                     </Grid>
 
-                                                    <!-- Order Products (Lines) Directly Below the Order -->
+                                                    <!-- Order Products (Lines) + Light-Text Cash & Change Breakdown Below Each Order -->
                                                     <Border Background="#F9FAFB"
                                                             BorderBrush="#E5E7EB"
                                                             BorderThickness="0,1,0,0"
                                                             Padding="32,8,24,10">
-                                                        <ItemsControl ItemsSource="{Binding Lines}">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate DataType="{x:Type local:PosOrderLineRecord}">
-                                                                    <Grid Margin="0,3">
-                                                                        <Grid.ColumnDefinitions>
-                                                                            <ColumnDefinition Width="36"/>
-                                                                            <ColumnDefinition Width="*"/>
-                                                                            <ColumnDefinition Width="Auto"/>
-                                                                        </Grid.ColumnDefinitions>
-                                                                        <TextBlock Grid.Column="0"
-                                                                                   Text="{Binding QtyShortDisplay}"
-                                                                                   FontWeight="Bold"
-                                                                                   FontSize="13"
-                                                                                   Foreground="#374151"/>
-                                                                        <TextBlock Grid.Column="1"
-                                                                                   Text="{Binding ProductName}"
-                                                                                   FontSize="13"
-                                                                                   Foreground="#111827"/>
-                                                                        <TextBlock Grid.Column="2"
-                                                                                   Text="{Binding PriceSubtotalInclDisplay}"
-                                                                                   FontWeight="Bold"
-                                                                                   FontSize="13"
-                                                                                   Foreground="#374151"/>
+                                                        <StackPanel>
+                                                            <ItemsControl ItemsSource="{Binding Lines}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate DataType="{x:Type local:PosOrderLineRecord}">
+                                                                        <Grid Margin="0,3">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="36"/>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Grid.Column="0"
+                                                                                       Text="{Binding QtyShortDisplay}"
+                                                                                       FontWeight="Bold"
+                                                                                       FontSize="13"
+                                                                                       Foreground="#374151"/>
+                                                                            <TextBlock Grid.Column="1"
+                                                                                       Text="{Binding ProductName}"
+                                                                                       FontSize="13"
+                                                                                       Foreground="#111827"/>
+                                                                            <TextBlock Grid.Column="2"
+                                                                                       Text="{Binding PriceSubtotalInclDisplay}"
+                                                                                       FontWeight="Bold"
+                                                                                       FontSize="13"
+                                                                                       Foreground="#374151"/>
+                                                                        </Grid>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+
+                                                            <!-- Light-Text Cash & Change Rows under Order Products -->
+                                                            <Border BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Margin="0,6,0,0" Padding="0,6,0,0">
+                                                                <StackPanel>
+                                                                    <Grid Margin="0,1">
+                                                                        <TextBlock Text="{Binding InPosCashLabel}"
+                                                                                   FontSize="12"
+                                                                                   FontWeight="Light"
+                                                                                   Foreground="#6B7280"/>
+                                                                        <TextBlock Text="{Binding InPosCashAmountDisplay}"
+                                                                                   FontSize="12"
+                                                                                   FontWeight="Light"
+                                                                                   Foreground="#6B7280"
+                                                                                   HorizontalAlignment="Right"/>
                                                                     </Grid>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
+                                                                    <Grid Margin="0,1">
+                                                                        <TextBlock Text="{Binding InPosChangeLabel}"
+                                                                                   FontSize="12"
+                                                                                   FontWeight="Light"
+                                                                                   Foreground="#6B7280"/>
+                                                                        <TextBlock Text="{Binding InPosChangeAmountDisplay}"
+                                                                                   FontSize="12"
+                                                                                   FontWeight="Light"
+                                                                                   Foreground="#6B7280"
+                                                                                   HorizontalAlignment="Right"/>
+                                                                    </Grid>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </StackPanel>
                                                     </Border>
                                                 </StackPanel>
                                             </Border>
@@ -3509,7 +3545,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- Footer Actions -->
+                    <!-- Footer Actions (Cash In/Out button removed) -->
                     <Grid>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                             <Button Content="{Binding TxtCloseRegisterBtn}"
@@ -3522,10 +3558,6 @@
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="{Binding TxtCashInOutBtn}"
-                                    Command="{Binding CashInOutTileCommand}"
-                                    Style="{StaticResource PosSecondaryButtonStyle}"
-                                    Margin="0,0,8,0"/>
                             <Button Content="{Binding TxtDailySaleBtn}"
                                     Command="{Binding PrintReceiptCommand}"
                                     Style="{StaticResource PosSecondaryButtonStyle}"/>

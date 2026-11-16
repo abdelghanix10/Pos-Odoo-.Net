@@ -402,6 +402,11 @@ public class PosOrderRecord : INotifyPropertyChanged
                 OnPropertyChanged(nameof(TotalDisplay));
                 OnPropertyChanged(nameof(AmountTotalDisplay));
                 OnPropertyChanged(nameof(IsRefundOrder));
+                OnPropertyChanged(nameof(TenderedAmount));
+                OnPropertyChanged(nameof(ChangeAmount));
+                OnPropertyChanged(nameof(InPosCashAmountDisplay));
+                OnPropertyChanged(nameof(InPosChangeAmountDisplay));
+                OnPropertyChanged(nameof(InPosCashAndChangeSummary));
             }
         }
     }
@@ -432,6 +437,11 @@ public class PosOrderRecord : INotifyPropertyChanged
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(PaidDisplay));
                 OnPropertyChanged(nameof(AmountPaidDisplay));
+                OnPropertyChanged(nameof(TenderedAmount));
+                OnPropertyChanged(nameof(ChangeAmount));
+                OnPropertyChanged(nameof(InPosCashAmountDisplay));
+                OnPropertyChanged(nameof(InPosChangeAmountDisplay));
+                OnPropertyChanged(nameof(InPosCashAndChangeSummary));
             }
         }
     }
@@ -597,12 +607,56 @@ public class PosOrderRecord : INotifyPropertyChanged
     public string InPosPrintReceiptText => _isArabicLanguage ? "طباعة الإيصال" : "Print Receipt";
     public string InPosPaidText => _isArabicLanguage ? "مدفوع" : "Paid";
 
+    // ==================== CASH & CHANGE (LIGHT-TEXT) ====================
+    public decimal TenderedAmount
+    {
+        get
+        {
+            if (AmountPaid >= AmountTotal && AmountPaid > 0m)
+                return AmountPaid;
+            if (Payments.Count > 0)
+            {
+                decimal paySum = Payments.Sum(p => p.Amount);
+                if (paySum >= AmountTotal && paySum > 0m)
+                    return paySum;
+            }
+            return AmountTotal;
+        }
+    }
+
+    public decimal ChangeAmount => Math.Max(0.00m, TenderedAmount - AmountTotal);
+
+    public string PrimaryPaymentMethodLabel
+    {
+        get
+        {
+            string rawMethod = Payments.FirstOrDefault()?.PaymentMethodName ?? "Cash";
+            return PosPaymentMethodRecord.LocalizeMethodName(rawMethod, null, _isArabicLanguage);
+        }
+    }
+
+    public string InPosCashLabel => $"{PrimaryPaymentMethodLabel}:";
+    public string InPosCashAmountDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", TenderedAmount);
+
+    public string InPosChangeLabel => _isArabicLanguage ? "الباقي:" : "Change:";
+    public string InPosChangeAmountDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", ChangeAmount);
+
+    public string InPosCashAndChangeSummary => _isArabicLanguage
+        ? $"{PrimaryPaymentMethodLabel}: $ {TenderedAmount:N2}   •   الباقي: $ {ChangeAmount:N2}"
+        : $"{PrimaryPaymentMethodLabel}: $ {TenderedAmount:N2}   •   Change: $ {ChangeAmount:N2}";
+
     public void RefreshLanguageDisplay()
     {
         OnPropertyChanged(nameof(InPosDayDisplay));
         OnPropertyChanged(nameof(InPosTimeDisplay));
         OnPropertyChanged(nameof(InPosPrintReceiptText));
         OnPropertyChanged(nameof(InPosPaidText));
+        OnPropertyChanged(nameof(PrimaryPaymentMethodLabel));
+        OnPropertyChanged(nameof(InPosCashLabel));
+        OnPropertyChanged(nameof(InPosCashAmountDisplay));
+        OnPropertyChanged(nameof(InPosChangeLabel));
+        OnPropertyChanged(nameof(InPosChangeAmountDisplay));
+        OnPropertyChanged(nameof(InPosCashAndChangeSummary));
     }
 
     public string InPosStatusText => State?.ToLowerInvariant() switch

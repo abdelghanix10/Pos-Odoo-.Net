@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Icon = PosImageUtils.GetDefaultProgramIcon();
 
         _pinDots = [PinDot1, PinDot2, PinDot3, PinDot4];
 
@@ -103,8 +104,16 @@ public partial class MainWindow : Window
             var settings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
             ApplyScreenMode(settings.ScreenMode);
             ApplyLoginSetupButtonVisibility(settings.ShowSetupButtonOnLogin);
+
+            Dispatcher.Invoke(() =>
+            {
+                Icon = PosImageUtils.GetDefaultProgramIcon();
+            });
         }
-        catch { }
+        catch
+        {
+            Dispatcher.Invoke(() => Icon = PosImageUtils.GetDefaultProgramIcon());
+        }
     }
 
     public void ApplyScreenMode(string screenMode)

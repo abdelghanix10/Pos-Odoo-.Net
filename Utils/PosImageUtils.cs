@@ -557,4 +557,84 @@ public static class PosImageUtils
             return null;
         }
     }
+    // ==================== PROGRAM ICON & CUSTOM LOGO ====================
+    private static BitmapImage? _defaultAppIcon;
+
+    public static BitmapImage GetDefaultProgramIcon()
+    {
+        if (_defaultAppIcon != null)
+            return _defaultAppIcon;
+
+        const int size = 128;
+        var visual = new DrawingVisual();
+        using (DrawingContext dc = visual.RenderOpen())
+        {
+            // Scale 64x64 coordinate space to 128x128
+            dc.PushTransform(new ScaleTransform(2.0, 2.0));
+
+            // 1. White rounded card background (#FFFFFF) with subtle border (#E5E7EB)
+            var cardFill = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#FFFFFF"));
+            var cardBorderPen = new System.Windows.Media.Pen(
+                new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#E5E7EB")), 1.5);
+            dc.DrawRoundedRectangle(cardFill, cardBorderPen, new Rect(2, 2, 60, 60), 13, 13);
+
+            // 2. POS Screen Rectangle (Fill: #F3ECF1, Stroke: #714B67, Thickness: 3)
+            var screenFill = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#F3ECF1"));
+            var purpleBrush = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#714B67"));
+            var tealBrush = new SolidColorBrush((System.Windows.Media.Color)ColorConverter.ConvertFromString("#017E84"));
+
+            var screenPen = new System.Windows.Media.Pen(purpleBrush, 3.0);
+            dc.DrawRoundedRectangle(screenFill, screenPen, new Rect(13, 12, 38, 29), 5.5, 5.5);
+
+            // 3. Bottom Teal Base Bar (#017E84)
+            var baseGeom = Geometry.Parse("M 9,46 L 55,46 C 55,50.5 51.5,53 47,53 L 17,53 C 12.5,53 9,50.5 9,46 Z");
+            dc.DrawGeometry(tealBrush, null, baseGeom);
+
+            // 4. Left Purple Circle & Right Teal Circle inside Screen
+            var purpleCirclePen = new System.Windows.Media.Pen(purpleBrush, 3.0);
+            var tealCirclePen = new System.Windows.Media.Pen(tealBrush, 3.0);
+            dc.DrawEllipse(null, purpleCirclePen, new System.Windows.Point(26, 26.5), 5.2, 5.2);
+            dc.DrawEllipse(null, tealCirclePen, new System.Windows.Point(38, 26.5), 5.2, 5.2);
+
+            dc.Pop();
+        }
+
+        var rtb = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        rtb.Freeze();
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(rtb));
+        using var ms = new MemoryStream();
+        encoder.Save(ms);
+        ms.Position = 0;
+
+        var bmp = new BitmapImage();
+        bmp.BeginInit();
+        bmp.CacheOption = BitmapCacheOption.OnLoad;
+        bmp.StreamSource = ms;
+        bmp.EndInit();
+        bmp.Freeze();
+
+        _defaultAppIcon = bmp;
+        return bmp;
+    }
+
+    public static string GetCustomLogoFilePath() =>
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "custom_program_logo.png");
+
+    public static BitmapImage? LoadCustomProgramLogoFromDisk()
+    {
+        try
+        {
+            string path = GetCustomLogoFilePath();
+            if (!File.Exists(path)) return null;
+            byte[] bytes = File.ReadAllBytes(path);
+            return Base64ToBitmapImage(Convert.ToBase64String(bytes));
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

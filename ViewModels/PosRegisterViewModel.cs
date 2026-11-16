@@ -220,6 +220,9 @@ public partial class PosRegisterViewModel : ViewModelBase
                 }
             }
 
+            CompanyLogoBitmap ??= PosImageUtils.LoadCustomProgramLogoFromDisk()
+                                  ?? PosImageUtils.GetDefaultProgramIcon();
+
             string currentShopName = CurrentConfig?.Name ?? ActiveShopName;
             int? currentConfigOdooId = CurrentConfig?.OdooId;
 
@@ -1300,6 +1303,8 @@ public partial class PosRegisterViewModel : ViewModelBase
             var companies = await SqliteDatabaseService.Instance.LoadAllCompaniesAsync();
             var firstCompany = companies.FirstOrDefault(c => c.HasLogo) ?? companies.FirstOrDefault();
             CompanyLogoBitmap = firstCompany?.LogoBitmap;
+            CompanyLogoBitmap ??= PosImageUtils.LoadCustomProgramLogoFromDisk()
+                                  ?? PosImageUtils.GetDefaultProgramIcon();
 
             if (CashierAvatarBitmap == null)
             {
@@ -3180,6 +3185,9 @@ public partial class PosRegisterViewModel : ViewModelBase
             // Ensure canonical Odoo 20 receipt & order numbering using config.OdooId
             CurrentOrder.ApplyOdooSequence(cfgId, CurrentOrder.SequenceNumber, _deviceDigit);
 
+            // Preserve the customer's tendered cash so the order can show Cash & Change
+            decimal tendered = AmountTendered >= total ? AmountTendered : total;
+
             var order = new PosOrderRecord
             {
                 Id = CurrentOrder.DatabaseOrderId ?? 0,
@@ -3198,7 +3206,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 FiscalPosition = "Standard Tax",
                 AmountTotal = total,
                 AmountTax = tax,
-                AmountPaid = total,
+                AmountPaid = tendered,
                 Margin = Math.Round(CurrentOrder.SubTotal * 0.42m, 2),
                 MarginRatio = 42.0m,
                 State = CurrentOrder.IsToInvoice ? "invoiced" : "paid",

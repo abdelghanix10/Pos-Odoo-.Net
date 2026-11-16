@@ -16,6 +16,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     private readonly List<ProductAttributeRecord> _allProductAttributes = [];
     private readonly List<ReceiptDesignRecord> _allReceiptDesigns = [];
     private readonly List<CompanyRecord> _allCompanies = [];
+    private PosSessionRecord? _lastClosedSession;
     private PosOrderRecord? _lastPaidOrder;
 
     // ==================== SESSION & CONFIG CONTEXT ====================
@@ -192,12 +193,40 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         try
         {
+            // Ensure Company Logo is loaded for the Opening Control screen
+            if (CompanyLogoBitmap == null)
+            {
+                var genSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+                var companies = await SqliteDatabaseService.Instance.LoadAllCompaniesAsync();
+                CompanyRecord? logoCompany = null;
+
+                if (genSettings.DefaultCompanyId.HasValue)
+                {
+                    logoCompany = companies.FirstOrDefault(c =>
+                        (c.Id == genSettings.DefaultCompanyId.Value || c.OdooId == genSettings.DefaultCompanyId.Value) &&
+                        (c.HasLogo || !string.IsNullOrWhiteSpace(c.LogoBase64)));
+                }
+
+                logoCompany ??= companies.FirstOrDefault(c => c.HasLogo || !string.IsNullOrWhiteSpace(c.LogoBase64))
+                                ?? companies.FirstOrDefault();
+
+                if (logoCompany != null)
+                {
+                    if (logoCompany.LogoBitmap == null && !string.IsNullOrWhiteSpace(logoCompany.LogoBase64))
+                    {
+                        logoCompany.LogoBitmap = PosImageUtils.Base64ToBitmapImage(logoCompany.LogoBase64);
+                    }
+                    CompanyLogoBitmap = logoCompany.LogoBitmap;
+                }
+            }
+
             string currentShopName = CurrentConfig?.Name ?? ActiveShopName;
             int? currentConfigOdooId = CurrentConfig?.OdooId;
 
             var allSessions = await SqliteDatabaseService.Instance.LoadAllSessionsAsync();
             if (allSessions == null || allSessions.Count == 0)
             {
+                _lastClosedSession = null;
                 SetDefaultLastSessionInfo();
                 return;
             }
@@ -217,29 +246,26 @@ public partial class PosRegisterViewModel : ViewModelBase
                 .FirstOrDefault();
 
             // If no closed session found for this config, try any closed session in DB
-            if (lastClosed == null)
-            {
-                lastClosed = allSessions
-                    .Where(s => string.Equals(s.State, "closed", StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(s => s.StopAt ?? s.StartAt ?? DateTime.MinValue)
-                    .ThenByDescending(s => s.OdooId ?? (int)s.Id)
-                    .FirstOrDefault();
-            }
+            lastClosed ??= allSessions
+                .Where(s => string.Equals(s.State, "closed", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(s => s.StopAt ?? s.StartAt ?? DateTime.MinValue)
+                .ThenByDescending(s => s.OdooId ?? (int)s.Id)
+                .FirstOrDefault();
 
             // If still no closed session, pick latest session of this config
-            if (lastClosed == null)
-            {
-                lastClosed = configSessions
-                    .OrderByDescending(s => s.StopAt ?? s.StartAt ?? DateTime.MinValue)
-                    .ThenByDescending(s => s.OdooId ?? (int)s.Id)
-                    .FirstOrDefault();
-            }
+            lastClosed ??= configSessions
+                .OrderByDescending(s => s.StopAt ?? s.StartAt ?? DateTime.MinValue)
+                .ThenByDescending(s => s.OdooId ?? (int)s.Id)
+                .FirstOrDefault();
 
             if (lastClosed == null)
             {
+                _lastClosedSession = null;
                 SetDefaultLastSessionInfo();
                 return;
             }
+
+            _lastClosedSession = lastClosed;
 
             string title = !string.IsNullOrWhiteSpace(lastClosed.Name) ? lastClosed.Name : $"{currentShopName}/00001";
             string posName = !string.IsNullOrWhiteSpace(lastClosed.PosConfigName) ? lastClosed.PosConfigName : currentShopName;
@@ -261,9 +287,10 @@ public partial class PosRegisterViewModel : ViewModelBase
             {
                 var orders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync(lastClosed.Name);
                 var matched = orders.Where(o =>
-                    (lastClosed.OdooId.HasValue && o.SessionOdooId == lastClosed.OdooId.Value) ||
-                    string.Equals(o.SessionName, lastClosed.Name, StringComparison.OrdinalIgnoreCase) ||
-                    (lastClosed.Id > 0 && o.SessionId == lastClosed.Id)
+                    !o.IsDraft && !o.IsCancelled &&
+                    ((lastClosed.OdooId.HasValue && o.SessionOdooId == lastClosed.OdooId.Value) ||
+                     string.Equals(o.SessionName, lastClosed.Name, StringComparison.OrdinalIgnoreCase) ||
+                     (lastClosed.Id > 0 && o.SessionId == lastClosed.Id))
                 ).ToList();
 
                 if (matched.Count > 0)
@@ -832,6 +859,8 @@ public partial class PosRegisterViewModel : ViewModelBase
     public string TxtTaxesLabel => IsArabicPos ? "الضرائب: " : "Taxes: ";
     public string TxtNextProductQty => IsArabicPos ? "كمية المنتج التالي:" : "Next Product Quantity:";
     public string TxtNextQtyShort => IsArabicPos ? "الكمية التالية:" : "Next Qty:";
+    public string TxtPrintLastSessionSalesDetails =>
+        IsArabicPos ? "طباعة تفاصيل مبيعات آخر جلسة" : "Print Sales Details";
     public string TxtQtyKey => IsArabicPos ? "الكمية" : "Qty";
     public string TxtDeleteKey => IsArabicPos ? "حذف" : "Delete";
     public string TxtPaymentBtn => IsArabicPos ? "الدفع" : "Payment";
@@ -930,6 +959,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         OnPropertyChanged(nameof(TxtTaxesLabel));
         OnPropertyChanged(nameof(TxtNextProductQty));
         OnPropertyChanged(nameof(TxtNextQtyShort));
+        OnPropertyChanged(nameof(TxtPrintLastSessionSalesDetails));
         OnPropertyChanged(nameof(TxtQtyKey));
         OnPropertyChanged(nameof(TxtDeleteKey));
         OnPropertyChanged(nameof(TxtPaymentBtn));
@@ -3430,6 +3460,94 @@ public partial class PosRegisterViewModel : ViewModelBase
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[PosRegister] Printer send error: {ex.Message}");
+            }
+        });
+    }
+
+    [RelayCommand]
+    public void PrintLastSessionSalesDetails()
+    {
+        ShowPosToast(IsArabicPos
+            ? "جاري طباعة تفاصيل مبيعات آخر جلسة..."
+            : "Printing last session sales details...");
+
+        var targetSession = _lastClosedSession;
+        var configSnapshot = CurrentConfig ?? new PosConfigRecord { Name = ActiveShopName };
+        var designsSnapshot = _allReceiptDesigns.ToList();
+        var companiesSnapshot = _allCompanies.ToList();
+        string shopNameSnapshot = ActiveShopName;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var genSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+
+                if (targetSession == null)
+                {
+                    var allSessions = await SqliteDatabaseService.Instance.LoadAllSessionsAsync();
+                    targetSession = allSessions
+                        .Where(s => string.Equals(s.State, "closed", StringComparison.OrdinalIgnoreCase))
+                        .OrderByDescending(s => s.StopAt ?? s.StartAt ?? DateTime.MinValue)
+                        .FirstOrDefault();
+                }
+
+                if (targetSession == null)
+                {
+                    targetSession = new PosSessionRecord
+                    {
+                        Name = LastSessionTitle,
+                        PosConfigName = LastSessionPosName,
+                        UserName = CashierName,
+                        State = "closed",
+                        StopAt = DateTime.Now
+                    };
+                }
+
+                var orders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync(targetSession.Name);
+                var sessOrders = orders.Where(o =>
+                    !o.IsDraft && !o.IsCancelled &&
+                    ((targetSession.OdooId.HasValue && o.SessionOdooId == targetSession.OdooId.Value) ||
+                     string.Equals(o.SessionName, targetSession.Name, StringComparison.OrdinalIgnoreCase) ||
+                     (targetSession.Id > 0 && o.SessionId == targetSession.Id))
+                ).ToList();
+
+                ReceiptDesignRecord? design = null;
+                if (configSnapshot.CustomSalesReceiptDesignId.HasValue)
+                {
+                    design = designsSnapshot.FirstOrDefault(d => d.Id == configSnapshot.CustomSalesReceiptDesignId.Value);
+                }
+                design ??= designsSnapshot.FirstOrDefault(d => d.Name == ReceiptTemplateService.SaleDetailsReportName);
+
+                CompanyRecord? company = null;
+                if (design?.CompanyId != null)
+                {
+                    company = companiesSnapshot.FirstOrDefault(c => c.Id == design.CompanyId.Value || c.OdooId == design.CompanyId.Value);
+                }
+                if (company == null && genSettings.DefaultCompanyId != null)
+                {
+                    company = companiesSnapshot.FirstOrDefault(c => c.Id == genSettings.DefaultCompanyId.Value || c.OdooId == genSettings.DefaultCompanyId.Value);
+                }
+                company ??= companiesSnapshot.FirstOrDefault();
+
+                string reportText = ReceiptTemplateService.FormatSaleDetailsReportText(
+                    targetSession,
+                    configSnapshot,
+                    design,
+                    company,
+                    sessOrders
+                );
+
+                PosPrinterService.PrintReceiptText(
+                    genSettings.DefaultPrinterName,
+                    reportText,
+                    cashDrawerPulse: genSettings.CashDrawerPulse,
+                    encodingName: genSettings.PrinterEncoding
+                );
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PrintLastSessionSalesDetails] Error: {ex.Message}");
             }
         });
     }

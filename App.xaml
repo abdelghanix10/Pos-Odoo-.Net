@@ -5,6 +5,17 @@
              xmlns:conv="clr-namespace:OdooPosLogin.Converters"
              StartupUri="Views/MainWindow.xaml">
     <Application.Resources>
+        <!-- Global Cairo Font Family for Arabic & Latin UI -->
+        <FontFamily x:Key="CairoFontFamily">Cairo, Segoe UI Variable Text, Inter, Segoe UI</FontFamily>
+
+        <Style TargetType="{x:Type Control}">
+            <Setter Property="FontFamily" Value="{StaticResource CairoFontFamily}"/>
+        </Style>
+
+        <Style TargetType="{x:Type TextBlock}">
+            <Setter Property="FontFamily" Value="{StaticResource CairoFontFamily}"/>
+        </Style>
+
         <!-- Converters -->
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>

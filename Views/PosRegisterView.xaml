@@ -8,7 +8,7 @@
              mc:Ignorable="d"
              d:DesignWidth="1366" d:DesignHeight="768"
              Background="#EFF1F5"
-             FontFamily="Segoe UI Variable Text, Inter, Segoe UI"
+             FontFamily="Cairo, Segoe UI Variable Text, Inter, Segoe UI"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True"
              Stylus.IsPressAndHoldEnabled="False">
@@ -123,15 +123,17 @@
 
         <!-- Numbers First header chip (⌫ / Delete for pending quantity) -->
         <Style x:Key="NumpadHeaderChipStyle" TargetType="Button">
-            <Setter Property="FontSize" Value="10.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="8,2"/>
-            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="MinWidth" Value="74"/>
+            <Setter Property="Padding" Value="14,4"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="Foreground" Value="#71639E"/>
-            <Setter Property="BorderBrush" Value="#DDDBE8"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#C5C0D8"/>
+            <Setter Property="BorderThickness" Value="1.5"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -139,13 +141,17 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4"
+                                CornerRadius="6"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#EAE6F3"/>
                                 <Setter TargetName="Bd" Property="BorderBrush" Value="#71639E"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#DDDBE8"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -1440,16 +1446,31 @@
                                 <RowDefinition Height="54"/>
                             </Grid.RowDefinitions>
 
-                            <Border Grid.Row="0" Background="#F3F0F8" BorderBrush="#DDDBE8" BorderThickness="1,1,1,0" CornerRadius="4,4,0,0" Padding="10,4"
+                            <Border Grid.Row="0" Background="#F3F0F8" BorderBrush="#DDDBE8" BorderThickness="0,0,0,1" Padding="12,8"
                                     Visibility="{Binding CurrentConfig.IsNumbersFirst, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
                                 <Grid>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding TxtNextQtyShort}" FontSize="12" FontWeight="SemiBold" Foreground="#71639E" VerticalAlignment="Center"/>
-                                        <Button Content="⌫" Style="{StaticResource NumpadHeaderChipStyle}" Command="{Binding NumpadPendingBackspaceCommand}"/>
-                                        <Button Content="{Binding TxtDeleteKey}" Style="{StaticResource NumpadHeaderChipStyle}" Command="{Binding NumpadPendingDeleteCommand}"/>
+                                        <TextBlock Text="{Binding TxtNextQtyShort}" FontSize="15" FontWeight="Bold" Foreground="#71639E" VerticalAlignment="Center"/>
+                                        <Button Content="⌫" Style="{StaticResource NumpadHeaderChipStyle}"
+                                                Command="{Binding NumpadPendingBackspaceCommand}"
+                                                ToolTip="Backspace the next product quantity"/>
+                                        <Button Content="{Binding TxtDeleteKey}" Style="{StaticResource NumpadHeaderChipStyle}"
+                                                Command="{Binding NumpadPendingDeleteCommand}"
+                                                ToolTip="Clear the next product quantity"/>
                                     </StackPanel>
-                                    <Border HorizontalAlignment="Right" Background="#71639E" CornerRadius="4" Padding="8,1">
-                                        <TextBlock Text="{Binding NumbersFirstDisplayText}" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                    <Border HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Background="#71639E"
+                                            CornerRadius="6"
+                                            MinWidth="46"
+                                            Height="38"
+                                            Padding="12,0">
+                                        <TextBlock Text="{Binding NumbersFirstDisplayText}"
+                                                   FontSize="16.5"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FFFFFF"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
                                     </Border>
                                 </Grid>
                             </Border>
@@ -1888,7 +1909,7 @@
             </Grid>
 
             <!-- =================================================================== -->
-            <!-- 4. PAYMENT VIEW (Standard Split Layout & Centered Vertical Layout)   -->
+            <!-- 4. PAYMENT VIEW (Standard Split Layout & Enlarged Centered Layout)  -->
             <!-- =================================================================== -->
             <Grid Grid.Row="1"
                   Background="#F8F9FA"
@@ -1898,40 +1919,39 @@
                 <!-- OPTION A: STANDARD SPLIT PAYMENT LAYOUT                         -->
                 <!-- =============================================================== -->
                 <Grid Visibility="{Binding IsStandardPaymentLayout, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="450" MaxWidth="450"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="450" MaxWidth="450"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                <!-- LEFT PANEL: PAYMENT METHODS + QUICK TENDER + NUMPAD + BACK/VALIDATE -->
-                <Grid Grid.Column="0" Background="#F8F9FA" Margin="8,8,8,8">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="46"/>
-                        <RowDefinition Height="210"/>
-                        <RowDefinition Height="8"/>
-                        <RowDefinition Height="69"/>
-                    </Grid.RowDefinitions>
+                    <Grid Grid.Column="0" Background="#F8F9FA" Margin="8,8,8,8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="50"/>
+                            <RowDefinition Height="8"/>
+                            <RowDefinition Height="210"/>
+                            <RowDefinition Height="8"/>
+                            <RowDefinition Height="69"/>
+                        </Grid.RowDefinitions>
 
-                    <!-- Payment Methods List -->
-                    <ItemsControl Grid.Row="0" ItemsSource="{Binding AvailablePaymentMethods}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type local:PosPaymentMethodRecord}">
-                                <Button Command="{Binding DataContext.SelectPaymentMethodOptionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}"
-                                        Height="54"
-                                        Margin="0,0,0,8"
-                                        Cursor="Hand">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="MthBdr"
-                                                    Background="#FFFFFF"
-                                                    BorderBrush="#CCCCCC"
-                                                    BorderThickness="1"
-                                                    CornerRadius="4"
-                                                    Padding="16,0">
-                                                <Grid VerticalAlignment="Center">
+                        <!-- Payment Methods List -->
+                        <ItemsControl Grid.Row="0" ItemsSource="{Binding AvailablePaymentMethods}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type local:PosPaymentMethodRecord}">
+                                    <Button Command="{Binding DataContext.SelectPaymentMethodOptionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            Height="54"
+                                            Margin="0,0,0,8"
+                                            Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="MthBdr"
+                                                        Background="#FFFFFF"
+                                                        BorderBrush="#CCCCCC"
+                                                        BorderThickness="1"
+                                                        CornerRadius="4"
+                                                        Padding="16,0">
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
                                                         <Image Source="{Binding IconSource}"
                                                                Height="24"
@@ -1946,488 +1966,55 @@
                                                                    Foreground="#212529"
                                                                    VerticalAlignment="Center"/>
                                                     </StackPanel>
-                                                </Grid>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                    <Setter TargetName="MthBdr" Property="Background" Value="#DDDBE8"/>
-                                                    <Setter TargetName="MthBdr" Property="BorderBrush" Value="#71639E"/>
-                                                </DataTrigger>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="MthBdr" Property="Opacity" Value="0.9"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter TargetName="MthBdr" Property="Background" Value="#DDDBE8"/>
+                                                        <Setter TargetName="MthBdr" Property="BorderBrush" Value="#71639E"/>
+                                                    </DataTrigger>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="MthBdr" Property="Opacity" Value="0.9"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
-                    <!-- Spacer Row 1: Height="*" -->
-
-                    <!-- Quick Tender Row (+0.50, +1, +2, +5, +10) Above 1, 2, 3 -->
-                    <Border Grid.Row="2"
-                            BorderBrush="#DEE2E6"
-                            BorderThickness="1,1,1,0"
-                            CornerRadius="4,4,0,0"
-                            ClipToBounds="True">
-                        <Grid Background="#DEE2E6">
+                        <!-- Quick Tender Row (+0.50, +1, +2, +5) with Gaps (No Duplicate +10) -->
+                        <Grid Grid.Row="2" Height="50">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="1"/>
+                                <ColumnDefinition Width="8"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="1"/>
+                                <ColumnDefinition Width="8"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="1"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="1"/>
+                                <ColumnDefinition Width="8"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="+0.50" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="15.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="0.50"/>
-                            <Button Grid.Column="2" Content="+1" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="16.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="1"/>
-                            <Button Grid.Column="4" Content="+2" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="16.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="2"/>
-                            <Button Grid.Column="6" Content="+5" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="16.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="5"/>
-                            <Button Grid.Column="8" Content="+10" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="16.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="10"/>
+                            <Border Grid.Column="0" CornerRadius="6" ClipToBounds="True" BorderBrush="#A3D9B1" BorderThickness="1">
+                                <Button Content="+0.50" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="17" FontWeight="SemiBold" Command="{Binding AddQuickTenderCommand}" CommandParameter="0.50"/>
+                            </Border>
+                            <Border Grid.Column="2" CornerRadius="6" ClipToBounds="True" BorderBrush="#A3D9B1" BorderThickness="1">
+                                <Button Content="+1" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="18" FontWeight="SemiBold" Command="{Binding AddQuickTenderCommand}" CommandParameter="1"/>
+                            </Border>
+                            <Border Grid.Column="4" CornerRadius="6" ClipToBounds="True" BorderBrush="#A3D9B1" BorderThickness="1">
+                                <Button Content="+2" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="18" FontWeight="SemiBold" Command="{Binding AddQuickTenderCommand}" CommandParameter="2"/>
+                            </Border>
+                            <Border Grid.Column="6" CornerRadius="6" ClipToBounds="True" BorderBrush="#A3D9B1" BorderThickness="1">
+                                <Button Content="+5" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="18" FontWeight="SemiBold" Command="{Binding AddQuickTenderCommand}" CommandParameter="5"/>
+                            </Border>
                         </Grid>
-                    </Border>
 
-                    <!-- 4x4 Numpad (height 210, width 434, 1px dividers #DEE2E6) -->
-                    <Border Grid.Row="3"
-                            BorderBrush="#DEE2E6"
-                            BorderThickness="1"
-                            CornerRadius="0,0,4,4"
-                            ClipToBounds="True">
-                        <Grid Background="#DEE2E6">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="1"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="1"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="1"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="1"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="1"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="1"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Row 0: [1] [2] [3] [+10] -->
-                            <Button Grid.Row="0" Grid.Column="0" Content="1" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="1"/>
-                            <Button Grid.Row="0" Grid.Column="2" Content="2" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="2"/>
-                            <Button Grid.Row="0" Grid.Column="4" Content="3" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="3"/>
-                            <Button Grid.Row="0" Grid.Column="6" Content="+10" Style="{StaticResource PaymentNumpadGreenButtonStyle}" Command="{Binding AddQuickTenderCommand}" CommandParameter="10"/>
-
-                            <!-- Row 2: [4] [5] [6] [+20] -->
-                            <Button Grid.Row="2" Grid.Column="0" Content="4" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="4"/>
-                            <Button Grid.Row="2" Grid.Column="2" Content="5" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="5"/>
-                            <Button Grid.Row="2" Grid.Column="4" Content="6" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="6"/>
-                            <Button Grid.Row="2" Grid.Column="6" Content="+20" Style="{StaticResource PaymentNumpadGreenButtonStyle}" Command="{Binding AddQuickTenderCommand}" CommandParameter="20"/>
-
-                            <!-- Row 4: [7] [8] [9] [+50] -->
-                            <Button Grid.Row="4" Grid.Column="0" Content="7" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="7"/>
-                            <Button Grid.Row="4" Grid.Column="2" Content="8" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="8"/>
-                            <Button Grid.Row="4" Grid.Column="4" Content="9" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="9"/>
-                            <Button Grid.Row="4" Grid.Column="6" Content="+50" Style="{StaticResource PaymentNumpadGreenButtonStyle}" Command="{Binding AddQuickTenderCommand}" CommandParameter="50"/>
-
-                            <!-- Row 6: [Delete] [0] [.] [⌫] -->
-                            <Button Grid.Row="6" Grid.Column="0" Content="{Binding TxtDeleteKey}" FontSize="15.5" FontWeight="SemiBold" Style="{StaticResource PaymentNumpadAmberButtonStyle}" Command="{Binding ClearPaymentLineCommand}"/>
-                            <Button Grid.Row="6" Grid.Column="2" Content="0" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="0"/>
-                            <Button Grid.Row="6" Grid.Column="4" Content="." Style="{StaticResource PaymentNumpadPeachButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="."/>
-                            <Button Grid.Row="6" Grid.Column="6" Style="{StaticResource PaymentNumpadCoralButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="⌫">
-                                <Viewbox Width="20" Height="20">
-                                    <Canvas Width="24" Height="24">
-                                        <Path Data="M 21,6 H 9 L 3,12 L 9,18 H 21 Z M 12,9 L 17,15 M 17,9 L 12,15"
-                                              Stroke="#212529"
-                                              StrokeThickness="1.8"
-                                              StrokeLineJoin="Round"
-                                              Fill="Transparent"/>
-                                    </Canvas>
-                                </Viewbox>
-                            </Button>
-                        </Grid>
-                    </Border>
-
-                    <!-- Row 4: Action Buttons [ Back ] | [ Validate ] (Height: 69px) -->
-                    <Grid Grid.Row="5" Height="69">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="8"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Back Button -->
-                        <Button Grid.Column="0"
-                                Command="{Binding ClosePaymentViewCommand}"
-                                Height="69"
-                                Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr"
-                                            Background="#F4F4F4"
-                                            BorderBrush="#CCCCCC"
-                                            BorderThickness="1"
-                                            CornerRadius="4">
-                                        <TextBlock Text="{Binding TxtBackBtn}"
-                                                   FontSize="17.5"
-                                                   FontWeight="Medium"
-                                                   Foreground="#212529"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#E2E6EA"/>
-                                        </Trigger>
-                                        <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#DAE0E5"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-
-                        <!-- Validate Button (Disabled opacity: 0.5 when CanValidatePayment is false) -->
-                        <Button Grid.Column="2"
-                                Command="{Binding ValidatePaymentCommand}"
-                                IsEnabled="{Binding CanValidatePayment}"
-                                Height="69"
-                                Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bdr"
-                                            Background="#71639E"
-                                            BorderBrush="#71639E"
-                                            BorderThickness="1"
-                                            CornerRadius="4">
-                                        <TextBlock Text="{Binding TxtValidateBtn}"
-                                                   FontSize="17.5"
-                                                   FontWeight="Medium"
-                                                   Foreground="#FFFFFF"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#5E5285"/>
-                                            <Setter TargetName="Bdr" Property="BorderBrush" Value="#5E5285"/>
-                                        </Trigger>
-                                        <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="Bdr" Property="Background" Value="#4F4470"/>
-                                        </Trigger>
-                                        <Trigger Property="IsEnabled" Value="False">
-                                            <Setter TargetName="Bdr" Property="Opacity" Value="0.5"/>
-                                            <Setter Property="Cursor" Value="Arrow"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                    </Grid>
-                </Grid>
-
-                <!-- RIGHT/CENTER PANEL: TOP TOTAL + PAYMENT SUMMARY -->
-                <Grid Grid.Column="1" Background="#F8F9FA">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="188"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Top Gigantic Total ($ 1,066.58) -->
-                    <TextBlock Grid.Row="0"
-                               Text="{Binding OrderTotalDisplay}"
-                               FontSize="115"
-                               FontWeight="Medium"
-                               Foreground="#212529"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-
-                    <!-- Payment Summary Container (Indented, matching Odoo padding: 16px 150px) -->
-                    <Grid Grid.Row="1"
-                          MaxWidth="904"
-                          Margin="32,0,32,24"
-                          HorizontalAlignment="Stretch">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- Active Payment Line (.paymentline) -->
-                        <Border Grid.Row="0"
-                                Height="64"
-                                Background="#DDDBE8"
-                                BorderBrush="#71639E"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="24,0"
-                                Visibility="{Binding HasPaymentTendered, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                            <Grid>
-                                <TextBlock Text="{Binding SelectedPaymentMethodDisplay, FallbackValue=Cash}"
-                                           FontSize="21"
-                                           FontWeight="Medium"
-                                           Foreground="#000000"
-                                           HorizontalAlignment="Left"
-                                           VerticalAlignment="Center"/>
-
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding PaymentLineAmountDisplay}"
-                                               FontSize="21"
-                                               FontWeight="Bold"
-                                               Foreground="#000000"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,16,0"/>
-                                    <Button Command="{Binding ClearPaymentLineCommand}"
-                                            Cursor="Hand"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Padding="4,0"
-                                            ToolTip="Delete tender">
-                                        <TextBlock Text="×"
-                                                   FontSize="22"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#DC3545"
-                                                   VerticalAlignment="Center"/>
-                                    </Button>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <!-- Spacer Row 1: Height="*" -->
-
-                        <!-- Bottom Status Bar (.payment-screen-status) -->
-                        <Border Grid.Row="2"
+                        <!-- 4x4 Numpad -->
+                        <Border Grid.Row="4"
                                 BorderBrush="#DEE2E6"
-                                BorderThickness="0,1,0,0"
-                                Padding="4,16,4,0">
-                            <Grid>
-                                <!-- Underpaid: Show REMAINING in RED (#D23F3A) -->
-                                <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                                    <TextBlock Text="{Binding TxtRemainingLabel}"
-                                               FontSize="21"
-                                               FontWeight="Normal"
-                                               Foreground="#D23F3A"
-                                               HorizontalAlignment="Left"
-                                               VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding RemainingDisplay}"
-                                               FontSize="21"
-                                               FontWeight="Bold"
-                                               Foreground="#D23F3A"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
-
-                                <!-- Overpaid / Exact: Show CHANGE in GREEN (#28A745) -->
-                                <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
-                                    <TextBlock Text="{Binding TxtChangeLabel}"
-                                               FontSize="21"
-                                               FontWeight="Normal"
-                                               Foreground="#28A745"
-                                               HorizontalAlignment="Left"
-                                               VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding ChangeDisplay}"
-                                               FontSize="21"
-                                               FontWeight="Bold"
-                                               Foreground="#28A745"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
-                            </Grid>
-                        </Border>
-                    </Grid>
-                </Grid>
-                </Grid>
-
-                <!-- =============================================================== -->
-                <!-- OPTION B: CENTERED VERTICAL PAYMENT LAYOUT                      -->
-                <!-- =============================================================== -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              Visibility="{Binding IsCenteredPaymentLayout, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                    <StackPanel Width="490"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Margin="0,12,0,20">
-
-                        <!-- 1. Centered Giant Total Price -->
-                        <TextBlock Text="{Binding OrderTotalDisplay}"
-                                   FontSize="56"
-                                   FontWeight="SemiBold"
-                                   Foreground="#212529"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,0,0,12"/>
-
-                        <!-- 2. Active Tendered Payment Line Pill -->
-                        <Border Height="44"
-                                Background="#DDDBE8"
-                                BorderBrush="#71639E"
                                 BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="16,0"
-                                Margin="0,0,0,12"
-                                Visibility="{Binding HasPaymentTendered, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                            <Grid>
-                                <TextBlock Text="{Binding SelectedPaymentMethodDisplay, FallbackValue=Cash}"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"
-                                           Foreground="#000000"
-                                           HorizontalAlignment="Left"
-                                           VerticalAlignment="Center"/>
-
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding PaymentLineAmountDisplay}"
-                                               FontSize="15"
-                                               FontWeight="Bold"
-                                               Foreground="#000000"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,12,0"/>
-                                    <Button Command="{Binding ClearPaymentLineCommand}"
-                                            Cursor="Hand"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Padding="4,0">
-                                        <TextBlock Text="×"
-                                                   FontSize="17"
-                                                   FontWeight="Bold"
-                                                   Foreground="#DC3545"
-                                                   VerticalAlignment="Center"/>
-                                    </Button>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <!-- 3. Centered Payment Methods Container -->
-                        <Border Background="#FFFFFF"
-                                BorderBrush="#E5E7EB"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="12,10,12,2"
-                                Margin="0,0,0,10">
-                            <ItemsControl ItemsSource="{Binding AvailablePaymentMethods}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type local:PosPaymentMethodRecord}">
-                                        <Button Command="{Binding DataContext.SelectPaymentMethodOptionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"
-                                                Height="50"
-                                                Margin="0,0,0,8"
-                                                Cursor="Hand">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="MthBdr"
-                                                            Background="#FFFFFF"
-                                                            BorderBrush="#CCCCCC"
-                                                            BorderThickness="1"
-                                                            CornerRadius="4"
-                                                            Padding="16,0">
-                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                                            <Image Source="{Binding IconSource}"
-                                                                   Height="22"
-                                                                   Width="28"
-                                                                   Stretch="Uniform"
-                                                                   VerticalAlignment="Center"
-                                                                   Margin="0,0,12,0"
-                                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
-                                                            <TextBlock Text="{Binding DisplayName}"
-                                                                       FontSize="16.5"
-                                                                       FontWeight="Medium"
-                                                                       Foreground="#212529"
-                                                                       VerticalAlignment="Center"/>
-                                                        </StackPanel>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                            <Setter TargetName="MthBdr" Property="Background" Value="#DDDBE8"/>
-                                                            <Setter TargetName="MthBdr" Property="BorderBrush" Value="#71639E"/>
-                                                        </DataTrigger>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="MthBdr" Property="Opacity" Value="0.9"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Border>
-
-                        <!-- 4. Change / Remaining Bar -->
-                        <Border Background="#FFFFFF"
-                                BorderBrush="#DEE2E6"
-                                BorderThickness="0,1,0,1"
-                                Padding="12,10"
-                                Margin="0,0,0,10">
-                            <Grid>
-                                <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                                    <TextBlock Text="{Binding TxtRemainingLabel}"
-                                               FontSize="15.5"
-                                               FontWeight="SemiBold"
-                                               Foreground="#D23F3A"
-                                               HorizontalAlignment="Left"
-                                               VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding RemainingDisplay}"
-                                               FontSize="15.5"
-                                               FontWeight="Bold"
-                                               Foreground="#D23F3A"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
-
-                                <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
-                                    <TextBlock Text="{Binding TxtChangeLabel}"
-                                               FontSize="15.5"
-                                               FontWeight="SemiBold"
-                                               Foreground="#28A745"
-                                               HorizontalAlignment="Left"
-                                               VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding ChangeDisplay}"
-                                               FontSize="15.5"
-                                               FontWeight="Bold"
-                                               Foreground="#28A745"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
-                            </Grid>
-                        </Border>
-
-                        <!-- 5. Quick Tender Row (+0.50, +1, +2, +5, +10) Above 1, 2, 3 -->
-                        <Border BorderBrush="#DEE2E6"
-                                BorderThickness="1,1,1,0"
-                                CornerRadius="4,4,0,0"
+                                CornerRadius="4"
                                 ClipToBounds="True">
-                            <Grid Height="44" Background="#DEE2E6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="1"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="1"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="1"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="1"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0" Content="+0.50" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="15.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="0.50"/>
-                                <Button Grid.Column="2" Content="+1" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="16.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="1"/>
-                                <Button Grid.Column="4" Content="+2" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="16.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="2"/>
-                                <Button Grid.Column="6" Content="+5" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="16.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="5"/>
-                                <Button Grid.Column="8" Content="+10" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="16.5" Command="{Binding AddQuickTenderCommand}" CommandParameter="10"/>
-                            </Grid>
-                        </Border>
-
-                        <!-- 6. Centered 4x4 Touch Numpad -->
-                        <Border BorderBrush="#DEE2E6"
-                                BorderThickness="1"
-                                CornerRadius="0,0,4,4"
-                                Margin="0,0,0,10"
-                                ClipToBounds="True">
-                            <Grid Height="204" Background="#DEE2E6">
+                            <Grid Background="#DEE2E6">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="1"/>
@@ -2479,27 +2066,369 @@
                             </Grid>
                         </Border>
 
-                        <!-- 7. Centered [ Back ] and [ Validate ] Buttons -->
-                        <Grid Height="60">
+                        <!-- Action Buttons [ Back ] | [ Validate ] -->
+                        <Grid Grid.Row="6" Height="69">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="8"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
+                            <Button Grid.Column="0" Command="{Binding ClosePaymentViewCommand}" Height="69" Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Bdr" Background="#F4F4F4" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
+                                            <TextBlock Text="{Binding DataContext.TxtBackBtn, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       FontSize="17.5" FontWeight="Medium" Foreground="#212529" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bdr" Property="Background" Value="#E2E6EA"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+
+                            <Button Grid.Column="2" Command="{Binding ValidatePaymentCommand}" IsEnabled="{Binding CanValidatePayment}" Height="69" Cursor="Hand">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Bdr" Background="#71639E" BorderBrush="#71639E" BorderThickness="1" CornerRadius="4">
+                                            <TextBlock Text="{Binding DataContext.TxtValidateBtn, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       FontSize="17.5" FontWeight="Medium" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bdr" Property="Background" Value="#5E5285"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter TargetName="Bdr" Property="Opacity" Value="0.5"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </Grid>
+                    </Grid>
+
+                    <!-- RIGHT/CENTER PANEL: TOP TOTAL + PAYMENT SUMMARY -->
+                    <Grid Grid.Column="1" Background="#F8F9FA">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="188"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="{Binding OrderTotalDisplay}"
+                                   FontSize="115"
+                                   FontWeight="Medium"
+                                   Foreground="#212529"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+
+                        <Grid Grid.Row="1" MaxWidth="904" Margin="32,0,32,24" HorizontalAlignment="Stretch">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0"
+                                    Height="64"
+                                    Background="#DDDBE8"
+                                    BorderBrush="#71639E"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="24,0"
+                                    Visibility="{Binding HasPaymentTendered, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                <Grid>
+                                    <TextBlock Text="{Binding SelectedPaymentMethodDisplay, FallbackValue=Cash}"
+                                               FontSize="21" FontWeight="Medium" Foreground="#000000" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding PaymentLineAmountDisplay}"
+                                                   FontSize="21" FontWeight="Bold" Foreground="#000000" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                        <Button Command="{Binding ClearPaymentLineCommand}" Cursor="Hand" Background="Transparent" BorderThickness="0" Padding="4,0">
+                                            <TextBlock Text="×" FontSize="22" FontWeight="SemiBold" Foreground="#DC3545" VerticalAlignment="Center"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Row="2" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Padding="4,16,4,0">
+                                <Grid>
+                                    <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                        <TextBlock Text="{Binding TxtRemainingLabel}" FontSize="21" Foreground="#D23F3A" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding RemainingDisplay}" FontSize="21" FontWeight="Bold" Foreground="#D23F3A" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+
+                                    <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
+                                        <TextBlock Text="{Binding TxtChangeLabel}" FontSize="21" Foreground="#28A745" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding ChangeDisplay}" FontSize="21" FontWeight="Bold" Foreground="#28A745" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </Grid>
+
+                <!-- =============================================================== -->
+                <!-- OPTION B: ENLARGED CENTERED VERTICAL PAYMENT LAYOUT             -->
+                <!-- =============================================================== -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Visibility="{Binding IsCenteredPaymentLayout, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                    <StackPanel Width="680"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Margin="0,16,0,24">
+
+                        <!-- 1. Centered Giant Total Price -->
+                        <TextBlock Text="{Binding OrderTotalDisplay}"
+                                   FontSize="76"
+                                   FontWeight="Bold"
+                                   Foreground="#212529"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,14"/>
+
+                        <!-- 2. Active Tendered Payment Line Pill -->
+                        <Border Height="58"
+                                Background="#DDDBE8"
+                                BorderBrush="#71639E"
+                                BorderThickness="1.5"
+                                CornerRadius="8"
+                                Padding="22,0"
+                                Margin="0,0,0,14"
+                                Visibility="{Binding HasPaymentTendered, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                            <Grid>
+                                <TextBlock Text="{Binding SelectedPaymentMethodDisplay, FallbackValue=Cash}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#000000"
+                                           HorizontalAlignment="Left"
+                                           VerticalAlignment="Center"/>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding PaymentLineAmountDisplay}"
+                                               FontSize="20"
+                                               FontWeight="Bold"
+                                               Foreground="#000000"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,16,0"/>
+                                    <Button Command="{Binding ClearPaymentLineCommand}"
+                                            Cursor="Hand"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Padding="6,0">
+                                        <TextBlock Text="×"
+                                                   FontSize="24"
+                                                   FontWeight="Bold"
+                                                   Foreground="#DC3545"
+                                                   VerticalAlignment="Center"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- 3. Centered Payment Methods Container -->
+                        <Border Background="#FFFFFF"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Padding="14,12,14,4"
+                                Margin="0,0,0,12">
+                            <ItemsControl ItemsSource="{Binding AvailablePaymentMethods}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:PosPaymentMethodRecord}">
+                                        <Button Command="{Binding DataContext.SelectPaymentMethodOptionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Height="62"
+                                                Margin="0,0,0,8"
+                                                Cursor="Hand">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="MthBdr"
+                                                            Background="#FFFFFF"
+                                                            BorderBrush="#CCCCCC"
+                                                            BorderThickness="1.5"
+                                                            CornerRadius="6"
+                                                            Padding="20,0">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                                            <Image Source="{Binding IconSource}"
+                                                                   Height="28"
+                                                                   Width="36"
+                                                                   Stretch="Uniform"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,14,0"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                            <TextBlock Text="{Binding DisplayName}"
+                                                                       FontSize="20"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="#212529"
+                                                                       VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter TargetName="MthBdr" Property="Background" Value="#DDDBE8"/>
+                                                            <Setter TargetName="MthBdr" Property="BorderBrush" Value="#71639E"/>
+                                                        </DataTrigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="MthBdr" Property="Opacity" Value="0.9"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+
+                        <!-- 4. Change / Remaining Bar -->
+                        <Border Background="#FFFFFF"
+                                BorderBrush="#DEE2E6"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="18,14"
+                                Margin="0,0,0,12">
+                            <Grid>
+                                <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                    <TextBlock Text="{Binding TxtRemainingLabel}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="#D23F3A"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding RemainingDisplay}"
+                                               FontSize="20"
+                                               FontWeight="Bold"
+                                               Foreground="#D23F3A"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <Grid Visibility="{Binding IsPaymentUnderpaid, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
+                                    <TextBlock Text="{Binding TxtChangeLabel}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="#28A745"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding ChangeDisplay}"
+                                               FontSize="20"
+                                               FontWeight="Bold"
+                                               Foreground="#28A745"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <!-- 5. Quick Tender Row (+0.50, +1, +2, +5) with Gaps (No Duplicate +10) -->
+                        <Grid Height="56" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" CornerRadius="6" ClipToBounds="True" BorderBrush="#A3D9B1" BorderThickness="1">
+                                <Button Content="+0.50" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="20" FontWeight="Bold" Command="{Binding AddQuickTenderCommand}" CommandParameter="0.50"/>
+                            </Border>
+                            <Border Grid.Column="2" CornerRadius="6" ClipToBounds="True" BorderBrush="#A3D9B1" BorderThickness="1">
+                                <Button Content="+1" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="21" FontWeight="Bold" Command="{Binding AddQuickTenderCommand}" CommandParameter="1"/>
+                            </Border>
+                            <Border Grid.Column="4" CornerRadius="6" ClipToBounds="True" BorderBrush="#A3D9B1" BorderThickness="1">
+                                <Button Content="+2" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="21" FontWeight="Bold" Command="{Binding AddQuickTenderCommand}" CommandParameter="2"/>
+                            </Border>
+                            <Border Grid.Column="6" CornerRadius="6" ClipToBounds="True" BorderBrush="#A3D9B1" BorderThickness="1">
+                                <Button Content="+5" Style="{StaticResource PaymentNumpadGreenButtonStyle}" FontSize="21" FontWeight="Bold" Command="{Binding AddQuickTenderCommand}" CommandParameter="5"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- 6. Enlarged Centered 4x4 Touch Numpad -->
+                        <Border BorderBrush="#DEE2E6"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,14"
+                                ClipToBounds="True">
+                            <Grid Height="280" Background="#DEE2E6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="1"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="1"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="1"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="1"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Row="0" Grid.Column="0" Content="1" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="1"/>
+                                <Button Grid.Row="0" Grid.Column="2" Content="2" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="2"/>
+                                <Button Grid.Row="0" Grid.Column="4" Content="3" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="3"/>
+                                <Button Grid.Row="0" Grid.Column="6" Content="+10" FontSize="22" Style="{StaticResource PaymentNumpadGreenButtonStyle}" Command="{Binding AddQuickTenderCommand}" CommandParameter="10"/>
+
+                                <Button Grid.Row="2" Grid.Column="0" Content="4" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="4"/>
+                                <Button Grid.Row="2" Grid.Column="2" Content="5" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="5"/>
+                                <Button Grid.Row="2" Grid.Column="4" Content="6" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="6"/>
+                                <Button Grid.Row="2" Grid.Column="6" Content="+20" FontSize="22" Style="{StaticResource PaymentNumpadGreenButtonStyle}" Command="{Binding AddQuickTenderCommand}" CommandParameter="20"/>
+
+                                <Button Grid.Row="4" Grid.Column="0" Content="7" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="7"/>
+                                <Button Grid.Row="4" Grid.Column="2" Content="8" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="8"/>
+                                <Button Grid.Row="4" Grid.Column="4" Content="9" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="9"/>
+                                <Button Grid.Row="4" Grid.Column="6" Content="+50" FontSize="22" Style="{StaticResource PaymentNumpadGreenButtonStyle}" Command="{Binding AddQuickTenderCommand}" CommandParameter="50"/>
+
+                                <Button Grid.Row="6" Grid.Column="0" Content="{Binding TxtDeleteKey}" FontSize="19" FontWeight="Bold" Style="{StaticResource PaymentNumpadAmberButtonStyle}" Command="{Binding ClearPaymentLineCommand}"/>
+                                <Button Grid.Row="6" Grid.Column="2" Content="0" FontSize="26" Style="{StaticResource PaymentNumpadButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="0"/>
+                                <Button Grid.Row="6" Grid.Column="4" Content="." FontSize="28" Style="{StaticResource PaymentNumpadPeachButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="."/>
+                                <Button Grid.Row="6" Grid.Column="6" Style="{StaticResource PaymentNumpadCoralButtonStyle}" Command="{Binding PaymentNumpadKeyCommand}" CommandParameter="⌫">
+                                    <Viewbox Width="24" Height="24">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M 21,6 H 9 L 3,12 L 9,18 H 21 Z M 12,9 L 17,15 M 17,9 L 12,15"
+                                                  Stroke="#212529"
+                                                  StrokeThickness="1.8"
+                                                  StrokeLineJoin="Round"
+                                                  Fill="Transparent"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- 7. Centered [ Back ] and [ Validate ] Buttons -->
+                        <Grid Height="72">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
                             <Button Grid.Column="0"
                                     Command="{Binding ClosePaymentViewCommand}"
-                                    Height="60"
+                                    Height="72"
                                     Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="Bdr"
                                                 Background="#F4F4F4"
                                                 BorderBrush="#CCCCCC"
-                                                BorderThickness="1"
-                                                CornerRadius="4">
-                                            <TextBlock Text="{Binding TxtBackBtn}"
-                                                       FontSize="17"
+                                                BorderThickness="1.5"
+                                                CornerRadius="6">
+                                            <TextBlock Text="{Binding DataContext.TxtBackBtn, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       FontSize="21"
                                                        FontWeight="Bold"
                                                        Foreground="#212529"
                                                        HorizontalAlignment="Center"
@@ -2517,17 +2446,17 @@
                             <Button Grid.Column="2"
                                     Command="{Binding ValidatePaymentCommand}"
                                     IsEnabled="{Binding CanValidatePayment}"
-                                    Height="60"
+                                    Height="72"
                                     Cursor="Hand">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="Bdr"
                                                 Background="#71639E"
                                                 BorderBrush="#71639E"
-                                                BorderThickness="1"
-                                                CornerRadius="4">
-                                            <TextBlock Text="{Binding TxtValidateBtn}"
-                                                       FontSize="17"
+                                                BorderThickness="1.5"
+                                                CornerRadius="6">
+                                            <TextBlock Text="{Binding DataContext.TxtValidateBtn, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                       FontSize="21"
                                                        FontWeight="Bold"
                                                        Foreground="#FFFFFF"
                                                        HorizontalAlignment="Center"
@@ -2945,6 +2874,43 @@
                         </Grid>
                     </Grid>
                 </Border>
+
+                <!-- Print Sales Details Button for Last Session (Visible when register is closed) -->
+                <Button Command="{Binding PrintLastSessionSalesDetailsCommand}"
+                        Visibility="{Binding IsRegisterClosedForLanding, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
+                        HorizontalAlignment="Center"
+                        Margin="0,14,0,0"
+                        Height="42"
+                        Padding="22,0"
+                        Cursor="Hand">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="PrtSessBdr"
+                                    Background="#FFFFFF"
+                                    BorderBrush="#71639E"
+                                    BorderThickness="1.5"
+                                    CornerRadius="8"
+                                    Padding="{TemplateBinding Padding}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="🖨 " FontSize="15" Foreground="#71639E" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{Binding TxtPrintLastSessionSalesDetails}"
+                                               FontSize="14.5"
+                                               FontWeight="Bold"
+                                               Foreground="#71639E"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="PrtSessBdr" Property="Background" Value="#F3F0F8"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="PrtSessBdr" Property="Background" Value="#DDDBE8"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
             </StackPanel>
 
             <!-- Bottom: "Backend" or "Logout" Button -->

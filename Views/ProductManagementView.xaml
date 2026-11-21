@@ -209,58 +209,57 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- CENTER: PILL SEARCH BAR -->
-                <Border Grid.Column="1"
-                        MaxWidth="480"
-                        Width="420"
-                        Height="36"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Background="#FFFFFF"
-                        BorderBrush="{StaticResource InputBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="18"
-                        Padding="14,0">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
+                <!-- CENTER: SEARCH BAR + SORT DROPDOWN + RESET -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    <Border Width="280"
+                            Height="34"
+                            Background="#FFFFFF"
+                            BorderBrush="{StaticResource InputBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="17"
+                            Padding="12,0"
+                            Margin="0,0,10,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Viewbox Grid.Column="0" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2"/>
+                                    <Path Data="M 14,14 L 20,20" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Grid.Column="1" Text="Search Products..." Foreground="{StaticResource PlaceholderTextBrush}" FontSize="13" VerticalAlignment="Center" IsHitTestVisible="False"
+                                       Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
+                            <TextBox Grid.Column="1" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Background="Transparent" BorderThickness="0" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                            <Button Grid.Column="2" Command="{Binding ClearSearchCommand}" Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" Background="Transparent" BorderThickness="0" Cursor="Hand">
+                                <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                            </Button>
+                        </Grid>
+                    </Border>
 
-                        <Viewbox Grid.Column="0" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center">
-                            <Canvas Width="24" Height="24">
-                                <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2"/>
-                                <Path Data="M 14,14 L 20,20" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
-                            </Canvas>
-                        </Viewbox>
+                    <ComboBox ItemsSource="{Binding SortOptions}"
+                              SelectedItem="{Binding SelectedSortOption, Mode=TwoWay}"
+                              Style="{StaticResource OdooFilterComboBoxStyle}"
+                              Width="175"
+                              Height="34"
+                              Margin="0,0,8,0"
+                              Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                              ToolTip="Sort products (also updates POS Register order)"/>
 
-                        <TextBlock Grid.Column="1"
-                                   Text="Search Products..."
-                                   Foreground="{StaticResource PlaceholderTextBrush}"
-                                   FontSize="13"
-                                   VerticalAlignment="Center"
-                                   IsHitTestVisible="False"
-                                   Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
-
-                        <TextBox Grid.Column="1"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 FontSize="13"
-                                 Foreground="{StaticResource PrimaryTextBrush}"
-                                 VerticalAlignment="Center"/>
-
-                        <Button Grid.Column="2"
-                                Command="{Binding ClearSearchCommand}"
-                                Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand">
-                            <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
-                        </Button>
-                    </Grid>
-                </Border>
+                    <Button Command="{Binding ResetToOdooOrderCommand}"
+                            Style="{StaticResource OdooResetFilterButtonStyle}"
+                            Height="34"
+                            Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"
+                            ToolTip="Restore Odoo's exact pos_sequence product ordering">
+                        <TextBlock Text="↺ Odoo Order" FontSize="12" VerticalAlignment="Center"/>
+                    </Button>
+                </StackPanel>
 
                 <!-- RIGHT: PAGER (< >) + LIST/KANBAN SWITCHER -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -387,75 +386,46 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type local:ProductRecord}">
-                                <Button Command="{Binding DataContext.SelectProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                        CommandParameter="{Binding}"
+                                <Border x:Name="CardBorder"
                                         Width="315"
                                         MinHeight="92"
                                         Margin="5"
+                                        Background="#FFFFFF"
+                                        BorderBrush="{StaticResource SubtleBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="14,12"
                                         Cursor="Hand"
-                                        Background="Transparent"
-                                        BorderThickness="0">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="CardBorder"
-                                                    Background="#FFFFFF"
-                                                    BorderBrush="{StaticResource SubtleBorderBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="3"
-                                                    Padding="14,12">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <!-- Left: Name, Variants, Price & SKU -->
-                                                    <StackPanel Grid.Column="0" VerticalAlignment="Top" Margin="0,0,10,0">
-                                                        <TextBlock Text="{Binding Name}"
-                                                                   FontSize="14"
-                                                                   FontWeight="Bold"
-                                                                   Foreground="{StaticResource PrimaryTextBrush}"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   Margin="0,0,0,4"/>
-
-                                                        <TextBlock Text="{Binding VariantCountDisplay}"
-                                                                   FontSize="12.5"
-                                                                   FontWeight="Bold"
-                                                                   Foreground="{StaticResource PrimaryTextBrush}"
-                                                                   Visibility="{Binding HasMultipleVariants, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                                   Margin="0,0,0,4"/>
-
-                                                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                                            <TextBlock Text="{Binding PriceDisplay}"
-                                                                       FontSize="13"
-                                                                       FontWeight="Bold"
-                                                                       Foreground="{StaticResource PrimaryTextBrush}"/>
-                                                            <TextBlock Text="{Binding SkuDisplay}"
-                                                                       FontSize="12.5"
-                                                                       Foreground="{StaticResource SecondaryTextBrush}"
-                                                                       Margin="8,0,0,0"
-                                                                       Visibility="{Binding HasSku, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                        </StackPanel>
-                                                    </StackPanel>
-
-                                                    <!-- Right: 64x64 Product Image (Only shown when image exists, matching Screenshot 11) -->
-                                                    <Border Grid.Column="1"
-                                                            Width="64" Height="64"
-                                                            CornerRadius="3"
-                                                            VerticalAlignment="Center"
-                                                            Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <Image Source="{Binding ImageBitmap}" Stretch="Uniform"/>
-                                                    </Border>
-                                                </Grid>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
+                                        AllowDrop="True"
+                                        PreviewMouseLeftButtonDown="ProductItem_PreviewMouseLeftButtonDown"
+                                        PreviewMouseMove="ProductItem_PreviewMouseMove"
+                                        MouseLeftButtonUp="ProductItem_MouseLeftButtonUp"
+                                        DragOver="ProductItem_DragOver"
+                                        DragLeave="ProductItem_DragLeave"
+                                        Drop="ProductItem_Drop">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="⋮⋮" FontSize="14" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,10,0" ToolTip="Drag to reorder"/>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="0,0,10,0">
+                                            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
+                                            <TextBlock Text="{Binding VariantCountDisplay}" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"
+                                                       Visibility="{Binding HasMultipleVariants, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,0,0,4"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                <TextBlock Text="{Binding PriceDisplay}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                <TextBlock Text="{Binding SkuDisplay}" FontSize="12.5" Foreground="{StaticResource SecondaryTextBrush}" Margin="8,0,0,0"
+                                                           Visibility="{Binding HasSku, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Width="64" Height="64" CornerRadius="4" VerticalAlignment="Center"
+                                                Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Image Source="{Binding ImageBitmap}" Stretch="UniformToFill"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -494,45 +464,40 @@
                             <ItemsControl ItemsSource="{Binding FilteredProducts}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type local:ProductRecord}">
-                                        <Button Command="{Binding DataContext.SelectProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"
+                                        <Border x:Name="RowBdr"
+                                                Background="#FFFFFF"
+                                                BorderBrush="{StaticResource SubtleBorderBrush}"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="14,10"
+                                                MinHeight="42"
                                                 Cursor="Hand"
-                                                Background="Transparent"
-                                                BorderThickness="0"
-                                                HorizontalContentAlignment="Stretch">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="RowBdr" Background="#FFFFFF" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,10" MinHeight="42">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="52"/>
-                                                                <ColumnDefinition Width="3.2*"/>
-                                                                <ColumnDefinition Width="2.5*"/>
-                                                                <ColumnDefinition Width="1.2*"/>
-                                                                <ColumnDefinition Width="1.2*"/>
-                                                                <ColumnDefinition Width="1.2*"/>
-                                                            </Grid.ColumnDefinitions>
-
-                                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                                                <TextBlock Text="⋮⋮" FontSize="13" Foreground="#9CA3AF" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                                                <TextBlock Text="☆" FontSize="15" Foreground="#6B7280" VerticalAlignment="Center"/>
-                                                            </StackPanel>
-
-                                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
-                                                            <TextBlock Grid.Column="2" Text="{Binding SkuDisplay}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
-                                                            <TextBlock Grid.Column="3" Text="{Binding PriceDisplay}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" TextAlignment="Right"/>
-                                                            <TextBlock Grid.Column="4" Text="{Binding CostDisplay}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" TextAlignment="Right"/>
-                                                            <TextBlock Grid.Column="5" Text="{Binding QtyAvailableDisplay}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" TextAlignment="Right"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="RowBdr" Property="Background" Value="#F9FAFB"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
+                                                AllowDrop="True"
+                                                PreviewMouseLeftButtonDown="ProductItem_PreviewMouseLeftButtonDown"
+                                                PreviewMouseMove="ProductItem_PreviewMouseMove"
+                                                MouseLeftButtonUp="ProductItem_MouseLeftButtonUp"
+                                                DragOver="ProductItem_DragOver"
+                                                DragLeave="ProductItem_DragLeave"
+                                                Drop="ProductItem_Drop">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="52"/>
+                                                    <ColumnDefinition Width="3.2*"/>
+                                                    <ColumnDefinition Width="2.5*"/>
+                                                    <ColumnDefinition Width="1.2*"/>
+                                                    <ColumnDefinition Width="1.2*"/>
+                                                    <ColumnDefinition Width="1.2*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="⋮⋮" FontSize="14" Foreground="#6B7280" Margin="0,0,10,0" VerticalAlignment="Center" ToolTip="Drag to reorder"/>
+                                                    <TextBlock Text="☆" FontSize="15" Foreground="#9CA3AF" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding SkuDisplay}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding PriceDisplay}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                                <TextBlock Grid.Column="4" Text="{Binding CostDisplay}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                                <TextBlock Grid.Column="5" Text="{Binding QtyAvailableDisplay}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                            </Grid>
+                                        </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>

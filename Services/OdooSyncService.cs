@@ -3692,7 +3692,7 @@ public class OdooSyncService
             "available_in_pos", "tracking", "is_storable", "to_weight",
             "taxes_id", "supplier_taxes_id", "uom_id", "company_id",
             "public_description", "description_sale",
-            "image_128", "product_tag_ids",
+            "image_256", "image_128", "pos_sequence", "sequence", "product_tag_ids",
             "attribute_line_ids", "combo_ids");
 
         using var prodDoc = await SearchReadAsync(
@@ -3785,7 +3785,8 @@ public class OdooSyncService
                 var (_, companyName) = GetMany2One(item, "company_id");
                 string posDesc = GetStringOrDefault(item, "public_description", GetStringOrDefault(item, "description_sale"));
 
-                string? imageBase64 = GetNullableString(item, "image_128");
+                string? imageBase64 = GetNullableString(item, "image_256") ?? GetNullableString(item, "image_128");
+                int posSequence = GetIntOrDefault(item, "pos_sequence", GetIntOrDefault(item, "sequence"));
 
                 string? tagsJson = null;
                 var tagIds = GetIdArray(item, "product_tag_ids");
@@ -3835,7 +3836,7 @@ public class OdooSyncService
                         availableInPos, trackInventory, toWeight,
                         salesTaxLabel, salesTaxRate, purchaseTaxLabel,
                         string.IsNullOrWhiteSpace(uomName) ? "Units" : uomName,
-                        companyName, posDesc, isSalesTaxIncluded
+                        companyName, posDesc, isSalesTaxIncluded, posSequence
                     ));
                 }
             }
@@ -3879,7 +3880,7 @@ public class OdooSyncService
             "cash_register_balance_start", "cash_register_balance_end_real",
             "order_count", "total_payments_amount");
 
-        string cutoffUtc = DateTime.UtcNow.AddDays(-30).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        string cutoffUtc = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         object[] sessionDomain =
         [
             "|",
@@ -3953,7 +3954,7 @@ public class OdooSyncService
             "amount_total", "amount_tax", "amount_paid", "margin", "margin_percent", "margin_ratio",
             "state", "is_edited", "company_id", "general_note", "note", "refunded_order_ids");
 
-        string cutoffUtc = DateTime.UtcNow.AddDays(-30).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        string cutoffUtc = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         object[] orderDomain =
         [
             new object[] { "date_order", ">=", cutoffUtc }
@@ -4013,35 +4014,41 @@ public class OdooSyncService
             var lineFields = await FilterValidFieldsAsync(config, uid, "pos.order.line",
                 "id", "order_id", "product_id", "full_product_name", "name",
                 "qty", "price_unit", "discount", "price_subtotal", "price_subtotal_incl");
-
-            using var lineDoc = await SearchReadAsync(config, uid, "pos.order.line", [], lineFields);
-
-            if (lineDoc.RootElement.TryGetProperty("result", out var lItems) && lItems.ValueKind == JsonValueKind.Array)
+            var orderIds = orders.Select(o => o.OdooId).Distinct().ToList();
+            foreach (var idChunk in orderIds.Chunk(500))
             {
-                foreach (var lItem in lItems.EnumerateArray())
+                using var lineDoc = await SearchReadAsync(
+                    config, uid, "pos.order.line",
+                    [new object[] { "order_id", "in", idChunk }],
+                    lineFields);
+
+                if (lineDoc.RootElement.TryGetProperty("result", out var lItems) && lItems.ValueKind == JsonValueKind.Array)
                 {
-                    int lineOdooId = GetIntOrDefault(lItem, "id");
-                    var (orderOdooId, _) = GetMany2One(lItem, "order_id");
-                    var (prodId, prodNameFromRel) = GetMany2One(lItem, "product_id");
-                    string prodName = GetStringOrDefault(lItem, "full_product_name",
-                        !string.IsNullOrWhiteSpace(prodNameFromRel) ? prodNameFromRel : GetStringOrDefault(lItem, "name"));
-
-                    decimal qty = GetDecimalOrDefault(lItem, "qty", 1.00m);
-                    decimal priceUnit = GetDecimalOrDefault(lItem, "price_unit");
-                    decimal discount = GetDecimalOrDefault(lItem, "discount");
-                    decimal subTotal = GetDecimalOrDefault(lItem, "price_subtotal");
-                    decimal subTotalIncl = GetDecimalOrDefault(lItem, "price_subtotal_incl");
-
-                    string taxLabel = subTotal != 0 && subTotalIncl != subTotal
-                        ? $"{Math.Round(Math.Abs((subTotalIncl - subTotal) / subTotal) * 100m, 0)}%"
-                        : "0%";
-
-                    if (lineOdooId > 0 && orderOdooId.HasValue)
+                    foreach (var lItem in lItems.EnumerateArray())
                     {
-                        lines.Add(new PosOrderLineDto(
-                            lineOdooId, orderOdooId.Value, prodId, prodName,
-                            false, qty, priceUnit, discount, taxLabel, subTotal, subTotalIncl
-                        ));
+                        int lineOdooId = GetIntOrDefault(lItem, "id");
+                        var (orderOdooId, _) = GetMany2One(lItem, "order_id");
+                        var (prodId, prodNameFromRel) = GetMany2One(lItem, "product_id");
+                        string prodName = GetStringOrDefault(lItem, "full_product_name",
+                            !string.IsNullOrWhiteSpace(prodNameFromRel) ? prodNameFromRel : GetStringOrDefault(lItem, "name"));
+
+                        decimal qty = GetDecimalOrDefault(lItem, "qty", 1.00m);
+                        decimal priceUnit = GetDecimalOrDefault(lItem, "price_unit");
+                        decimal discount = GetDecimalOrDefault(lItem, "discount");
+                        decimal subTotal = GetDecimalOrDefault(lItem, "price_subtotal");
+                        decimal subTotalIncl = GetDecimalOrDefault(lItem, "price_subtotal_incl");
+
+                        string taxLabel = subTotal != 0 && subTotalIncl != subTotal
+                            ? $"{Math.Round(Math.Abs((subTotalIncl - subTotal) / subTotal) * 100m, 0)}%"
+                            : "0%";
+
+                        if (lineOdooId > 0 && orderOdooId.HasValue)
+                        {
+                            lines.Add(new PosOrderLineDto(
+                                lineOdooId, orderOdooId.Value, prodId, prodName,
+                                false, qty, priceUnit, discount, taxLabel, subTotal, subTotalIncl
+                            ));
+                        }
                     }
                 }
             }
@@ -4073,7 +4080,9 @@ public class OdooSyncService
         var fields = await FilterValidFieldsAsync(config, uid, "pos.payment",
             "id", "pos_order_id", "session_id", "payment_method_id", "amount", "payment_date", "currency_id", "cashier");
 
-        using var doc = await SearchReadAsync(config, uid, "pos.payment", [], fields);
+        string cutoffUtc = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        using var doc = await SearchReadAsync(config, uid, "pos.payment",
+            [new object[] { "payment_date", ">=", cutoffUtc }], fields);
 
         var list = new List<PosPaymentDto>();
         if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -4377,6 +4386,12 @@ public class OdooSyncService
         Report(12, "Payments", "Reconciling POS Payments (pos.payment)...");
         await SqliteDatabaseService.Instance.UpsertOdooPaymentsAsync(payments);
         await SqliteDatabaseService.Instance.UpdatePaymentSyncStatusAsync(now, $"Payments: {payments.Count}");
+
+        var retentionSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+        if (retentionSettings.AutoPurgeOldDataEnabled)
+        {
+            await SqliteDatabaseService.Instance.PurgeDataOlderThanMonthsAsync(retentionSettings.DataRetentionMonths);
+        }
 
         string summaryMsg = $"Synchronized {companies.Count} companies, {posConfigs.Count} shops, {products.Count} products, {paymentMethods.Count} payment methods, {orders.Count} orders, {users.Count} users.";
         return new SyncAllSummary(

@@ -133,6 +133,10 @@ public partial class MainWindow : Window
         try
         {
             var settings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            if (settings.AutoPurgeOldDataEnabled)
+            {
+                await SqliteDatabaseService.Instance.PurgeDataOlderThanMonthsAsync(settings.DataRetentionMonths);
+            }
             ApplyScreenMode(settings.ScreenMode);
             ApplyLoginSetupButtonVisibility(settings.ShowSetupButtonOnLogin);
 

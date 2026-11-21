@@ -46,6 +46,9 @@ public class ProductRecord : INotifyPropertyChanged
     private string? _posCategoryName;
     private string _internalCategoryName = "All";
     private int _variantCount = 1;
+    private int _posSequence;
+    private int _displayOrder;
+    private bool _hasCustomOrder;
     private decimal _qtyAvailable = 0.00m;
     private bool _saleOk = true;
     private bool _purchaseOk = true;
@@ -278,6 +281,24 @@ public class ProductRecord : INotifyPropertyChanged
                 OnPropertyChanged(nameof(VariantCountDisplay));
             }
         }
+    }
+
+    public int PosSequence
+    {
+        get => _posSequence;
+        set { if (_posSequence != value) { _posSequence = value; OnPropertyChanged(); } }
+    }
+
+    public int DisplayOrder
+    {
+        get => _displayOrder;
+        set { if (_displayOrder != value) { _displayOrder = value; OnPropertyChanged(); } }
+    }
+
+    public bool HasCustomOrder
+    {
+        get => _hasCustomOrder;
+        set { if (_hasCustomOrder != value) { _hasCustomOrder = value; OnPropertyChanged(); } }
     }
 
     public decimal QtyAvailable

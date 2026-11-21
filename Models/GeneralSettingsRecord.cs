@@ -29,6 +29,9 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     private string _posLanguage = "English";
     private bool _showUnsyncedButtonInPos = true;
     private bool _showSetupButtonOnLogin = true;
+    private bool _autoPurgeOldDataEnabled = true;
+    private int _dataRetentionMonths = 2;
+    private string? _lastPurgeAt;
 
     public string ScreenMode
     {
@@ -154,6 +157,28 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     {
         get => _showSetupButtonOnLogin;
         set { if (_showSetupButtonOnLogin != value) { _showSetupButtonOnLogin = value; OnPropertyChanged(); } }
+    }
+
+    public bool AutoPurgeOldDataEnabled
+    {
+        get => _autoPurgeOldDataEnabled;
+        set { if (_autoPurgeOldDataEnabled != value) { _autoPurgeOldDataEnabled = value; OnPropertyChanged(); } }
+    }
+
+    public int DataRetentionMonths
+    {
+        get => _dataRetentionMonths;
+        set
+        {
+            int normalized = Math.Max(1, value);
+            if (_dataRetentionMonths != normalized) { _dataRetentionMonths = normalized; OnPropertyChanged(); }
+        }
+    }
+
+    public string? LastPurgeAt
+    {
+        get => _lastPurgeAt;
+        set { if (_lastPurgeAt != value) { _lastPurgeAt = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

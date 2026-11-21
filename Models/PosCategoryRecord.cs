@@ -198,13 +198,11 @@ public class PosCategoryRecord : INotifyPropertyChanged
             try
             {
                 string hex = GetOdooSubtleFgHex(ColorIndex);
-                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-                brush.Freeze();
-                return brush;
+                return BrushCache.Get(hex);
             }
             catch
             {
-                return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#212529"));
+                return BrushCache.Get("#212529");
             }
         }
     }
@@ -219,13 +217,11 @@ public class PosCategoryRecord : INotifyPropertyChanged
             try
             {
                 string hex = GetOdooActiveBorderHex(ColorIndex);
-                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-                brush.Freeze();
-                return brush;
+                return BrushCache.Get(hex);
             }
             catch
             {
-                return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#71639E"));
+                return BrushCache.Get("#71639E");
             }
         }
     }
@@ -249,19 +245,19 @@ public class PosCategoryRecord : INotifyPropertyChanged
     /// </summary>
     public static string GetOdooColorHex(int colorIndex) => colorIndex switch
     {
-        1 => "#EE2D2D",  // Color 1 (Chairs)
-        2 => "#EE5C2D",  // Color 2
-        3 => "#DC8534",  // Color 3 (Desks)
-        4 => "#E8BB1D",  // Color 4
-        5 => "#5794DD",  // Color 5
-        6 => "#9F628F",  // Color 6
-        7 => "#DB8865",  // Color 7
-        8 => "#41A9A2",  // Color 8
-        9 => "#F772B2",  // Color 9 (Misc)
-        10 => "#EE2F8A", // Color 10
-        11 => "#61C36E", // Color 11
-        12 => "#9872E6", // Color 12
-        _ => "#CCCCCC"   // Default gray
+        1 => "#FAA0A0",
+        2 => "#F7C698",
+        3 => "#FDE388",
+        4 => "#BBD7F8",
+        5 => "#D9A8CC",
+        6 => "#F5D7CB",
+        7 => "#A6E4DF",
+        8 => "#97A6F9",
+        9 => "#FF9ECC",
+        10 => "#B7EDBE",
+        11 => "#CAB5F7",
+        12 => "#D4E4BC",
+        _ => "#DEE2E6"
     };
 
     /// <summary>
@@ -270,18 +266,18 @@ public class PosCategoryRecord : INotifyPropertyChanged
     public static string GetOdooSubtleBgHex(int colorIndex) => colorIndex switch
     {
         1 => "#FF9C9C",  // Chairs (red/salmon)
-        2 => "#FFBA9C",  // Orange pastel
+        2 => "#F7C698",  // Pâtisserie
         3 => "#FDE388",  // Desks (yellow)
-        4 => "#FDF188",  // Light yellow
-        5 => "#A8CEF7",  // Light blue
-        6 => "#E2B8DA",  // Lavender
-        7 => "#F7C2AC",  // Warm Peach
-        8 => "#A6E4DF",  // Teal / Mint
+        4 => "#BBD7F8",  // Supplements
+        5 => "#D9A8CC",  // PDJ/Omelete
+        6 => "#F8D6C8",  // Premium
+        7 => "#A6E4DF",  // Mint teal
+        8 => "#97A6F9",  // Jus
         9 => "#FF9ECC",  // Misc (pink)
-        10 => "#FF9EC2", // Magenta pastel
-        11 => "#B0ECC6", // Green pastel
-        12 => "#CAB5F7", // Purple pastel
-        _ => "#E9ECEF"   // Default subtle gray
+        10 => "#B7EDBE", // Tranches/Danone
+        11 => "#CAB5F7", // Lavender
+        12 => "#D4E4BC", // Sage
+        _ => "#FFFFFF"   // Default
     };
 
     /// <summary>
@@ -290,17 +286,17 @@ public class PosCategoryRecord : INotifyPropertyChanged
     public static string GetOdooSubtleFgHex(int colorIndex) => colorIndex switch
     {
         1 => "#430C0C",
-        2 => "#431A0C",
+        2 => "#35210F",
         3 => "#2F270A",
-        4 => "#302E0A",
-        5 => "#102645",
-        6 => "#3B1334",
-        7 => "#431D0E",
-        8 => "#0C3B37",
+        4 => "#19324F",
+        5 => "#1D181C",
+        6 => "#552F1F",
+        7 => "#0C3B37",
+        8 => "#0E1436",
         9 => "#450C27",
-        10 => "#450C20",
-        11 => "#0E3D1D",
-        12 => "#1F1145",
+        10 => "#1F3922",
+        11 => "#1F1145",
+        12 => "#212529",
         _ => "#212529"
     };
 
@@ -310,17 +306,17 @@ public class PosCategoryRecord : INotifyPropertyChanged
     public static string GetOdooActiveBorderHex(int colorIndex) => colorIndex switch
     {
         1 => "#A70E0E",
-        2 => "#A73C0E",
+        2 => "#915319",
         3 => "#90740F",
-        4 => "#8E820F",
-        5 => "#18569F",
-        6 => "#7F236E",
-        7 => "#9F441F",
-        8 => "#1A7B74",
+        4 => "#2361AB",
+        5 => "#603B56",
+        6 => "#B15129",
+        7 => "#1A7B74",
+        8 => "#162994",
         9 => "#A90E58",
-        10 => "#AA0E48",
-        11 => "#1D823E",
-        12 => "#4925A0",
+        10 => "#348A40",
+        11 => "#4925A0",
+        12 => "#5C7A33",
         _ => "#71639E"
     };
 

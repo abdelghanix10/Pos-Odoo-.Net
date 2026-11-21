@@ -69,7 +69,7 @@ public static class PosImageUtils
         {
             decoded = DecodeWithImageSharp(bytes);
         }
-        // 3. Standard PNG / JPEG with DecodePixelWidth = 128 to save 99% RAM on 2GB machines
+        // 3. Standard PNG / JPEG thumbnails use a 256px decode width for crisp POS cards.
         else
         {
             try
@@ -78,7 +78,7 @@ public static class PosImageUtils
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.DecodePixelWidth = 128;
+                bitmap.DecodePixelWidth = 256;
                 bitmap.StreamSource = stream;
                 bitmap.EndInit();
                 bitmap.Freeze();
@@ -112,11 +112,11 @@ public static class PosImageUtils
         try
         {
             using var image = Image.Load<Bgra32>(bytes);
-            if (image.Width > 128)
+            if (image.Width > 256)
             {
                 image.Mutate(x => x.Resize(new ResizeOptions
                 {
-                    Size = new SixLabors.ImageSharp.Size(128, 0),
+                    Size = new SixLabors.ImageSharp.Size(256, 0),
                     Mode = SixLabors.ImageSharp.Processing.ResizeMode.Max,
                     Sampler = KnownResamplers.Triangle
                 }));

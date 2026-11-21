@@ -1147,23 +1147,21 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Category Tiles (.category-list .category-button: 145x64, rounded-3) -->
-                    <ScrollViewer Grid.Row="0"
-                                  HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Disabled"
-                                  Padding="8,8,8,4">
-                        <ItemsControl ItemsSource="{Binding Categories}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
+                    <!-- Categories: wrapped, scrollbar-free multi-row grid -->
+                    <ItemsControl Grid.Row="0"
+                                  ItemsSource="{Binding Categories}"
+                                  Margin="8,8,8,4">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="{Binding GridColumns}" VerticalAlignment="Top"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type local:PosCategoryRecord}">
                                     <Button Command="{Binding DataContext.SelectCategoryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
-                                            Width="145" Height="64"
-                                            Margin="0,0,8,0"
+                                            Height="64"
+                                            Margin="4"
                                             Cursor="Hand">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
@@ -1174,13 +1172,14 @@
                                                         BorderThickness="0"
                                                         Opacity="0.75">
                                                     <TextBlock Text="{Binding Name}"
-                                                               FontSize="14.5"
-                                                               FontWeight="Bold"
+                                                               FontSize="14"
+                                                               FontWeight="SemiBold"
                                                                Foreground="{Binding CategoryButtonFgBrush}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                TextAlignment="Center"
-                                                               TextWrapping="Wrap"/>
+                                                               TextWrapping="Wrap"
+                                                               TextTrimming="CharacterEllipsis"/>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding IsSelected}" Value="True">
@@ -1195,14 +1194,146 @@
                                             </ControlTemplate>
                                         </Button.Template>
                                     </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
-                    <!-- Product Cards Grid (Responsive width filling available space) -->
+                    <!-- Virtualized product rows -->
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding ProductRows}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             Padding="8,2,8,10"
+                             HorizontalContentAlignment="Stretch"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.CanContentScroll="True"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             SizeChanged="ProductsScrollViewer_SizeChanged">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0"/>
+                                <Setter Property="Focusable" Value="False"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <ContentPresenter/>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <ItemsControl ItemsSource="{Binding}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Rows="1"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type local:ProductRecord}">
+                                            <Grid Margin="4">
+                                                <Border Visibility="{Binding Converter={StaticResource InverseNullToVisibilityConverter}}"
+                                                        IsHitTestVisible="False"/>
+                                                <Button Command="{Binding DataContext.AddProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Visibility="{Binding Converter={StaticResource NullToVisibilityConverter}}"
+                                                        Cursor="Hand"
+                                                        Background="Transparent"
+                                                        BorderThickness="0"
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        HorizontalContentAlignment="Stretch"
+                                                        VerticalContentAlignment="Stretch">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Grid x:Name="CardGrid" MinHeight="96">
+                                                                <Grid.RowDefinitions>
+                                                                    <RowDefinition Height="*"/>
+                                                                    <RowDefinition Height="6"/>
+                                                                </Grid.RowDefinitions>
+                                                                <Border x:Name="CardBdr" Grid.Row="0" Background="#FFFFFF"
+                                                                        BorderBrush="#DEE2E6" BorderThickness="1,1,1,0"
+                                                                        CornerRadius="6,6,0,0">
+                                                                    <Grid>
+                                                                        <Grid Visibility="{Binding HasImage, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                                            <Grid.RowDefinitions>
+                                                                                <RowDefinition Height="Auto"/>
+                                                                                <RowDefinition Height="42"/>
+                                                                            </Grid.RowDefinitions>
+                                                                            <Border Grid.Row="0"
+                                                                                    Height="{Binding DataContext.ProductCardWidth, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=160}"
+                                                                                    Background="#FFFFFF" CornerRadius="5,5,0,0" ClipToBounds="True">
+                                                                                <Border CornerRadius="5,5,0,0">
+                                                                                    <Border.Background>
+                                                                                        <ImageBrush ImageSource="{Binding ImageBitmap}" Stretch="UniformToFill"
+                                                                                                    AlignmentX="Center" AlignmentY="Center"/>
+                                                                                    </Border.Background>
+                                                                                </Border>
+                                                                            </Border>
+                                                                            <Border Grid.Row="1" Background="#FFFFFF" Padding="8,4">
+                                                                                <Grid>
+                                                                                    <Grid.ColumnDefinitions>
+                                                                                        <ColumnDefinition Width="*"/>
+                                                                                        <ColumnDefinition Width="Auto"/>
+                                                                                    </Grid.ColumnDefinitions>
+                                                                                    <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                                                                               Foreground="#212529" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                                                               VerticalAlignment="Center"/>
+                                                                                    <Border Grid.Column="1" Background="#000000" CornerRadius="4"
+                                                                                            MinWidth="22" Height="22" Padding="6,0" Margin="6,0,0,0"
+                                                                                            Visibility="{Binding HasCartQuantity, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                                                        <TextBlock Text="{Binding CartQuantity}" FontSize="12" FontWeight="Bold"
+                                                                                                   Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                                    </Border>
+                                                                                </Grid>
+                                                                            </Border>
+                                                                        </Grid>
+                                                                        <Grid Visibility="{Binding HasImage, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}"
+                                                                              Background="#FFFFFF">
+                                                                            <TextBlock Text="{Binding Name}" FontSize="16.5" FontWeight="Bold"
+                                                                                       Foreground="#212529" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                                                       TextAlignment="Center" HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center" Margin="12,10"/>
+                                                                            <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                                                    Background="#000000" CornerRadius="4" MinWidth="22" Height="22"
+                                                                                    Padding="6,0" Margin="0,0,8,8"
+                                                                                    Visibility="{Binding HasCartQuantity, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                                                <TextBlock Text="{Binding CartQuantity}" FontSize="12" FontWeight="Bold"
+                                                                                           Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                            </Border>
+                                                                        </Grid>
+                                                                    </Grid>
+                                                                </Border>
+                                                                <Border Grid.Row="1" Background="{Binding CategoryColorBrush}" CornerRadius="0,0,6,6"/>
+                                                            </Grid>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="CardBdr" Property="BorderBrush" Value="#71639E"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsPressed" Value="True">
+                                                                    <Setter TargetName="CardGrid" Property="Opacity" Value="0.88"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Legacy card grid retained as hidden fallback -->
                     <ScrollViewer x:Name="ProductsScrollViewer"
                                   Grid.Row="1"
+                                  Visibility="Collapsed"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
                                   SizeChanged="ProductsScrollViewer_SizeChanged"
@@ -1640,7 +1771,110 @@
 
                         <Border Grid.Column="1" Background="{StaticResource BorderLightBrush}"/>
 
-                        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" SizeChanged="ProductsScrollViewer_SizeChanged" Padding="8">
+                        <ListBox Grid.Column="2"
+                                 ItemsSource="{Binding ProductRows}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="8,2,8,10"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 SizeChanged="ProductsScrollViewer_SizeChanged">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Setter Property="Focusable" Value="False"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <ContentPresenter/>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <ItemsControl ItemsSource="{Binding}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Rows="1"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type local:ProductRecord}">
+                                                <Grid Margin="4">
+                                                    <Border Visibility="{Binding Converter={StaticResource InverseNullToVisibilityConverter}}" IsHitTestVisible="False"/>
+                                                    <Button Command="{Binding DataContext.AddProductCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Visibility="{Binding Converter={StaticResource NullToVisibilityConverter}}"
+                                                            Cursor="Hand" Background="Transparent" BorderThickness="0"
+                                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                                            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Grid x:Name="CardGrid" MinHeight="96">
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="*"/>
+                                                                        <RowDefinition Height="6"/>
+                                                                    </Grid.RowDefinitions>
+                                                                    <Border x:Name="CardBdr" Grid.Row="0" Background="#FFFFFF"
+                                                                            BorderBrush="#DEE2E6" BorderThickness="1,1,1,0" CornerRadius="6,6,0,0">
+                                                                        <Grid>
+                                                                            <Grid Visibility="{Binding HasImage, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+                                                                                <Grid.RowDefinitions>
+                                                                                    <RowDefinition Height="Auto"/>
+                                                                                    <RowDefinition Height="42"/>
+                                                                                </Grid.RowDefinitions>
+                                                                                <Border Grid.Row="0"
+                                                                                        Height="{Binding DataContext.ProductCardWidth, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=160}"
+                                                                                        Background="#FFFFFF" CornerRadius="5,5,0,0" ClipToBounds="True">
+                                                                                    <Border CornerRadius="5,5,0,0">
+                                                                                        <Border.Background>
+                                                                                            <ImageBrush ImageSource="{Binding ImageBitmap}" Stretch="UniformToFill"/>
+                                                                                        </Border.Background>
+                                                                                    </Border>
+                                                                                </Border>
+                                                                                <Border Grid.Row="1" Background="#FFFFFF" Padding="8,4">
+                                                                                    <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                                                                               Foreground="#212529" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                                                               VerticalAlignment="Center"/>
+                                                                                </Border>
+                                                                            </Grid>
+                                                                            <Grid Visibility="{Binding HasImage, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}"
+                                                                                  Background="#FFFFFF">
+                                                                                <TextBlock Text="{Binding Name}" FontSize="16.5" FontWeight="Bold"
+                                                                                           Foreground="#212529" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                                                           TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12,10"/>
+                                                                            </Grid>
+                                                                        </Grid>
+                                                                    </Border>
+                                                                    <Border Grid.Row="1" Background="{Binding CategoryColorBrush}" CornerRadius="0,0,6,6"/>
+                                                                </Grid>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="CardBdr" Property="BorderBrush" Value="#71639E"/>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsPressed" Value="True">
+                                                                        <Setter TargetName="CardGrid" Property="Opacity" Value="0.88"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                    </Button>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <ScrollViewer Grid.Column="2" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" SizeChanged="ProductsScrollViewer_SizeChanged" Padding="8">
                             <ItemsControl ItemsSource="{Binding FilteredProducts}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>

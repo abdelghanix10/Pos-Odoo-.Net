@@ -92,7 +92,8 @@ public record ProductDto(
     string UomName = "Units",
     string CompanyName = "",
     string PosDescription = "",
-    bool IsSalesTaxIncluded = false
+    bool IsSalesTaxIncluded = false,
+    int PosSequence = 0
 );
 
 public record ComboChoiceDto(
@@ -532,6 +533,9 @@ public class SqliteDatabaseService
                 UomName TEXT DEFAULT 'Units',
                 CompanyName TEXT DEFAULT '',
                 PosDescription TEXT DEFAULT '',
+                PosSequence INTEGER DEFAULT 0,
+                DisplayOrder INTEGER DEFAULT 0,
+                HasCustomOrder INTEGER DEFAULT 0,
                 ImageBase64 TEXT,
                 TagsJson TEXT,
                 AttributesJson TEXT,
@@ -710,6 +714,9 @@ public class SqliteDatabaseService
                 CashDrawerPulse INTEGER DEFAULT 0,
                 PrintHeaderLogo INTEGER DEFAULT 1,
                 PrinterEncoding TEXT DEFAULT 'UTF-8',
+                AutoPurgeOldDataEnabled INTEGER DEFAULT 1,
+                DataRetentionMonths INTEGER DEFAULT 2,
+                LastPurgeAt TEXT,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -764,6 +771,10 @@ public class SqliteDatabaseService
             "ALTER TABLE Products ADD COLUMN CompanyName TEXT DEFAULT '';",
             "ALTER TABLE Products ADD COLUMN PosDescription TEXT DEFAULT '';",
             "ALTER TABLE Products ADD COLUMN IsSalesTaxIncluded INTEGER DEFAULT 0;",
+            "ALTER TABLE Products ADD COLUMN PosSequence INTEGER DEFAULT 0;",
+            "ALTER TABLE Products ADD COLUMN DisplayOrder INTEGER DEFAULT 0;",
+            "ALTER TABLE Products ADD COLUMN HasCustomOrder INTEGER DEFAULT 0;",
+            "CREATE INDEX IF NOT EXISTS IX_Products_SortOrder ON Products(DisplayOrder, PosSequence, Name);",
             "ALTER TABLE PosSessions ADD COLUMN CashInOutTotal REAL DEFAULT 0.0;",
             "ALTER TABLE PosSessions ADD COLUMN OpeningNote TEXT;",
             "ALTER TABLE PosSessions ADD COLUMN ClosingNote TEXT;",
@@ -795,6 +806,9 @@ public class SqliteDatabaseService
             "ALTER TABLE GeneralSettings ADD COLUMN ShowUnsyncedButtonInPos INTEGER DEFAULT 1;",
             "ALTER TABLE GeneralSettings ADD COLUMN ShowSetupButtonOnLogin INTEGER DEFAULT 1;",
             "ALTER TABLE GeneralSettings ADD COLUMN LastBackupAt TEXT;",
+            "ALTER TABLE GeneralSettings ADD COLUMN AutoPurgeOldDataEnabled INTEGER DEFAULT 1;",
+            "ALTER TABLE GeneralSettings ADD COLUMN DataRetentionMonths INTEGER DEFAULT 2;",
+            "ALTER TABLE GeneralSettings ADD COLUMN LastPurgeAt TEXT;",
             "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN CustomOrderReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN IsHideOpeningCashControlEnabled INTEGER DEFAULT 0;",
@@ -983,6 +997,7 @@ public class SqliteDatabaseService
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
         PurgeAllEntityTablesInternal(connection);
+        InvalidateAllCaches();
     }
 
     public async Task<DatabaseCountsSummary> GetDatabaseCountsAsync()
@@ -1248,6 +1263,7 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedCompanies = null;
         return (imported, updated, deleted);
     }
 
@@ -1405,6 +1421,7 @@ public class SqliteDatabaseService
         command.Parameters.AddWithValue("@theme", user.IsPurpleTheme ? 1 : 0);
 
         await command.ExecuteNonQueryAsync();
+        _cachedUsers = null;
     }
 
     public async Task<OdooConfigRecord?> GetUserSpecificOdooConfigAsync(int? userOdooId, string? userNameOrLogin)
@@ -1482,6 +1499,7 @@ public class SqliteDatabaseService
         command.Parameters.AddWithValue("@login", login);
 
         await command.ExecuteNonQueryAsync();
+        _cachedUsers = null;
     }
 
     public async Task<(int imported, int updated, int deleted)> UpsertOdooUsersAsync(List<OdooUserDto> odooUsers)
@@ -1605,6 +1623,7 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedUsers = null;
         return (imported, updated, deleted);
     }
 
@@ -1730,6 +1749,7 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedPaymentMethods = null;
         return (imported, updated, deleted);
     }
 
@@ -1841,6 +1861,8 @@ public class SqliteDatabaseService
             if (newId != null && long.TryParse(newId.ToString(), out long generatedId))
                 category.Id = generatedId;
         }
+        _cachedCategories = null;
+        _cachedProducts = null;
     }
 
     public async Task DeleteCategoryAsync(long id)
@@ -1851,6 +1873,8 @@ public class SqliteDatabaseService
         cmd.CommandText = "DELETE FROM PosCategories WHERE Id = @id;";
         cmd.Parameters.AddWithValue("@id", id);
         await cmd.ExecuteNonQueryAsync();
+        _cachedCategories = null;
+        _cachedProducts = null;
     }
 
     public async Task<(int imported, int updated, int deleted)> UpsertOdooCategoriesAsync(List<PosCategoryDto> categories)
@@ -1932,6 +1956,8 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedCategories = null;
+        _cachedProducts = null;
         return (imported, updated, deleted);
     }
 
@@ -2340,7 +2366,7 @@ public class SqliteDatabaseService
         cmd.CommandText = """
             SELECT p.Id, p.OdooId, p.Name, p.ProductType, p.ListPrice, p.StandardPrice, p.DefaultCode, p.Barcode,
                    p.PosCategoryId, p.PosCategoryName, p.VariantCount, p.ImageBase64, p.TagsJson, p.AttributesJson, p.ComboChoicesJson,
-                   COALESCE(c.ColorHex, '#F7CD1F'),
+                   COALESCE(c.ColorIndex, 0),
                    COALESCE(p.InternalCategoryName, 'All'),
                    COALESCE(p.QtyAvailable, 0.0),
                    COALESCE(p.SaleOk, 1),
@@ -2354,10 +2380,14 @@ public class SqliteDatabaseService
                    COALESCE(p.UomName, 'Units'),
                    COALESCE(p.CompanyName, ''),
                    COALESCE(p.PosDescription, ''),
-                   COALESCE(p.IsSalesTaxIncluded, 0)
+                   COALESCE(p.IsSalesTaxIncluded, 0),
+                   COALESCE(p.PosSequence, 0),
+                   COALESCE(p.DisplayOrder, 0),
+                   COALESCE(p.HasCustomOrder, 0)
             FROM Products p
             LEFT JOIN PosCategories c ON p.PosCategoryId = c.OdooId
-            ORDER BY p.Name ASC;
+            ORDER BY CASE WHEN COALESCE(p.HasCustomOrder, 0) = 1 THEN p.DisplayOrder ELSE p.PosSequence END ASC,
+                     p.DisplayOrder ASC, p.Name ASC, COALESCE(p.OdooId, p.Id) ASC;
             """;
 
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -2380,7 +2410,7 @@ public class SqliteDatabaseService
                 TagsJson = reader.IsDBNull(12) ? null : reader.GetString(12),
                 AttributesJson = reader.IsDBNull(13) ? null : reader.GetString(13),
                 ComboChoicesJson = reader.IsDBNull(14) ? null : reader.GetString(14),
-                CategoryColorHex = reader.IsDBNull(15) ? "#F7CD1F" : reader.GetString(15),
+                CategoryColorHex = PosCategoryRecord.GetOdooColorHex(reader.IsDBNull(15) ? 0 : reader.GetInt32(15)),
                 InternalCategoryName = reader.IsDBNull(16) ? "All" : reader.GetString(16),
                 QtyAvailable = reader.IsDBNull(17) ? 0.00m : Convert.ToDecimal(reader.GetDouble(17)),
                 SaleOk = reader.IsDBNull(18) || reader.GetInt32(18) != 0,
@@ -2394,7 +2424,10 @@ public class SqliteDatabaseService
                 UomName = reader.IsDBNull(26) ? "Units" : reader.GetString(26),
                 CompanyName = reader.IsDBNull(27) ? "" : reader.GetString(27),
                 PosDescription = reader.IsDBNull(28) ? "" : reader.GetString(28),
-                IsSalesTaxIncluded = !reader.IsDBNull(29) && reader.GetInt32(29) != 0
+                IsSalesTaxIncluded = !reader.IsDBNull(29) && reader.GetInt32(29) != 0,
+                PosSequence = reader.IsDBNull(30) ? 0 : reader.GetInt32(30),
+                DisplayOrder = reader.IsDBNull(31) ? 0 : reader.GetInt32(31),
+                HasCustomOrder = !reader.IsDBNull(32) && reader.GetInt32(32) != 0
             });
         }
 
@@ -2410,9 +2443,15 @@ public class SqliteDatabaseService
         await connection.OpenAsync();
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
 
-        var odooProductIds = products.Select(p => p.OdooId).ToHashSet();
+        var orderedProducts = products
+            .OrderBy(p => p.PosSequence)
+            .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.OdooId)
+            .ToList();
+        var odooProductIds = orderedProducts.Select(p => p.OdooId).ToHashSet();
 
-        foreach (var p in products)
+        int odooRank = 1;
+        foreach (var p in orderedProducts)
         {
             await using var checkCmd = connection.CreateCommand();
             checkCmd.Transaction = transaction;
@@ -2435,6 +2474,8 @@ public class SqliteDatabaseService
                         SalesTaxLabel = @sTaxLbl, SalesTaxRate = @sTaxRate, PurchaseTaxLabel = @pTaxLbl,
                         UomName = @uom, CompanyName = @company, PosDescription = @posDesc, IsSalesTaxIncluded = @isTaxIncl,
                         ImageBase64 = @image, TagsJson = @tags, AttributesJson = @attrs, ComboChoicesJson = @combos,
+                        PosSequence = @posSequence,
+                        DisplayOrder = CASE WHEN COALESCE(HasCustomOrder, 0) = 1 THEN DisplayOrder ELSE @odooRank END,
                         UpdatedAt = CURRENT_TIMESTAMP
                     WHERE OdooId = @odooId;
                     """;
@@ -2447,12 +2488,12 @@ public class SqliteDatabaseService
                                          PosCategoryId, PosCategoryName, InternalCategoryName, VariantCount, QtyAvailable,
                                          SaleOk, PurchaseOk, AvailableInPos, TrackInventory, ToWeight,
                                          SalesTaxLabel, SalesTaxRate, PurchaseTaxLabel, UomName, CompanyName, PosDescription,
-                                         IsSalesTaxIncluded, ImageBase64, TagsJson, AttributesJson, ComboChoicesJson)
+                                         IsSalesTaxIncluded, PosSequence, DisplayOrder, ImageBase64, TagsJson, AttributesJson, ComboChoicesJson)
                     VALUES (@odooId, @name, @type, @listPrice, @stdPrice, @sku, @barcode,
                             @catId, @catName, @internalCat, @variants, @qty,
                             @saleOk, @purchaseOk, @availPos, @trackInv, @toWeight,
                             @sTaxLbl, @sTaxRate, @pTaxLbl, @uom, @company, @posDesc,
-                            @isTaxIncl, @image, @tags, @attrs, @combos);
+                            @isTaxIncl, @posSequence, @odooRank, @image, @tags, @attrs, @combos);
                     """;
                 imported++;
             }
@@ -2485,6 +2526,8 @@ public class SqliteDatabaseService
             cmd.Parameters.AddWithValue("@tags", (object?)p.TagsJson ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@attrs", (object?)p.AttributesJson ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@combos", (object?)p.ComboChoicesJson ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@posSequence", p.PosSequence);
+            cmd.Parameters.AddWithValue("@odooRank", odooRank++);
             await cmd.ExecuteNonQueryAsync();
         }
 
@@ -2513,7 +2556,42 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedProducts = null;
         return (imported, updated, deleted);
+    }
+
+    public async Task SaveProductsDisplayOrderAsync(IReadOnlyList<ProductRecord> orderedProducts, bool isCustomOrder = true)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
+        cmd.CommandText = "UPDATE Products SET DisplayOrder = @order, HasCustomOrder = @custom WHERE Id = @id;";
+        var orderParam = cmd.Parameters.Add("@order", SqliteType.Integer);
+        var customParam = cmd.Parameters.Add("@custom", SqliteType.Integer);
+        var idParam = cmd.Parameters.Add("@id", SqliteType.Integer);
+        for (int i = 0; i < orderedProducts.Count; i++)
+        {
+            orderedProducts[i].DisplayOrder = i + 1;
+            orderedProducts[i].HasCustomOrder = isCustomOrder;
+            orderParam.Value = i + 1;
+            customParam.Value = isCustomOrder ? 1 : 0;
+            idParam.Value = orderedProducts[i].Id;
+            await cmd.ExecuteNonQueryAsync();
+        }
+        await transaction.CommitAsync();
+        _cachedProducts = null;
+    }
+
+    public async Task ResetProductsToOdooOrderAsync()
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "UPDATE Products SET HasCustomOrder = 0, DisplayOrder = PosSequence;";
+        await cmd.ExecuteNonQueryAsync();
+        _cachedProducts = null;
     }
 
     public async Task UpdateProductSyncStatusAsync(DateTime syncedAt, string status)
@@ -2944,10 +3022,17 @@ public class SqliteDatabaseService
         }
 
         var delIds = new List<long>();
+        string reconciliationCutoff = DateTime.UtcNow.AddDays(-7)
+            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         await using (var fetchCmd = connection.CreateCommand())
         {
             fetchCmd.Transaction = transaction;
-            fetchCmd.CommandText = "SELECT Id, OdooId, COALESCE(IsSynced, 1) FROM PosSessions;";
+            fetchCmd.CommandText = """
+                SELECT Id, OdooId, COALESCE(IsSynced, 1)
+                FROM PosSessions
+                WHERE COALESCE(StopAt, StartAt) IS NULL OR COALESCE(StopAt, StartAt) >= @cutoff;
+                """;
+            fetchCmd.Parameters.AddWithValue("@cutoff", reconciliationCutoff);
             await using var reader = await fetchCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -3569,10 +3654,19 @@ public class SqliteDatabaseService
         }
 
         var delLineIds = new List<long>();
+        string reconciliationCutoff = DateTime.UtcNow.AddDays(-7)
+            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         await using (var fetchLinesCmd = connection.CreateCommand())
         {
             fetchLinesCmd.Transaction = transaction;
-            fetchLinesCmd.CommandText = "SELECT Id, OdooId FROM PosOrderLines WHERE OdooId IS NOT NULL;";
+            fetchLinesCmd.CommandText = """
+                SELECT l.Id, l.OdooId
+                FROM PosOrderLines l
+                INNER JOIN PosOrders o ON o.OdooId = l.OrderOdooId
+                WHERE l.OdooId IS NOT NULL
+                  AND (o.DateOrder IS NULL OR o.DateOrder >= @cutoff);
+                """;
+            fetchLinesCmd.Parameters.AddWithValue("@cutoff", reconciliationCutoff);
             await using var reader = await fetchLinesCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -3595,7 +3689,12 @@ public class SqliteDatabaseService
         await using (var fetchCmd = connection.CreateCommand())
         {
             fetchCmd.Transaction = transaction;
-            fetchCmd.CommandText = "SELECT Id, OdooId, COALESCE(IsSynced, 1), LOWER(COALESCE(State, 'paid')) FROM PosOrders;";
+            fetchCmd.CommandText = """
+                SELECT Id, OdooId, COALESCE(IsSynced, 1), LOWER(COALESCE(State, 'paid'))
+                FROM PosOrders
+                WHERE DateOrder IS NULL OR DateOrder >= @cutoff;
+                """;
+            fetchCmd.Parameters.AddWithValue("@cutoff", reconciliationCutoff);
             await using var reader = await fetchCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -3624,6 +3723,7 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedAllOrders = null;
 
         if (payments != null)
         {
@@ -3647,33 +3747,6 @@ public class SqliteDatabaseService
             await cmd.ExecuteNonQueryAsync();
         }
 
-        string cutoff = syncedAt.AddDays(-30).ToString("yyyy-MM-dd 00:00:00", CultureInfo.InvariantCulture);
-        await using (var pruneCmd = connection.CreateCommand())
-        {
-            pruneCmd.Transaction = transaction;
-            pruneCmd.CommandText = """
-                DELETE FROM PosOrderLines
-                WHERE OrderId IN (
-                    SELECT Id FROM PosOrders
-                    WHERE COALESCE(IsSynced, 1) = 1
-                      AND DateOrder < @cutoff
-                      AND LOWER(COALESCE(State, 'paid')) NOT IN ('draft','ongoing','new')
-                );
-                DELETE FROM PosPayments
-                WHERE OrderId IN (
-                    SELECT Id FROM PosOrders
-                    WHERE COALESCE(IsSynced, 1) = 1
-                      AND DateOrder < @cutoff
-                      AND LOWER(COALESCE(State, 'paid')) NOT IN ('draft','ongoing','new')
-                );
-                DELETE FROM PosOrders
-                WHERE COALESCE(IsSynced, 1) = 1
-                  AND DateOrder < @cutoff
-                  AND LOWER(COALESCE(State, 'paid')) NOT IN ('draft','ongoing','new');
-                """;
-            pruneCmd.Parameters.AddWithValue("@cutoff", cutoff);
-            await pruneCmd.ExecuteNonQueryAsync();
-        }
         await transaction.CommitAsync();
         lock (_cacheSync) _cachedAllOrders = null;
     }
@@ -3820,10 +3893,17 @@ public class SqliteDatabaseService
         }
 
         var delIds = new List<long>();
+        string reconciliationCutoff = DateTime.UtcNow.AddDays(-7)
+            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         await using (var fetchCmd = connection.CreateCommand())
         {
             fetchCmd.Transaction = transaction;
-            fetchCmd.CommandText = "SELECT Id, OdooId, COALESCE(IsSynced, 1) FROM PosPayments;";
+            fetchCmd.CommandText = """
+                SELECT Id, OdooId, COALESCE(IsSynced, 1)
+                FROM PosPayments
+                WHERE PaymentDate IS NULL OR PaymentDate >= @cutoff;
+                """;
+            fetchCmd.Parameters.AddWithValue("@cutoff", reconciliationCutoff);
             await using var reader = await fetchCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -3846,6 +3926,7 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedAllOrders = null;
         return (imported, updated, deleted);
     }
 
@@ -4115,6 +4196,7 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedPosConfigs = null;
         return (imported, updated, deleted);
     }
 
@@ -4302,7 +4384,10 @@ public class SqliteDatabaseService
                    COALESCE(g.BackupTime, '23:00'),
                    COALESCE(g.PosLanguage, 'English'),
                    COALESCE(g.ShowUnsyncedButtonInPos, 1),
-                   COALESCE(g.ShowSetupButtonOnLogin, 1)
+                   COALESCE(g.ShowSetupButtonOnLogin, 1),
+                   COALESCE(g.AutoPurgeOldDataEnabled, 1),
+                   COALESCE(g.DataRetentionMonths, 2),
+                   g.LastPurgeAt
             FROM GeneralSettings g
             LEFT JOIN Companies c ON g.DefaultCompanyId = c.OdooId OR g.DefaultCompanyId = c.Id
             WHERE g.Id = 1;
@@ -4333,6 +4418,9 @@ public class SqliteDatabaseService
             record.PosLanguage = string.IsNullOrWhiteSpace(posLang) ? "English" : posLang;
             record.ShowUnsyncedButtonInPos = reader.IsDBNull(15) || reader.GetInt32(15) != 0;
             record.ShowSetupButtonOnLogin = reader.IsDBNull(16) || reader.GetInt32(16) != 0;
+            record.AutoPurgeOldDataEnabled = reader.IsDBNull(17) || reader.GetInt32(17) != 0;
+            record.DataRetentionMonths = reader.IsDBNull(18) ? 2 : reader.GetInt32(18);
+            record.LastPurgeAt = reader.IsDBNull(19) ? null : reader.GetString(19);
         }
         else
         {
@@ -4356,11 +4444,11 @@ public class SqliteDatabaseService
         cmd.CommandText = """
             INSERT INTO GeneralSettings (Id, ScreenMode, DefaultCompanyId, DefaultPrinterName, PaperWidth,
                                          AutoPrintReceipt, CashDrawerPulse, PrintHeaderLogo, PrinterEncoding,
-                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, PosLanguage, ShowUnsyncedButtonInPos, ShowSetupButtonOnLogin, UpdatedAt)
+                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, PosLanguage, ShowUnsyncedButtonInPos, ShowSetupButtonOnLogin, AutoPurgeOldDataEnabled, DataRetentionMonths, LastPurgeAt, UpdatedAt)
             VALUES (1, @screenMode, @companyId, @printerName, @paperWidth,
                     @autoPrint, @drawerPulse, @printLogo, @encoding,
                     @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt,
-                    @posLanguage, @showUnsyncedPos, @showSetupLogin, CURRENT_TIMESTAMP)
+                    @posLanguage, @showUnsyncedPos, @showSetupLogin, @autoPurge, @retentionMonths, @lastPurgeAt, CURRENT_TIMESTAMP)
             ON CONFLICT(Id) DO UPDATE SET
                 ScreenMode = @screenMode,
                 DefaultCompanyId = @companyId,
@@ -4378,6 +4466,9 @@ public class SqliteDatabaseService
                 PosLanguage = @posLanguage,
                 ShowUnsyncedButtonInPos = @showUnsyncedPos,
                 ShowSetupButtonOnLogin = @showSetupLogin,
+                AutoPurgeOldDataEnabled = @autoPurge,
+                DataRetentionMonths = @retentionMonths,
+                LastPurgeAt = COALESCE(@lastPurgeAt, GeneralSettings.LastPurgeAt),
                 UpdatedAt = CURRENT_TIMESTAMP;
             """;
 
@@ -4397,8 +4488,77 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@posLanguage", settings.PosLanguage ?? "English");
         cmd.Parameters.AddWithValue("@showUnsyncedPos", settings.ShowUnsyncedButtonInPos ? 1 : 0);
         cmd.Parameters.AddWithValue("@showSetupLogin", settings.ShowSetupButtonOnLogin ? 1 : 0);
+        cmd.Parameters.AddWithValue("@autoPurge", settings.AutoPurgeOldDataEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@retentionMonths", settings.DataRetentionMonths);
+        cmd.Parameters.AddWithValue("@lastPurgeAt", (object?)settings.LastPurgeAt ?? DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync();
+        _cachedGeneralSettings = null;
+    }
+
+    public async Task<(int OrdersDeleted, int PaymentsDeleted, int SessionsDeleted)> PurgeDataOlderThanMonthsAsync(int months = 2)
+    {
+        string cutoff = DateTime.Now.AddMonths(-Math.Max(1, months))
+            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        async Task<int> ExecuteDeleteAsync(string sql)
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("@cutoff", cutoff);
+            return await command.ExecuteNonQueryAsync();
+        }
+
+        await ExecuteDeleteAsync("""
+            DELETE FROM PosOrderLines WHERE OrderId IN (
+                SELECT Id FROM PosOrders
+                WHERE COALESCE(IsSynced, 1) = 1
+                  AND LOWER(COALESCE(State, 'paid')) NOT IN ('draft', 'ongoing', 'new')
+                  AND DateOrder IS NOT NULL AND DateOrder < @cutoff
+            );
+            """);
+        int payments = await ExecuteDeleteAsync("""
+            DELETE FROM PosPayments
+            WHERE COALESCE(IsSynced, 1) = 1
+              AND (
+                  (PaymentDate IS NOT NULL AND PaymentDate < @cutoff)
+                  OR OrderId IN (
+                      SELECT Id FROM PosOrders
+                      WHERE COALESCE(IsSynced, 1) = 1
+                        AND LOWER(COALESCE(State, 'paid')) NOT IN ('draft', 'ongoing', 'new')
+                        AND DateOrder IS NOT NULL AND DateOrder < @cutoff
+                  )
+              );
+            """);
+        int orders = await ExecuteDeleteAsync("""
+            DELETE FROM PosOrders
+            WHERE COALESCE(IsSynced, 1) = 1
+              AND LOWER(COALESCE(State, 'paid')) NOT IN ('draft', 'ongoing', 'new')
+              AND DateOrder IS NOT NULL AND DateOrder < @cutoff;
+            """);
+        int sessions = await ExecuteDeleteAsync("""
+            DELETE FROM PosSessions
+            WHERE COALESCE(IsSynced, 1) = 1
+              AND LOWER(COALESCE(State, '')) = 'closed'
+              AND COALESCE(StopAt, StartAt) IS NOT NULL
+              AND COALESCE(StopAt, StartAt) < @cutoff
+              AND Id NOT IN (SELECT DISTINCT SessionId FROM PosOrders WHERE SessionId IS NOT NULL);
+            """);
+        await using (var log = connection.CreateCommand())
+        {
+            log.Transaction = transaction;
+            log.CommandText = "UPDATE GeneralSettings SET LastPurgeAt = @now WHERE Id = 1;";
+            log.Parameters.AddWithValue("@now", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+            await log.ExecuteNonQueryAsync();
+        }
+        await transaction.CommitAsync();
+        _cachedGeneralSettings = null;
+        _cachedAllOrders = null;
+        return (orders, payments, sessions);
     }
 
     public async Task<string> PerformDatabaseBackupAsync(string? overrideFolderPath = null)
@@ -4535,6 +4695,7 @@ public class SqliteDatabaseService
 
             // Atomically overwrite live database pages from the backup database
             backupConnection.BackupDatabase(liveConnection);
+            InvalidateAllCaches();
         }
 
         // Ensure all latest schema migrations exist on the restored database
@@ -4751,6 +4912,7 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedPosConfigs = null;
         return (localSessId, odooSessId, sessName);
     }
 
@@ -4826,6 +4988,7 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedPosConfigs = null;
     }
 
     public async Task<decimal> GetSessionCashInOutTotalAsync(int sessionId)
@@ -5543,6 +5706,7 @@ public class SqliteDatabaseService
         }
 
         await transaction.CommitAsync();
+        _cachedPosConfigs = null;
     }
 
     public async Task BindLocalOrderToOdooOrderAsync(

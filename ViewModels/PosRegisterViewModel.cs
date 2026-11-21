@@ -497,11 +497,36 @@ public partial class PosRegisterViewModel : ViewModelBase
     [ObservableProperty]
     private double _productCardWidth = 172.0;
 
+    [ObservableProperty]
+    private int _gridColumns = 7;
+
+    [ObservableProperty]
+    private ObservableCollection<ProductRecord?[]> _productRows = [];
+
     public double ProductCardHeight => ProductCardWidth + 50.0;
 
     partial void OnProductCardWidthChanged(double value)
     {
         OnPropertyChanged(nameof(ProductCardHeight));
+    }
+
+    partial void OnGridColumnsChanged(int value) => RebuildProductRows();
+
+    private void RebuildProductRows()
+    {
+        int cols = Math.Max(2, GridColumns);
+        var rows = new List<ProductRecord?[]>((FilteredProducts.Count + cols - 1) / cols);
+
+        for (int i = 0; i < FilteredProducts.Count; i += cols)
+        {
+            var row = new ProductRecord?[cols];
+            int take = Math.Min(cols, FilteredProducts.Count - i);
+            for (int j = 0; j < take; j++)
+                row[j] = FilteredProducts[i + j];
+            rows.Add(row);
+        }
+
+        ProductRows = new ObservableCollection<ProductRecord?[]>(rows);
     }
 
     [ObservableProperty]
@@ -2693,7 +2718,6 @@ public partial class PosRegisterViewModel : ViewModelBase
     private void FilterProducts()
     {
         string query = ProductSearchText.Trim();
-        FilteredProducts.Clear();
 
         IEnumerable<ProductRecord> source = _allProducts;
 
@@ -2721,10 +2745,8 @@ public partial class PosRegisterViewModel : ViewModelBase
                 p.Barcode.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
-        foreach (var p in source)
-        {
-            FilteredProducts.Add(p);
-        }
+        FilteredProducts = new ObservableCollection<ProductRecord>(source);
+        RebuildProductRows();
     }
 
     // =========================================================================

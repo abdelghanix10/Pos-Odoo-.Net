@@ -67,7 +67,23 @@ public partial class ProductsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isEmptyStateVisible;
 
+    public ObservableCollection<string> SortOptions { get; } =
+    [
+        "Custom / Odoo Order",
+        "Name (A to Z)",
+        "Name (Z to A)",
+        "Price (Low → High)",
+        "Price (High → Low)",
+        "Category (A → Z)"
+    ];
+
+    [ObservableProperty]
+    private string _selectedSortOption = "Custom / Odoo Order";
+
+    private bool _suppressSortHandler;
+
     public event EventHandler? ProductsUpdated;
+    public event EventHandler? ProductsOrderChanged;
 
     private readonly DispatcherTimer _toastTimer;
 
@@ -85,6 +101,70 @@ public partial class ProductsViewModel : ViewModelBase
     partial void OnSearchTextChanged(string value)
     {
         RefreshFilter();
+    }
+
+    partial void OnSelectedSortOptionChanged(string value)
+    {
+        if (_suppressSortHandler) return;
+
+        IEnumerable<ProductRecord> sorted = value switch
+        {
+            "Name (A to Z)" => _allProducts.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase),
+            "Name (Z to A)" => _allProducts.OrderByDescending(p => p.Name, StringComparer.OrdinalIgnoreCase),
+            "Price (Low → High)" => _allProducts.OrderBy(p => p.ListPrice).ThenBy(p => p.Name),
+            "Price (High → Low)" => _allProducts.OrderByDescending(p => p.ListPrice).ThenBy(p => p.Name),
+            "Category (A → Z)" => _allProducts.OrderBy(p => p.PosCategoryName ?? "zzz").ThenBy(p => p.DisplayOrder),
+            _ => _allProducts
+                .OrderBy(p => p.HasCustomOrder ? p.DisplayOrder : p.PosSequence)
+                .ThenBy(p => p.DisplayOrder)
+                .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(p => p.OdooId ?? int.MaxValue)
+        };
+
+        var reordered = sorted.ToList();
+        _allProducts.Clear();
+        _allProducts.AddRange(reordered);
+        RefreshFilter();
+
+        if (value != "Custom / Odoo Order")
+        {
+            _ = PersistOrderToPosAsync($"Sorted by {value} - reflected in POS.");
+        }
+    }
+
+    public async Task MoveProductAsync(ProductRecord source, ProductRecord target)
+    {
+        if (source == null || target == null || ReferenceEquals(source, target)) return;
+        int sourceIndex = _allProducts.IndexOf(source);
+        int targetIndex = _allProducts.IndexOf(target);
+        if (sourceIndex < 0 || targetIndex < 0) return;
+
+        _allProducts.RemoveAt(sourceIndex);
+        _allProducts.Insert(targetIndex, source);
+
+        _suppressSortHandler = true;
+        SelectedSortOption = "Custom / Odoo Order";
+        _suppressSortHandler = false;
+
+        RefreshFilter();
+        await PersistOrderToPosAsync($"Moved \"{source.Name}\" - POS order updated.");
+    }
+
+    private async Task PersistOrderToPosAsync(string toastMessage)
+    {
+        await SqliteDatabaseService.Instance.SaveProductsDisplayOrderAsync(_allProducts, isCustomOrder: true);
+        ProductsOrderChanged?.Invoke(this, EventArgs.Empty);
+        ShowToast(toastMessage, "Success");
+    }
+
+    [RelayCommand]
+    private async Task ResetToOdooOrderAsync()
+    {
+        await SqliteDatabaseService.Instance.ResetProductsToOdooOrderAsync();
+        SelectedSortOption = "Custom / Odoo Order";
+        await ReloadProductsAsync();
+        ProductsOrderChanged?.Invoke(this, EventArgs.Empty);
+        ShowToast("Restored exact Odoo product order.", "Success");
     }
 
     public void ResetToMainList()

@@ -145,6 +145,10 @@ public partial class MainShellView : UserControl
         AttributesViewControl.AttributesUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
         TagsViewControl.TagsUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
         ProductsViewControl.ProductsUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
+        ProductsViewControl.ViewModel.ProductsOrderChanged += (_, _) =>
+        {
+            _ = RegisterViewControl.VM.ReloadCatalogAsync();
+        };
         ComboChoicesViewControl.CombosUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();
         DashboardViewControl.VM.ConfigsUpdated += (_, _) => _ = RefreshDatabaseCountsAsync();
         SessionsViewControl.VM.SessionsUpdated += (_, _) => _ = RefreshConfigAndCountsAsync();

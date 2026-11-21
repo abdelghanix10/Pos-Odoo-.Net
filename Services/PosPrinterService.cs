@@ -117,6 +117,93 @@ public static class PosPrinterService
         return success;
     }
 
+    public static int GetPrinterDotWidth(string? paperWidth) =>
+        !string.IsNullOrWhiteSpace(paperWidth) && paperWidth.Contains("58", StringComparison.OrdinalIgnoreCase)
+            ? 384
+            : 576;
+
+    public static bool PrintBgraRasterToEscPos(
+        string? printerName,
+        byte[] bgraPixels,
+        int width,
+        int height,
+        bool cashDrawerPulse = false)
+    {
+        if (bgraPixels == null || bgraPixels.Length == 0 || width <= 0 || height <= 0)
+            return false;
+
+        string targetPrinter = !string.IsNullOrWhiteSpace(printerName)
+            ? printerName
+            : GetDefaultPrinter();
+
+        var gray = new float[width * height];
+        for (int i = 0, p = 0; i < gray.Length; i++, p += 4)
+        {
+            float lum = (0.299f * bgraPixels[p + 2]) +
+                        (0.587f * bgraPixels[p + 1]) +
+                        (0.114f * bgraPixels[p]);
+            if (bgraPixels[p + 3] < 255)
+                lum = lum + (255 - bgraPixels[p + 3]);
+            gray[i] = Math.Clamp(lum, 0f, 255f);
+        }
+
+        int bytesPerRow = (width + 7) / 8;
+        var monoBits = new byte[bytesPerRow * height];
+        for (int y = 0; y < height; y++)
+        {
+            int rowOffset = y * width;
+            int outRowOffset = y * bytesPerRow;
+            for (int x = 0; x < width; x++)
+            {
+                float oldPixel = gray[rowOffset + x];
+                float newPixel = oldPixel < 165f ? 0f : 255f;
+                float error = oldPixel - newPixel;
+                if (newPixel == 0f)
+                    monoBits[outRowOffset + (x >> 3)] |= (byte)(0x80 >> (x & 7));
+
+                if (MathF.Abs(error) > 0.5f)
+                {
+                    if (x + 1 < width)
+                        gray[rowOffset + x + 1] += error * (7f / 16f);
+                    if (y + 1 < height)
+                    {
+                        int nextRow = rowOffset + width;
+                        if (x > 0) gray[nextRow + x - 1] += error * (3f / 16f);
+                        gray[nextRow + x] += error * (5f / 16f);
+                        if (x + 1 < width) gray[nextRow + x + 1] += error * (1f / 16f);
+                    }
+                }
+            }
+        }
+
+        using var ms = new MemoryStream(monoBits.Length + 256);
+        ms.Write([0x1B, 0x40]);
+        if (cashDrawerPulse)
+            ms.Write([0x1B, 0x70, 0x00, 0x19, 0xFA]);
+        ms.Write([0x1B, 0x61, 0x01]);
+
+        const int maxBandHeight = 256;
+        byte xL = (byte)(bytesPerRow & 0xFF);
+        byte xH = (byte)((bytesPerRow >> 8) & 0xFF);
+        for (int y = 0; y < height; y += maxBandHeight)
+        {
+            int bandHeight = Math.Min(maxBandHeight, height - y);
+            ms.Write([0x1D, 0x76, 0x30, 0x00, xL, xH,
+                (byte)(bandHeight & 0xFF), (byte)((bandHeight >> 8) & 0xFF)]);
+            ms.Write(monoBits, y * bytesPerRow, bandHeight * bytesPerRow);
+        }
+
+        ms.Write([0x0A, 0x0A, 0x0A, 0x0A]);
+        ms.Write([0x1D, 0x56, 0x42, 0x00]);
+        return SendRawBytesToPrinter(targetPrinter, ms.ToArray());
+    }
+
+    public static bool OpenCashDrawerOnly(string? printerName)
+    {
+        string targetPrinter = !string.IsNullOrWhiteSpace(printerName) ? printerName : GetDefaultPrinter();
+        return SendRawBytesToPrinter(targetPrinter, [0x1B, 0x40, 0x1B, 0x70, 0x00, 0x19, 0xFA]);
+    }
+
     public static bool PrintReceiptText(
         string? printerName,
         string receiptText,

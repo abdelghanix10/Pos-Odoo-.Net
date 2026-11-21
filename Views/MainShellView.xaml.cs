@@ -15,6 +15,7 @@ public partial class MainShellView : UserControl
     private bool _isPasswordRevealed = false;
     private readonly DispatcherTimer _toastTimer;
     private readonly DispatcherTimer _backupSchedulerTimer;
+    private bool _isLoadingSyncPolicy;
 
     // Events to communicate with parent Window
     public event EventHandler? LogoutRequested;
@@ -692,6 +693,7 @@ public partial class MainShellView : UserControl
             case "OdooSync":
             case "General":
                 OdooSyncScrollViewer.Visibility = Visibility.Visible;
+                _ = LoadGeneralAndPrinterSettingsAsync();
                 break;
             case "Printer":
                 PrinterSettingsScrollViewer.Visibility = Visibility.Visible;
@@ -803,6 +805,22 @@ public partial class MainShellView : UserControl
             GeneralShowUnsyncedInPosCheckBox.IsChecked = settings.ShowUnsyncedButtonInPos;
             GeneralShowSetupOnLoginCheckBox.IsChecked = settings.ShowSetupButtonOnLogin;
             RegisterViewControl.VM.ShowUnsyncedButtonInPos = settings.ShowUnsyncedButtonInPos;
+
+            _isLoadingSyncPolicy = true;
+            try
+            {
+                SelectComboItemByTag(SyncDataRetrievalComboBox, settings.SyncDataRetrievalPeriod, "Week");
+                AutoPurgeOldDataCheckBox.IsChecked = settings.AutoPurgeOldDataEnabled;
+                SelectComboItemByTag(AutoPurgePeriodComboBox, settings.AutoPurgeOlderThanPeriod, "3Months");
+                AutoPurgePeriodComboBox.IsEnabled = settings.AutoPurgeOldDataEnabled;
+                LastPurgeStatusText.Text = string.IsNullOrWhiteSpace(settings.LastPurgeAt)
+                    ? "Last cleanup: Never"
+                    : $"Last cleanup: {settings.LastPurgeAt}";
+            }
+            finally
+            {
+                _isLoadingSyncPolicy = false;
+            }
         }
         catch (Exception ex)
         {
@@ -1212,8 +1230,98 @@ public partial class MainShellView : UserControl
         CfgPasswordRevealed.Text = password;
     }
 
+    private static void SelectComboItemByTag(ComboBox comboBox, string? tagValue, string fallbackTag)
+    {
+        string target = string.IsNullOrWhiteSpace(tagValue) ? fallbackTag : tagValue.Trim();
+        foreach (var item in comboBox.Items)
+        {
+            if (item is ComboBoxItem cbItem &&
+                string.Equals(cbItem.Tag?.ToString(), target, StringComparison.OrdinalIgnoreCase))
+            {
+                comboBox.SelectedItem = cbItem;
+                return;
+            }
+        }
+        if (comboBox.Items.Count > 0) comboBox.SelectedIndex = 0;
+    }
+
+    private static string GetSelectedComboTag(ComboBox comboBox, string fallbackTag) =>
+        comboBox.SelectedItem is ComboBoxItem cbItem && !string.IsNullOrWhiteSpace(cbItem.Tag?.ToString())
+            ? cbItem.Tag.ToString()!
+            : fallbackTag;
+
+    private void AutoPurgeOldDataCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (AutoPurgePeriodComboBox == null) return;
+        AutoPurgePeriodComboBox.IsEnabled = AutoPurgeOldDataCheckBox.IsChecked == true;
+        if (!_isLoadingSyncPolicy) _ = SaveSyncPolicyAsync(showToast: false);
+    }
+
+    private void SyncPolicyControl_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_isLoadingSyncPolicy && IsLoaded) _ = SaveSyncPolicyAsync(showToast: false);
+    }
+
+    private async void SaveSyncPolicyBtn_Click(object sender, RoutedEventArgs e)
+    {
+        await SaveSyncPolicyAsync(showToast: true);
+    }
+
+    private async Task SaveSyncPolicyAsync(bool showToast)
+    {
+        try
+        {
+            var current = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            current.SyncDataRetrievalPeriod = GetSelectedComboTag(SyncDataRetrievalComboBox, "Week");
+            current.AutoPurgeOldDataEnabled = AutoPurgeOldDataCheckBox.IsChecked == true;
+            current.AutoPurgeOlderThanPeriod = GetSelectedComboTag(AutoPurgePeriodComboBox, "3Months");
+            await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
+
+            if (showToast)
+                ShowToast($"Sync policy saved (Retrieve: {current.SyncDataRetrievalPeriod}, Auto-delete: {(current.AutoPurgeOldDataEnabled ? current.AutoPurgeOlderThanPeriod : "Off")}).");
+        }
+        catch (Exception ex)
+        {
+            if (showToast) ShowToast($"Failed to save sync policy: {ex.Message}", isError: true);
+        }
+    }
+
+    private async void PurgeOldDataNowBtn_Click(object sender, RoutedEventArgs e)
+    {
+        string periodTag = GetSelectedComboTag(AutoPurgePeriodComboBox, "3Months");
+        string periodLabel = (AutoPurgePeriodComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? periodTag;
+        var confirm = MessageBox.Show(
+            $"Delete all synced sessions, orders, and payments older than {periodLabel} from the local SQLite database?\n\nUnsynced transactions, draft orders, and open sessions will NOT be deleted.",
+            "Clean Old Local Data", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes) return;
+
+        try
+        {
+            PurgeOldDataNowBtn.IsEnabled = false;
+            await SaveSyncPolicyAsync(showToast: false);
+            var (ordersDel, paymentsDel, sessionsDel) =
+                await SqliteDatabaseService.Instance.PurgeDataOlderThanPeriodAsync(periodTag);
+            var updated = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            LastPurgeStatusText.Text = string.IsNullOrWhiteSpace(updated.LastPurgeAt)
+                ? "Last cleanup: Just now"
+                : $"Last cleanup: {updated.LastPurgeAt}";
+            await RefreshDatabaseCountsAsync();
+            await ReloadAllChildViewsAsync();
+            ShowToast($"Cleanup complete: removed {ordersDel} order(s), {paymentsDel} payment(s), {sessionsDel} session(s) older than {periodLabel}.");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Cleanup failed: {ex.Message}", isError: true);
+        }
+        finally
+        {
+            PurgeOldDataNowBtn.IsEnabled = true;
+        }
+    }
+
     private async Task<OdooConfigRecord> GetAndSaveCurrentFormConfigAsync()
     {
+        await SaveSyncPolicyAsync(showToast: false);
         string url = CfgServerUrlTextBox.Text.Trim();
         string db = CfgDatabaseTextBox.Text.Trim();
         string user = CfgUsernameTextBox.Text.Trim();

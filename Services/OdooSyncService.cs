@@ -90,6 +90,13 @@ public class OdooSyncService
     private readonly CancellationTokenSource _shutdownCts = new();
     private int _flushRunning;
 
+    private static async Task<string?> GetConfiguredRetrievalCutoffUtcStringAsync()
+    {
+        var settings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+        DateTime? cutoffUtc = GeneralSettingsRecord.GetRetrievalCutoffUtc(settings.SyncDataRetrievalPeriod);
+        return cutoffUtc?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+    }
+
     public PosUserRecord? CurrentPosUser { get; private set; }
 
     public OdooConfigRecord? CurrentUserOdooConfig { get; private set; }
@@ -3880,13 +3887,10 @@ public class OdooSyncService
             "cash_register_balance_start", "cash_register_balance_end_real",
             "order_count", "total_payments_amount");
 
-        string cutoffUtc = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-        object[] sessionDomain =
-        [
-            "|",
-            new object[] { "state", "!=", "closed" },
-            new object[] { "start_at", ">=", cutoffUtc }
-        ];
+        string? cutoffUtc = await GetConfiguredRetrievalCutoffUtcStringAsync();
+        object[] sessionDomain = cutoffUtc != null
+            ? ["|", new object[] { "state", "!=", "closed" }, new object[] { "start_at", ">=", cutoffUtc }]
+            : [];
         using var doc = await SearchReadAsync(config, uid, "pos.session", sessionDomain, fields);
 
         var list = new List<PosSessionDto>();
@@ -3954,11 +3958,10 @@ public class OdooSyncService
             "amount_total", "amount_tax", "amount_paid", "margin", "margin_percent", "margin_ratio",
             "state", "is_edited", "company_id", "general_note", "note", "refunded_order_ids");
 
-        string cutoffUtc = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-        object[] orderDomain =
-        [
-            new object[] { "date_order", ">=", cutoffUtc }
-        ];
+        string? cutoffUtc = await GetConfiguredRetrievalCutoffUtcStringAsync();
+        object[] orderDomain = cutoffUtc != null
+            ? [new object[] { "date_order", ">=", cutoffUtc }]
+            : [];
         using var doc = await SearchReadAsync(config, uid, "pos.order", orderDomain, orderFields);
 
         var orders = new List<PosOrderDto>();
@@ -4080,9 +4083,11 @@ public class OdooSyncService
         var fields = await FilterValidFieldsAsync(config, uid, "pos.payment",
             "id", "pos_order_id", "session_id", "payment_method_id", "amount", "payment_date", "currency_id", "cashier");
 
-        string cutoffUtc = DateTime.UtcNow.AddDays(-7).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-        using var doc = await SearchReadAsync(config, uid, "pos.payment",
-            [new object[] { "payment_date", ">=", cutoffUtc }], fields);
+        string? cutoffUtc = await GetConfiguredRetrievalCutoffUtcStringAsync();
+        object[] paymentDomain = cutoffUtc != null
+            ? [new object[] { "payment_date", ">=", cutoffUtc }]
+            : [];
+        using var doc = await SearchReadAsync(config, uid, "pos.payment", paymentDomain, fields);
 
         var list = new List<PosPaymentDto>();
         if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -4390,7 +4395,7 @@ public class OdooSyncService
         var retentionSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
         if (retentionSettings.AutoPurgeOldDataEnabled)
         {
-            await SqliteDatabaseService.Instance.PurgeDataOlderThanMonthsAsync(retentionSettings.DataRetentionMonths);
+            await SqliteDatabaseService.Instance.PurgeDataOlderThanPeriodAsync(retentionSettings.AutoPurgeOlderThanPeriod);
         }
 
         string summaryMsg = $"Synchronized {companies.Count} companies, {posConfigs.Count} shops, {products.Count} products, {paymentMethods.Count} payment methods, {orders.Count} orders, {users.Count} users.";

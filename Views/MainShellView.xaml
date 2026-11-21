@@ -1285,6 +1285,108 @@
                                 </Border>
                             </Grid>
 
+                            <!-- DATA RETRIEVAL WINDOW & AUTOMATIC DATABASE CLEANUP -->
+                            <Border Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{StaticResource SubtleBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="24,20"
+                                    Margin="0,0,0,22"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1*"/>
+                                        <ColumnDefinition Width="28"/>
+                                        <ColumnDefinition Width="1.25*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <TextBlock Text="Data Retrieval Period" FontSize="15.5" FontWeight="Bold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                                            <Border Background="{StaticResource OdooPurpleSoftBrush}" CornerRadius="10" Padding="8,2"
+                                                    Margin="10,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="Sessions, Orders &amp; Payments" FontSize="11" FontWeight="Bold"
+                                                           Foreground="{StaticResource OdooPurpleBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="Choose how far back to pull transactional data from Odoo. Essential data is always synced completely."
+                                                   FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"
+                                                   TextWrapping="Wrap" Margin="0,0,0,14"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Retrieve data from:" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                            <ComboBox x:Name="SyncDataRetrievalComboBox"
+                                                      Grid.Column="1" Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                      Height="38" Width="220" HorizontalAlignment="Left"
+                                                      SelectionChanged="SyncPolicyControl_Changed">
+                                                <ComboBoxItem Content="Today" Tag="Today"/>
+                                                <ComboBoxItem Content="Yesterday" Tag="Yesterday"/>
+                                                <ComboBoxItem Content="Week (Last 7 Days)" Tag="Week" IsSelected="True"/>
+                                                <ComboBoxItem Content="Month (Last 30 Days)" Tag="Month"/>
+                                                <ComboBoxItem Content="Year (Last 12 Months)" Tag="Year"/>
+                                                <ComboBoxItem Content="All (Complete History)" Tag="All"/>
+                                            </ComboBox>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <Border Grid.Column="1" Width="1" Background="{StaticResource SubtleBorderLightBrush}"
+                                            HorizontalAlignment="Center"/>
+
+                                    <StackPanel Grid.Column="2">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <TextBlock Text="Automatic Old Data Deletion" FontSize="15.5" FontWeight="Bold"
+                                                       Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                                            <Border Background="{StaticResource OdooTealSoftBrush}" CornerRadius="10" Padding="8,2"
+                                                    Margin="10,0,0,0" VerticalAlignment="Center">
+                                                <TextBlock Text="Prevents DB Overload" FontSize="11" FontWeight="Bold"
+                                                           Foreground="{StaticResource OdooTealBrush}"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="Automatically removes synced sessions, orders, and payments older than the selected period."
+                                                   FontSize="12" Foreground="{StaticResource SecondaryTextBrush}"
+                                                   TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
+                                            <CheckBox x:Name="AutoPurgeOldDataCheckBox"
+                                                      Content="Automatically delete data older than:"
+                                                      FontSize="13" FontWeight="SemiBold"
+                                                      Foreground="{StaticResource PrimaryTextBrush}"
+                                                      IsChecked="True" Margin="0,0,12,0"
+                                                      Checked="AutoPurgeOldDataCheckBox_Changed"
+                                                      Unchecked="AutoPurgeOldDataCheckBox_Changed"/>
+                                            <ComboBox x:Name="AutoPurgePeriodComboBox"
+                                                      Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                      Height="36" Width="165"
+                                                      SelectionChanged="SyncPolicyControl_Changed">
+                                                <ComboBoxItem Content="Week" Tag="Week"/>
+                                                <ComboBoxItem Content="Month" Tag="Month"/>
+                                                <ComboBoxItem Content="3 Months" Tag="3Months" IsSelected="True"/>
+                                                <ComboBoxItem Content="Year" Tag="Year"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <Grid>
+                                            <TextBlock x:Name="LastPurgeStatusText" Text="Last cleanup: Never"
+                                                       FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button x:Name="SaveSyncPolicyBtn" Style="{StaticResource OdooPrimaryActionButtonStyle}"
+                                                        Height="34" Padding="14,0" Margin="0,0,8,0"
+                                                        Click="SaveSyncPolicyBtn_Click">
+                                                    <TextBlock Text="Save Policy" FontSize="12.5"/>
+                                                </Button>
+                                                <Button x:Name="PurgeOldDataNowBtn" Style="{StaticResource OdooOutlineButtonStyle}"
+                                                        Height="34" Padding="14,0" Click="PurgeOldDataNowBtn_Click">
+                                                    <TextBlock Text="Clean Old Data Now" FontSize="12.5"/>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
                             <!-- SECTION TITLE: 12 MODULE SYNCHRONIZATION CARDS (2-COLUMN GRID) -->
                             <Grid Margin="0,4,0,12">
                                 <TextBlock Text="Module-by-Module Synchronization &amp; Local Database Status (12 Models)" FontSize="15.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>

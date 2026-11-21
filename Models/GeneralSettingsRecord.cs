@@ -32,6 +32,8 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     private bool _autoPurgeOldDataEnabled = true;
     private int _dataRetentionMonths = 2;
     private string? _lastPurgeAt;
+    private string _syncDataRetrievalPeriod = "Week";
+    private string _autoPurgeOlderThanPeriod = "3Months";
 
     public string ScreenMode
     {
@@ -180,6 +182,46 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
         get => _lastPurgeAt;
         set { if (_lastPurgeAt != value) { _lastPurgeAt = value; OnPropertyChanged(); } }
     }
+
+    public string SyncDataRetrievalPeriod
+    {
+        get => _syncDataRetrievalPeriod;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "Week" : value.Trim();
+            if (_syncDataRetrievalPeriod != normalized) { _syncDataRetrievalPeriod = normalized; OnPropertyChanged(); }
+        }
+    }
+
+    public string AutoPurgeOlderThanPeriod
+    {
+        get => _autoPurgeOlderThanPeriod;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "3Months" : value.Trim();
+            if (_autoPurgeOlderThanPeriod != normalized) { _autoPurgeOlderThanPeriod = normalized; OnPropertyChanged(); }
+        }
+    }
+
+    public static DateTime? GetRetrievalCutoffUtc(string? period) => (period ?? "Week").Trim().ToLowerInvariant() switch
+    {
+        "today" => DateTime.Today.ToUniversalTime(),
+        "yesterday" => DateTime.Today.AddDays(-1).ToUniversalTime(),
+        "week" => DateTime.UtcNow.AddDays(-7),
+        "month" => DateTime.UtcNow.AddMonths(-1),
+        "year" => DateTime.UtcNow.AddYears(-1),
+        "all" => null,
+        _ => DateTime.UtcNow.AddDays(-7)
+    };
+
+    public static DateTime GetAutoPurgeCutoffLocal(string? period) => (period ?? "3Months").Trim().ToLowerInvariant() switch
+    {
+        "week" => DateTime.Now.AddDays(-7),
+        "month" => DateTime.Now.AddMonths(-1),
+        "3months" or "3month" => DateTime.Now.AddMonths(-3),
+        "year" => DateTime.Now.AddYears(-1),
+        _ => DateTime.Now.AddMonths(-3)
+    };
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? propName = null)

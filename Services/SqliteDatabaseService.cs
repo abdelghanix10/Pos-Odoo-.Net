@@ -809,6 +809,8 @@ public class SqliteDatabaseService
             "ALTER TABLE GeneralSettings ADD COLUMN AutoPurgeOldDataEnabled INTEGER DEFAULT 1;",
             "ALTER TABLE GeneralSettings ADD COLUMN DataRetentionMonths INTEGER DEFAULT 2;",
             "ALTER TABLE GeneralSettings ADD COLUMN LastPurgeAt TEXT;",
+            "ALTER TABLE GeneralSettings ADD COLUMN SyncDataRetrievalPeriod TEXT DEFAULT 'Week';",
+            "ALTER TABLE GeneralSettings ADD COLUMN AutoPurgeOlderThanPeriod TEXT DEFAULT '3Months';",
             "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN CustomOrderReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN IsHideOpeningCashControlEnabled INTEGER DEFAULT 0;",
@@ -3022,7 +3024,9 @@ public class SqliteDatabaseService
         }
 
         var delIds = new List<long>();
-        string reconciliationCutoff = DateTime.UtcNow.AddDays(-7)
+        var genSettings = await GetGeneralSettingsAsync();
+        DateTime? reconciliationCutoffUtc = GeneralSettingsRecord.GetRetrievalCutoffUtc(genSettings.SyncDataRetrievalPeriod);
+        string? reconciliationCutoff = reconciliationCutoffUtc?.ToLocalTime()
             .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         await using (var fetchCmd = connection.CreateCommand())
         {
@@ -3030,9 +3034,9 @@ public class SqliteDatabaseService
             fetchCmd.CommandText = """
                 SELECT Id, OdooId, COALESCE(IsSynced, 1)
                 FROM PosSessions
-                WHERE COALESCE(StopAt, StartAt) IS NULL OR COALESCE(StopAt, StartAt) >= @cutoff;
+                WHERE COALESCE(StopAt, StartAt) IS NULL OR @cutoff IS NULL OR COALESCE(StopAt, StartAt) >= @cutoff;
                 """;
-            fetchCmd.Parameters.AddWithValue("@cutoff", reconciliationCutoff);
+            fetchCmd.Parameters.AddWithValue("@cutoff", (object?)reconciliationCutoff ?? DBNull.Value);
             await using var reader = await fetchCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -3654,7 +3658,9 @@ public class SqliteDatabaseService
         }
 
         var delLineIds = new List<long>();
-        string reconciliationCutoff = DateTime.UtcNow.AddDays(-7)
+        var genSettings = await GetGeneralSettingsAsync();
+        DateTime? reconciliationCutoffUtc = GeneralSettingsRecord.GetRetrievalCutoffUtc(genSettings.SyncDataRetrievalPeriod);
+        string? reconciliationCutoff = reconciliationCutoffUtc?.ToLocalTime()
             .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         await using (var fetchLinesCmd = connection.CreateCommand())
         {
@@ -3664,9 +3670,9 @@ public class SqliteDatabaseService
                 FROM PosOrderLines l
                 INNER JOIN PosOrders o ON o.OdooId = l.OrderOdooId
                 WHERE l.OdooId IS NOT NULL
-                  AND (o.DateOrder IS NULL OR o.DateOrder >= @cutoff);
+                  AND (@cutoff IS NULL OR o.DateOrder IS NULL OR o.DateOrder >= @cutoff);
                 """;
-            fetchLinesCmd.Parameters.AddWithValue("@cutoff", reconciliationCutoff);
+            fetchLinesCmd.Parameters.AddWithValue("@cutoff", (object?)reconciliationCutoff ?? DBNull.Value);
             await using var reader = await fetchLinesCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -3692,9 +3698,9 @@ public class SqliteDatabaseService
             fetchCmd.CommandText = """
                 SELECT Id, OdooId, COALESCE(IsSynced, 1), LOWER(COALESCE(State, 'paid'))
                 FROM PosOrders
-                WHERE DateOrder IS NULL OR DateOrder >= @cutoff;
+                WHERE @cutoff IS NULL OR DateOrder IS NULL OR DateOrder >= @cutoff;
                 """;
-            fetchCmd.Parameters.AddWithValue("@cutoff", reconciliationCutoff);
+            fetchCmd.Parameters.AddWithValue("@cutoff", (object?)reconciliationCutoff ?? DBNull.Value);
             await using var reader = await fetchCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -3893,7 +3899,9 @@ public class SqliteDatabaseService
         }
 
         var delIds = new List<long>();
-        string reconciliationCutoff = DateTime.UtcNow.AddDays(-7)
+        var genSettings = await GetGeneralSettingsAsync();
+        DateTime? reconciliationCutoffUtc = GeneralSettingsRecord.GetRetrievalCutoffUtc(genSettings.SyncDataRetrievalPeriod);
+        string? reconciliationCutoff = reconciliationCutoffUtc?.ToLocalTime()
             .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         await using (var fetchCmd = connection.CreateCommand())
         {
@@ -3901,9 +3909,9 @@ public class SqliteDatabaseService
             fetchCmd.CommandText = """
                 SELECT Id, OdooId, COALESCE(IsSynced, 1)
                 FROM PosPayments
-                WHERE PaymentDate IS NULL OR PaymentDate >= @cutoff;
+                WHERE @cutoff IS NULL OR PaymentDate IS NULL OR PaymentDate >= @cutoff;
                 """;
-            fetchCmd.Parameters.AddWithValue("@cutoff", reconciliationCutoff);
+            fetchCmd.Parameters.AddWithValue("@cutoff", (object?)reconciliationCutoff ?? DBNull.Value);
             await using var reader = await fetchCmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
@@ -4387,7 +4395,9 @@ public class SqliteDatabaseService
                    COALESCE(g.ShowSetupButtonOnLogin, 1),
                    COALESCE(g.AutoPurgeOldDataEnabled, 1),
                    COALESCE(g.DataRetentionMonths, 2),
-                   g.LastPurgeAt
+                   g.LastPurgeAt,
+                   COALESCE(g.SyncDataRetrievalPeriod, 'Week'),
+                   COALESCE(g.AutoPurgeOlderThanPeriod, '3Months')
             FROM GeneralSettings g
             LEFT JOIN Companies c ON g.DefaultCompanyId = c.OdooId OR g.DefaultCompanyId = c.Id
             WHERE g.Id = 1;
@@ -4421,6 +4431,8 @@ public class SqliteDatabaseService
             record.AutoPurgeOldDataEnabled = reader.IsDBNull(17) || reader.GetInt32(17) != 0;
             record.DataRetentionMonths = reader.IsDBNull(18) ? 2 : reader.GetInt32(18);
             record.LastPurgeAt = reader.IsDBNull(19) ? null : reader.GetString(19);
+            record.SyncDataRetrievalPeriod = reader.IsDBNull(20) ? "Week" : reader.GetString(20);
+            record.AutoPurgeOlderThanPeriod = reader.IsDBNull(21) ? "3Months" : reader.GetString(21);
         }
         else
         {
@@ -4444,11 +4456,11 @@ public class SqliteDatabaseService
         cmd.CommandText = """
             INSERT INTO GeneralSettings (Id, ScreenMode, DefaultCompanyId, DefaultPrinterName, PaperWidth,
                                          AutoPrintReceipt, CashDrawerPulse, PrintHeaderLogo, PrinterEncoding,
-                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, PosLanguage, ShowUnsyncedButtonInPos, ShowSetupButtonOnLogin, AutoPurgeOldDataEnabled, DataRetentionMonths, LastPurgeAt, UpdatedAt)
+                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, PosLanguage, ShowUnsyncedButtonInPos, ShowSetupButtonOnLogin, AutoPurgeOldDataEnabled, DataRetentionMonths, LastPurgeAt, SyncDataRetrievalPeriod, AutoPurgeOlderThanPeriod, UpdatedAt)
             VALUES (1, @screenMode, @companyId, @printerName, @paperWidth,
                     @autoPrint, @drawerPulse, @printLogo, @encoding,
                     @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt,
-                    @posLanguage, @showUnsyncedPos, @showSetupLogin, @autoPurge, @retentionMonths, @lastPurgeAt, CURRENT_TIMESTAMP)
+                    @posLanguage, @showUnsyncedPos, @showSetupLogin, @autoPurge, @retentionMonths, @lastPurgeAt, @syncRetrieval, @autoPurgePeriod, CURRENT_TIMESTAMP)
             ON CONFLICT(Id) DO UPDATE SET
                 ScreenMode = @screenMode,
                 DefaultCompanyId = @companyId,
@@ -4469,6 +4481,8 @@ public class SqliteDatabaseService
                 AutoPurgeOldDataEnabled = @autoPurge,
                 DataRetentionMonths = @retentionMonths,
                 LastPurgeAt = COALESCE(@lastPurgeAt, GeneralSettings.LastPurgeAt),
+                SyncDataRetrievalPeriod = @syncRetrieval,
+                AutoPurgeOlderThanPeriod = @autoPurgePeriod,
                 UpdatedAt = CURRENT_TIMESTAMP;
             """;
 
@@ -4491,14 +4505,22 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@autoPurge", settings.AutoPurgeOldDataEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@retentionMonths", settings.DataRetentionMonths);
         cmd.Parameters.AddWithValue("@lastPurgeAt", (object?)settings.LastPurgeAt ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@syncRetrieval", settings.SyncDataRetrievalPeriod ?? "Week");
+        cmd.Parameters.AddWithValue("@autoPurgePeriod", settings.AutoPurgeOlderThanPeriod ?? "3Months");
 
         await cmd.ExecuteNonQueryAsync();
         _cachedGeneralSettings = null;
     }
 
-    public async Task<(int OrdersDeleted, int PaymentsDeleted, int SessionsDeleted)> PurgeDataOlderThanMonthsAsync(int months = 2)
+    public Task<(int OrdersDeleted, int PaymentsDeleted, int SessionsDeleted)> PurgeDataOlderThanMonthsAsync(int months = 2) =>
+        PurgeDataOlderThanCutoffAsync(DateTime.Now.AddMonths(-Math.Max(1, months)));
+
+    public Task<(int OrdersDeleted, int PaymentsDeleted, int SessionsDeleted)> PurgeDataOlderThanPeriodAsync(string? period) =>
+        PurgeDataOlderThanCutoffAsync(GeneralSettingsRecord.GetAutoPurgeCutoffLocal(period));
+
+    private async Task<(int OrdersDeleted, int PaymentsDeleted, int SessionsDeleted)> PurgeDataOlderThanCutoffAsync(DateTime cutoffLocal)
     {
-        string cutoff = DateTime.Now.AddMonths(-Math.Max(1, months))
+        string cutoff = cutoffLocal
             .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();

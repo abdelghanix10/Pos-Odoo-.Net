@@ -77,7 +77,6 @@ public partial class ComboChoicesViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadCombosAsync();
     }
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();

@@ -855,7 +855,7 @@
                                                             <RowDefinition Height="Auto"/>
                                                         </Grid.RowDefinitions>
                                                         <TextBlock Grid.Row="0" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                                        <TextBlock Grid.Row="1" Text="{Binding ModeBadgeText}" FontSize="11.5" Foreground="#6B7280" Margin="0,3,0,0"/>
+                                                        <TextBlock Grid.Row="1" Text="{Binding OpenCashDrawerDisplay}" FontSize="11.5" Foreground="#6B7280" Margin="0,3,0,0"/>
                                                     </Grid>
                                                 </Border>
                                                 <ControlTemplate.Triggers>

@@ -81,7 +81,6 @@ public partial class ProductAttributesViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadAttributesAsync();
     }
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();

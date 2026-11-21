@@ -190,7 +190,7 @@ public class PosOrderRecord : INotifyPropertyChanged
     private int? _cashierId;
     private string _cashierName = string.Empty;
     private string? _cashierAvatarBase64;
-    private BitmapImage? _cashierAvatarBitmap;
+    private BitmapSource? _cashierAvatarBitmap;
     private string _customerName = string.Empty;
     private string _fiscalPosition = "—";
     private decimal _amountTotal = 0.00m;
@@ -357,13 +357,13 @@ public class PosOrderRecord : INotifyPropertyChanged
             if (_cashierAvatarBase64 != value)
             {
                 _cashierAvatarBase64 = value;
-                CashierAvatarBitmap = PosImageUtils.Base64ToBitmapImage(value);
+                CashierAvatarBitmap = PosImageUtils.Base64ToBitmapSource(value);
                 OnPropertyChanged();
             }
         }
     }
 
-    public BitmapImage? CashierAvatarBitmap
+    public BitmapSource? CashierAvatarBitmap
     {
         get => _cashierAvatarBitmap;
         set

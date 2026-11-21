@@ -20,7 +20,7 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
     private string _linkedPosConfigs = string.Empty;
     private string _integration = "None required";
     private string? _imageBase64;
-    private BitmapImage? _imageBitmap;
+    private BitmapSource? _imageBitmap;
     private bool _isSelected;
 
     private static bool _isArabicLanguage;
@@ -151,7 +151,7 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
             if (_imageBase64 != value)
             {
                 _imageBase64 = value;
-                ImageBitmap = PosImageUtils.Base64ToBitmapImage(value);
+                ImageBitmap = PosImageUtils.Base64ToBitmapSource(value);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasImage));
                 OnPropertyChanged(nameof(HasNoImage));
@@ -159,7 +159,7 @@ public class PosPaymentMethodRecord : INotifyPropertyChanged
         }
     }
 
-    public BitmapImage? ImageBitmap
+    public BitmapSource? ImageBitmap
     {
         get => _imageBitmap;
         set

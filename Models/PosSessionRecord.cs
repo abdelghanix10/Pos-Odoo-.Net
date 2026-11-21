@@ -15,7 +15,7 @@ public class PosSessionRecord : INotifyPropertyChanged
     private int? _userId;
     private string _userName = string.Empty;
     private string? _userAvatarBase64;
-    private BitmapImage? _userAvatarBitmap;
+    private BitmapSource? _userAvatarBitmap;
     private DateTime? _startAt;
     private DateTime? _stopAt;
     private string _state = "opened"; // opening_control, opened, closing_control, closed
@@ -83,13 +83,13 @@ public class PosSessionRecord : INotifyPropertyChanged
             if (_userAvatarBase64 != value)
             {
                 _userAvatarBase64 = value;
-                UserAvatarBitmap = PosImageUtils.Base64ToBitmapImage(value);
+                UserAvatarBitmap = PosImageUtils.Base64ToBitmapSource(value);
                 OnPropertyChanged();
             }
         }
     }
 
-    public BitmapImage? UserAvatarBitmap
+    public BitmapSource? UserAvatarBitmap
     {
         get => _userAvatarBitmap;
         set

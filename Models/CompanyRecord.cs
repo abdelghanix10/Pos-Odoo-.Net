@@ -30,7 +30,7 @@ public class CompanyRecord : INotifyPropertyChanged
     private int? _parentId;
     private string _parentName = string.Empty;
     private string? _logoBase64;
-    private BitmapImage? _logoBitmap;
+    private BitmapSource? _logoBitmap;
 
     public long Id
     {
@@ -240,7 +240,7 @@ public class CompanyRecord : INotifyPropertyChanged
             if (_logoBase64 != value)
             {
                 _logoBase64 = value;
-                LogoBitmap = PosImageUtils.Base64ToBitmapImage(value);
+                LogoBitmap = PosImageUtils.Base64ToBitmapSource(value);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasLogo));
                 OnPropertyChanged(nameof(HasNoLogo));
@@ -248,7 +248,7 @@ public class CompanyRecord : INotifyPropertyChanged
         }
     }
 
-    public BitmapImage? LogoBitmap
+    public BitmapSource? LogoBitmap
     {
         get => _logoBitmap;
         set

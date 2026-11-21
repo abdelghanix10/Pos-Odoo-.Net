@@ -98,8 +98,8 @@ namespace OdooPosLogin
     public class ActiveStageBackgroundConverter : IValueConverter
     {
         public static readonly ActiveStageBackgroundConverter Instance = new();
-        private static readonly SolidColorBrush ActiveBg = new((Color)ColorConverter.ConvertFromString("#E6E4F0"));
-        private static readonly SolidColorBrush InactiveBg = new((Color)ColorConverter.ConvertFromString("#FFFFFF"));
+        private static readonly SolidColorBrush ActiveBg = BrushCache.Get("#E6E4F0");
+        private static readonly SolidColorBrush InactiveBg = BrushCache.Get("#FFFFFF");
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
@@ -112,8 +112,8 @@ namespace OdooPosLogin
     public class ActiveStageForegroundConverter : IValueConverter
     {
         public static readonly ActiveStageForegroundConverter Instance = new();
-        private static readonly SolidColorBrush ActiveFg = new((Color)ColorConverter.ConvertFromString("#111827"));
-        private static readonly SolidColorBrush InactiveFg = new((Color)ColorConverter.ConvertFromString("#6B7280"));
+        private static readonly SolidColorBrush ActiveFg = BrushCache.Get("#111827");
+        private static readonly SolidColorBrush InactiveFg = BrushCache.Get("#6B7280");
 
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {

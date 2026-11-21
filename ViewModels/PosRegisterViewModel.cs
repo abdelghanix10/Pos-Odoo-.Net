@@ -56,7 +56,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     private string _cashierName = "Mitchell Admin";
 
     [ObservableProperty]
-    private BitmapImage? _cashierAvatarBitmap;
+    private BitmapSource? _cashierAvatarBitmap;
 
     [ObservableProperty]
     private PosUserRecord? _loggedInUser;
@@ -91,7 +91,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     private string _activeShopName = "Bakery Shop";
 
     [ObservableProperty]
-    private BitmapImage? _companyLogoBitmap;
+    private BitmapSource? _companyLogoBitmap;
 
     public bool HasCompanyLogo => CompanyLogoBitmap != null;
 
@@ -169,12 +169,61 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         if (value)
         {
+            _inactivityTimer.Stop();
             UpdateLandingState();
             if (IsRegisterClosedForLanding)
             {
                 _ = LoadLastSessionInfoAsync();
             }
         }
+        else
+        {
+            // User entered the POS register — start the 10-minute inactivity timer
+            _inactivityTimer.Stop();
+            _inactivityTimer.Start();
+        }
+    }
+
+    public void RegisterUserActivity()
+    {
+        if (!IsPosLandingScreenOpen)
+        {
+            _inactivityTimer.Stop();
+            _inactivityTimer.Start();
+        }
+    }
+
+    public void StopTimersOnHide()
+    {
+        _inactivityTimer.Stop();
+        _changeScreenAutoContinueTimer.Stop();
+    }
+
+    private void RedirectToOpeningControlOnIdle()
+    {
+        // If the Change screen was still open, complete the transition for the paid order first
+        if (IsPaymentConfirmationOpen)
+        {
+            ContinueAfterPayment();
+        }
+
+        // Save any active draft order before returning to Opening Control
+        if (CurrentOrder != null && CurrentOrder.HasItems)
+        {
+            _ = PersistDraftOrderToDatabaseAsync(CurrentOrder);
+        }
+
+        // Close any open popups/views and show the Opening Control screen
+        IsHamburgerMenuOpen = false;
+        IsPaymentViewOpen = false;
+        IsPaymentConfirmationOpen = false;
+        IsClosingRegisterModalOpen = false;
+        IsDraftOrdersWarningModalOpen = false;
+        IsNoteModalOpen = false;
+        IsVariantPopupOpen = false;
+        IsReceiptPreviewModalOpen = false;
+        IsOpeningControlModalOpen = false;
+        IsPosLandingScreenOpen = true;
     }
 
     public void UpdateLandingState()
@@ -214,7 +263,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 {
                     if (logoCompany.LogoBitmap == null && !string.IsNullOrWhiteSpace(logoCompany.LogoBase64))
                     {
-                        logoCompany.LogoBitmap = PosImageUtils.Base64ToBitmapImage(logoCompany.LogoBase64);
+                        logoCompany.LogoBitmap = PosImageUtils.Base64ToBitmapSource(logoCompany.LogoBase64);
                     }
                     CompanyLogoBitmap = logoCompany.LogoBitmap;
                 }
@@ -812,6 +861,8 @@ public partial class PosRegisterViewModel : ViewModelBase
     private readonly DispatcherTimer _toastTimer;
     private readonly DispatcherTimer _landingClockTimer;
     private readonly DispatcherTimer _draftSaveDebounceTimer;
+    private readonly DispatcherTimer _changeScreenAutoContinueTimer;
+    private readonly DispatcherTimer _inactivityTimer;
     private PosDraftOrder? _pendingDraftToSave;
 
     public event Action? ReturnToDashboardRequested;
@@ -1042,6 +1093,28 @@ public partial class PosRegisterViewModel : ViewModelBase
             }
         };
 
+        // 1-Minute Auto-Skip Timer for the "Change" (Payment Confirmation) Screen
+        _changeScreenAutoContinueTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _changeScreenAutoContinueTimer.Tick += (_, _) =>
+        {
+            _changeScreenAutoContinueTimer.Stop();
+            if (IsPaymentConfirmationOpen && !IsPaymentViewOpen)
+            {
+                ContinueAfterPayment();
+            }
+        };
+
+        // 10-Minute Inactivity Timer to Redirect Back to Opening Control
+        _inactivityTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(10) };
+        _inactivityTimer.Tick += (_, _) =>
+        {
+            _inactivityTimer.Stop();
+            if (!IsPosLandingScreenOpen)
+            {
+                RedirectToOpeningControlOnIdle();
+            }
+        };
+
         OdooSyncService.Instance.QueueUpdated += () =>
         {
             Application.Current?.Dispatcher?.InvokeAsync(RefreshPendingSyncCountAsync);
@@ -1074,8 +1147,8 @@ public partial class PosRegisterViewModel : ViewModelBase
     }
 
     partial void OnCashierNameChanged(string value) => OnPropertyChanged(nameof(CashierInitials));
-    partial void OnCashierAvatarBitmapChanged(BitmapImage? value) => OnPropertyChanged(nameof(HasCashierAvatar));
-    partial void OnCompanyLogoBitmapChanged(BitmapImage? value) => OnPropertyChanged(nameof(HasCompanyLogo));
+    partial void OnCashierAvatarBitmapChanged(BitmapSource? value) => OnPropertyChanged(nameof(HasCashierAvatar));
+    partial void OnCompanyLogoBitmapChanged(BitmapSource? value) => OnPropertyChanged(nameof(HasCompanyLogo));
 
     partial void OnProductSearchTextChanged(string value) => FilterProducts();
     partial void OnOrderSearchTextChanged(string value) => FilterInPosOrders();
@@ -1083,7 +1156,21 @@ public partial class PosRegisterViewModel : ViewModelBase
 
     partial void OnActivePosViewChanged(string value) => NotifyViewStatesChanged();
     partial void OnIsPaymentViewOpenChanged(bool value) => NotifyViewStatesChanged();
-    partial void OnIsPaymentConfirmationOpenChanged(bool value) => NotifyViewStatesChanged();
+    partial void OnIsPaymentConfirmationOpenChanged(bool value)
+    {
+        if (value && !IsPaymentViewOpen)
+        {
+            // Start 1-minute auto-skip timer when the Change screen opens
+            _changeScreenAutoContinueTimer.Stop();
+            _changeScreenAutoContinueTimer.Start();
+        }
+        else
+        {
+            _changeScreenAutoContinueTimer.Stop();
+        }
+
+        NotifyViewStatesChanged();
+    }
     partial void OnIsClosingRegisterModalOpenChanged(bool value) => OnPropertyChanged(nameof(ShowExpandedNumpad));
     partial void OnIsCartNumpadVisibleChanged(bool value) => OnPropertyChanged(nameof(ShowExpandedNumpad));
 

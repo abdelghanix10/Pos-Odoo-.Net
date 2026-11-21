@@ -43,7 +43,7 @@ public class PosConfigRecord : INotifyPropertyChanged
     private int? _activeUserId;
     private string? _activeUserName;
     private string? _activeUserAvatarBase64;
-    private BitmapImage? _activeUserAvatarBitmap;
+    private BitmapSource? _activeUserAvatarBitmap;
     private string _recentSalesPointsJson = "[]";
     private List<double> _recentSalesPoints = [];
 
@@ -422,7 +422,7 @@ public class PosConfigRecord : INotifyPropertyChanged
             if (_activeUserAvatarBase64 != value)
             {
                 _activeUserAvatarBase64 = value;
-                ActiveUserAvatarBitmap = PosImageUtils.Base64ToBitmapImage(value);
+                ActiveUserAvatarBitmap = PosImageUtils.Base64ToBitmapSource(value);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasActiveUserAvatar));
                 OnPropertyChanged(nameof(HasActiveUser));
@@ -430,7 +430,7 @@ public class PosConfigRecord : INotifyPropertyChanged
         }
     }
 
-    public BitmapImage? ActiveUserAvatarBitmap
+    public BitmapSource? ActiveUserAvatarBitmap
     {
         get => _activeUserAvatarBitmap;
         set

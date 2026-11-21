@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _toastTimer;
     private readonly DispatcherTimer _connectivityTimer;
     private readonly Ellipse[] _pinDots;
+    private bool _isExiting;
 
     private PosUserRecord? _selectedUser;
     private string _currentPin = string.Empty;
@@ -58,21 +59,19 @@ public partial class MainWindow : Window
         // Live Odoo Connectivity Monitor & Offline Queue Auto-Flush
         OdooSyncService.Instance.OnlineStatusChanged += isOnline =>
         {
-            Dispatcher.Invoke(() => UpdateConnectionStatusVisual(isOnline));
+            if (Dispatcher.HasShutdownStarted) return;
+            Dispatcher.BeginInvoke(() => UpdateConnectionStatusVisual(isOnline));
         };
 
         OdooSyncService.Instance.PendingQueueFlushed += count =>
         {
-            Dispatcher.InvokeAsync(async () =>
+            if (Dispatcher.HasShutdownStarted) return;
+            Dispatcher.BeginInvoke(async () =>
             {
-                await MainShellModule.DashboardControl.ReloadConfigsFromDatabaseAsync();
-                await MainShellModule.SessionsControl.ReloadSessionsFromDatabaseAsync(resetDetailView: false);
-                await MainShellModule.OrdersControl.ReloadOrdersFromDatabaseAsync(resetDetailView: false);
-                await MainShellModule.PaymentsControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
-                await MainShellModule.RefreshDatabaseCountsAsync();
-                MainShellModule.ShowToast($"Synchronized {count} queued POS transaction(s) with Odoo.");
+                await MainShellModule.OnBackgroundSyncCompletedAsync(count);
             });
         };
+        Closing += MainWindow_Closing;
 
         _connectivityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(10) };
         _connectivityTimer.Tick += async (_, _) => await OdooSyncService.Instance.CheckConnectivityAsync();
@@ -81,6 +80,37 @@ public partial class MainWindow : Window
 
         // Load General Application Settings (Screen mode, etc.)
         _ = InitializeGeneralSettingsAsync();
+    }
+
+    private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_isExiting) return;
+
+        int unsyncedCount = MainShellModule.LastKnownPendingSyncCount;
+        if (unsyncedCount > 0)
+        {
+            var result = MessageBox.Show(
+                $"You have {unsyncedCount} unsynced POS transaction(s) waiting in the local queue.\n\n" +
+                "Your data is safely stored in SQLite and will sync automatically on next launch.\n" +
+                "Do you want to close now?",
+                "Unsynced Transactions Pending",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
+            if (result != MessageBoxResult.Yes)
+            {
+                e.Cancel = true;
+                return;
+            }
+        }
+
+        _isExiting = true;
+        _clockTimer.Stop();
+        _toastTimer.Stop();
+        _connectivityTimer.Stop();
+        MainShellModule.ShutdownTimers();
+        OdooSyncService.Instance.CancelPendingOperations();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
     }
 
     private bool _showSetupButtonOnLogin = true;

@@ -7,14 +7,15 @@ using System.Windows.Media.Imaging;
 using System.Xml.Linq;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace OdooPosLogin;
 
 public static class PosImageUtils
 {
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, BitmapImage?> _bitmapCache = new();
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, WeakReference<BitmapSource?>> _bitmapCache = new();
 
-    public static BitmapImage? Base64ToBitmapImage(string? base64)
+    public static BitmapSource? Base64ToBitmapSource(string? base64)
     {
         if (string.IsNullOrWhiteSpace(base64))
             return null;
@@ -28,13 +29,14 @@ public static class PosImageUtils
             ? $"{trimmed.Length}:{trimmed[..48]}:{trimmed[^48..]}"
             : trimmed;
 
-        if (_bitmapCache.TryGetValue(cacheKey, out var cachedBitmap))
+        if (_bitmapCache.TryGetValue(cacheKey, out var weakRef) &&
+            weakRef.TryGetTarget(out var cachedBitmap))
             return cachedBitmap;
 
         string? cleaned = CleanBase64(trimmed);
         if (string.IsNullOrEmpty(cleaned))
         {
-            _bitmapCache[cacheKey] = null;
+            _bitmapCache[cacheKey] = new WeakReference<BitmapSource?>(null);
             return null;
         }
 
@@ -45,17 +47,17 @@ public static class PosImageUtils
         }
         catch
         {
-            _bitmapCache[cacheKey] = null;
+            _bitmapCache[cacheKey] = new WeakReference<BitmapSource?>(null);
             return null;
         }
 
         if (bytes.Length < 24)
         {
-            _bitmapCache[cacheKey] = null;
+            _bitmapCache[cacheKey] = new WeakReference<BitmapSource?>(null);
             return null;
         }
 
-        BitmapImage? decoded = null;
+        BitmapSource? decoded = null;
 
         // 1. SVG payload
         if (IsSvgPayload(bytes))
@@ -88,25 +90,44 @@ public static class PosImageUtils
             }
         }
 
-        _bitmapCache[cacheKey] = decoded;
+        if (_bitmapCache.Count > 1500)
+        {
+            foreach (var item in _bitmapCache)
+            {
+                if (!item.Value.TryGetTarget(out _))
+                    _bitmapCache.TryRemove(item.Key, out _);
+            }
+        }
+        _bitmapCache[cacheKey] = new WeakReference<BitmapSource?>(decoded);
         return decoded;
     }
 
-    private static BitmapImage? DecodeWithImageSharp(byte[] bytes)
+    public static BitmapImage? Base64ToBitmapImage(string? base64)
+    {
+        return Base64ToBitmapSource(base64) as BitmapImage;
+    }
+
+    private static BitmapSource? DecodeWithImageSharp(byte[] bytes)
     {
         try
         {
             using var image = Image.Load<Bgra32>(bytes);
-            using var pngStream = new MemoryStream();
-            image.SaveAsPng(pngStream);
-            pngStream.Position = 0;
+            if (image.Width > 128)
+            {
+                image.Mutate(x => x.Resize(new ResizeOptions
+                {
+                    Size = new SixLabors.ImageSharp.Size(128, 0),
+                    Mode = SixLabors.ImageSharp.Processing.ResizeMode.Max,
+                    Sampler = KnownResamplers.Triangle
+                }));
+            }
 
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.DecodePixelWidth = 128;
-            bitmap.StreamSource = pngStream;
-            bitmap.EndInit();
+            int stride = image.Width * 4;
+            byte[] pixels = new byte[stride * image.Height];
+            image.CopyPixelDataTo(pixels);
+            var bitmap = BitmapSource.Create(
+                image.Width, image.Height, 96, 96,
+                PixelFormats.Bgra32, null, pixels, stride);
             bitmap.Freeze();
             return bitmap;
         }

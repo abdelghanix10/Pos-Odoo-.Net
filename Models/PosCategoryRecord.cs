@@ -17,7 +17,7 @@ public class PosCategoryRecord : INotifyPropertyChanged
     private string _colorHex = "#9CA3AF";
     private int _sequence = 10;
     private string? _imageBase64;
-    private BitmapImage? _imageBitmap;
+    private BitmapSource? _imageBitmap;
 
     public long Id
     {
@@ -116,7 +116,7 @@ public class PosCategoryRecord : INotifyPropertyChanged
             if (_imageBase64 != value)
             {
                 _imageBase64 = value;
-                ImageBitmap = PosImageUtils.Base64ToBitmapImage(value);
+                ImageBitmap = PosImageUtils.Base64ToBitmapSource(value);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasImage));
                 OnPropertyChanged(nameof(HasNoImage));
@@ -124,7 +124,7 @@ public class PosCategoryRecord : INotifyPropertyChanged
         }
     }
 
-    public BitmapImage? ImageBitmap
+    public BitmapSource? ImageBitmap
     {
         get => _imageBitmap;
         set
@@ -160,11 +160,11 @@ public class PosCategoryRecord : INotifyPropertyChanged
             try
             {
                 string hex = string.IsNullOrWhiteSpace(ColorHex) ? GetOdooColorHex(ColorIndex) : ColorHex;
-                return new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+                return BrushCache.Get(hex);
             }
             catch
             {
-                return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#9CA3AF"));
+                return BrushCache.Get("#9CA3AF");
             }
         }
     }
@@ -179,13 +179,11 @@ public class PosCategoryRecord : INotifyPropertyChanged
             try
             {
                 string hex = GetOdooSubtleBgHex(ColorIndex);
-                var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-                brush.Freeze();
-                return brush;
+                return BrushCache.Get(hex);
             }
             catch
             {
-                return new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E9ECEF"));
+                return BrushCache.Get("#E9ECEF");
             }
         }
     }

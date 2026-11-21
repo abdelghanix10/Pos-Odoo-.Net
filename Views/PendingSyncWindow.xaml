@@ -195,9 +195,15 @@
 
         <!-- 3. QUEUE ITEMS LIST -->
         <Grid Grid.Row="2">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl x:Name="QueueItemsControl">
-                    <ItemsControl.ItemTemplate>
+            <ListBox x:Name="QueueItemsControl"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type local:PendingSyncDisplayItem}">
                             <Border Background="#FFFFFF"
                                     BorderBrush="{StaticResource SubtleBorderBrush}"
@@ -320,9 +326,8 @@
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                    </ListBox.ItemTemplate>
+            </ListBox>
 
             <!-- Empty State when all items are synced -->
             <Border x:Name="EmptyStateCard"

@@ -80,7 +80,6 @@ public partial class CompaniesViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadCompaniesAsync();
     }
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();

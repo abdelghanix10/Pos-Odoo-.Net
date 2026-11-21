@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -86,6 +87,7 @@ public class OdooSyncService
     private readonly ConcurrentDictionary<int, (int SessionOdooId, int? CompanyId, DateTime Expires)> _openSessionByConfigCache = new();
     private int _cachedFallbackProductId;
     private readonly System.Threading.Timer _backgroundFlushTimer;
+    private readonly CancellationTokenSource _shutdownCts = new();
     private int _flushRunning;
 
     public PosUserRecord? CurrentPosUser { get; private set; }
@@ -205,9 +207,13 @@ public class OdooSyncService
 
     private OdooSyncService()
     {
-        _httpClient = new HttpClient
+        var handler = new HttpClientHandler
         {
-            Timeout = TimeSpan.FromSeconds(45)
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
+        };
+        _httpClient = new HttpClient(handler)
+        {
+            Timeout = TimeSpan.FromSeconds(30)
         };
 
         // Retry pending/failed queue items in the background so uploads and
@@ -225,6 +231,12 @@ public class OdooSyncService
                 Interlocked.Exchange(ref _flushRunning, 0);
             }
         }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    public void CancelPendingOperations()
+    {
+        _backgroundFlushTimer.Change(Timeout.Infinite, Timeout.Infinite);
+        try { _shutdownCts.Cancel(); } catch { }
     }
 
     public void NotifyQueueUpdated()
@@ -482,7 +494,8 @@ public class OdooSyncService
         int uid,
         string model,
         object[] domain,
-        string[] fields)
+        string[] fields,
+        int? limit = null)
     {
         return ExecuteKwAsync(
             config,
@@ -493,6 +506,7 @@ public class OdooSyncService
             new
             {
                 fields,
+                limit = limit,
                 context = new { bin_size = false }
             }
         );
@@ -1770,7 +1784,8 @@ public class OdooSyncService
                     execUid,
                     "product.product",
                     [new object[] { "available_in_pos", "=", true }],
-                    ["id"]
+                    ["id"],
+                    1
                 );
                 if (anyProdDoc.RootElement.TryGetProperty("result", out var pArr) &&
                     pArr.ValueKind == JsonValueKind.Array &&
@@ -3061,7 +3076,7 @@ public class OdooSyncService
             "id", "name", "street", "street2", "city", "state_id", "zip", "country_id",
             "vat", "company_registry", "l10n_ma_ice", "ice", "currency_id",
             "phone", "email", "website", "catchall_domain", "color", "primary_color",
-            "parent_id", "logo", "avatar_1920");
+            "parent_id", "logo");
 
         using var doc = await SearchReadAsync(config, uid, "res.company", [], fields);
 
@@ -3091,7 +3106,7 @@ public class OdooSyncService
                 string colorHex = GetStringOrDefault(item, "primary_color",
                     colorIdx > 0 ? PosCategoryRecord.GetOdooColorHex(colorIdx) : "#D97736");
                 var (parentId, parentName) = GetMany2One(item, "parent_id");
-                string? logo = GetNullableString(item, "logo", "avatar_1920");
+                string? logo = GetNullableString(item, "logo");
 
                 if (odooId > 0 && !string.IsNullOrWhiteSpace(name))
                 {
@@ -3120,13 +3135,16 @@ public class OdooSyncService
     {
         var fields = await FilterValidFieldsAsync(config, uid, "res.users",
             "id", "name", "login", "email", "phone", "mobile", "state", "lang", "share",
-            "image_1920", "avatar_1920", "image_128", "avatar_128");
+            "image_128", "avatar_128");
 
         using var doc = await SearchReadAsync(
             config,
             uid,
             "res.users",
-            [new object[] { "active", "=", true }],
+            [
+                new object[] { "active", "=", true },
+                new object[] { "share", "=", false }
+            ],
             fields
         );
 
@@ -3160,7 +3178,7 @@ public class OdooSyncService
                 else if (name.Contains("Light", StringComparison.OrdinalIgnoreCase) || login.Equals("light", StringComparison.OrdinalIgnoreCase))
                     role = "Light";
 
-                string? avatar = GetNullableString(item, "image_1920", "image_128", "avatar_1920", "avatar_128");
+                string? avatar = GetNullableString(item, "avatar_128", "image_128");
 
                 if (odooId > 0 && !string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(login))
                 {
@@ -3611,36 +3629,56 @@ public class OdooSyncService
         {
             var ptalFields = await FilterValidFieldsAsync(config, uid, "product.template.attribute.line",
                 "id", "product_tmpl_id", "attribute_id", "value_ids");
-
-            using var ptalDoc = await SearchReadAsync(config, uid, "product.template.attribute.line", [], ptalFields);
-
             var attrVals = preloadedAttrVals ?? (await FetchOdooAttributesInternalAsync(config, uid)).values;
             var valNameMap = attrVals.ToDictionary(v => v.OdooId, v => v.Name);
 
-            if (ptalDoc.RootElement.TryGetProperty("result", out var ptalList) && ptalList.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var item in ptalList.EnumerateArray())
-                {
-                    var (tmplId, _) = GetMany2One(item, "product_tmpl_id");
-                    var (_, attrName) = GetMany2One(item, "attribute_id");
-                    var valIds = GetIdArray(item, "value_ids");
-                    var valNames = valIds
-                        .Select(id => valNameMap.TryGetValue(id, out var vn) ? vn : null)
-                        .Where(vn => !string.IsNullOrWhiteSpace(vn))
-                        .ToList();
+            using var posProductDoc = await SearchReadAsync(
+                config, uid, "product.template",
+                [
+                    new object[] { "active", "=", true },
+                    new object[] { "available_in_pos", "=", true }
+                ],
+                ["id"], 500);
 
-                    if (tmplId.HasValue && !string.IsNullOrWhiteSpace(attrName))
+            if (posProductDoc.RootElement.TryGetProperty("result", out var posProducts))
+            {
+                var posProductIds = posProducts.EnumerateArray()
+                    .Select(e => GetIntOrDefault(e, "id"))
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .ToList();
+
+                foreach (var chunk in posProductIds.Chunk(500))
+                {
+                    using var ptalDoc = await SearchReadAsync(
+                        config, uid, "product.template.attribute.line",
+                        [new object[] { "product_tmpl_id", "in", chunk.ToArray() }],
+                        ptalFields);
+
+                    if (!ptalDoc.RootElement.TryGetProperty("result", out var ptalList)) continue;
+                    foreach (var item in ptalList.EnumerateArray())
                     {
-                        if (!templateAttrLinesMap.TryGetValue(tmplId.Value, out var list))
+                        var (tmplId, _) = GetMany2One(item, "product_tmpl_id");
+                        var (_, attrName) = GetMany2One(item, "attribute_id");
+                        var valIds = GetIdArray(item, "value_ids");
+                        var valNames = valIds
+                            .Select(id => valNameMap.TryGetValue(id, out var vn) ? vn : null)
+                            .Where(vn => !string.IsNullOrWhiteSpace(vn))
+                            .ToList();
+
+                        if (tmplId.HasValue && !string.IsNullOrWhiteSpace(attrName))
                         {
-                            list = [];
-                            templateAttrLinesMap[tmplId.Value] = list;
+                            if (!templateAttrLinesMap.TryGetValue(tmplId.Value, out var list))
+                            {
+                                list = [];
+                                templateAttrLinesMap[tmplId.Value] = list;
+                            }
+                            list.Add(new
+                            {
+                                AttributeName = attrName,
+                                Values = string.Join(", ", valNames)
+                            });
                         }
-                        list.Add(new
-                        {
-                            AttributeName = attrName,
-                            Values = string.Join(", ", valNames)
-                        });
                     }
                 }
             }
@@ -3654,12 +3692,15 @@ public class OdooSyncService
             "available_in_pos", "tracking", "is_storable", "to_weight",
             "taxes_id", "supplier_taxes_id", "uom_id", "company_id",
             "public_description", "description_sale",
-            "image_1920", "image_128", "product_tag_ids",
+            "image_128", "product_tag_ids",
             "attribute_line_ids", "combo_ids");
 
         using var prodDoc = await SearchReadAsync(
             config, uid, "product.template",
-            [new object[] { "active", "=", true }],
+            [
+                new object[] { "active", "=", true },
+                new object[] { "available_in_pos", "=", true }
+            ],
             prodFields
         );
 
@@ -3744,7 +3785,7 @@ public class OdooSyncService
                 var (_, companyName) = GetMany2One(item, "company_id");
                 string posDesc = GetStringOrDefault(item, "public_description", GetStringOrDefault(item, "description_sale"));
 
-                string? imageBase64 = GetNullableString(item, "image_128", "image_1920");
+                string? imageBase64 = GetNullableString(item, "image_128");
 
                 string? tagsJson = null;
                 var tagIds = GetIdArray(item, "product_tag_ids");
@@ -3838,7 +3879,14 @@ public class OdooSyncService
             "cash_register_balance_start", "cash_register_balance_end_real",
             "order_count", "total_payments_amount");
 
-        using var doc = await SearchReadAsync(config, uid, "pos.session", [], fields);
+        string cutoffUtc = DateTime.UtcNow.AddDays(-30).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        object[] sessionDomain =
+        [
+            "|",
+            new object[] { "state", "!=", "closed" },
+            new object[] { "start_at", ">=", cutoffUtc }
+        ];
+        using var doc = await SearchReadAsync(config, uid, "pos.session", sessionDomain, fields);
 
         var list = new List<PosSessionDto>();
         if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)
@@ -3905,7 +3953,12 @@ public class OdooSyncService
             "amount_total", "amount_tax", "amount_paid", "margin", "margin_percent", "margin_ratio",
             "state", "is_edited", "company_id", "general_note", "note", "refunded_order_ids");
 
-        using var doc = await SearchReadAsync(config, uid, "pos.order", [], orderFields);
+        string cutoffUtc = DateTime.UtcNow.AddDays(-30).ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+        object[] orderDomain =
+        [
+            new object[] { "date_order", ">=", cutoffUtc }
+        ];
+        using var doc = await SearchReadAsync(config, uid, "pos.order", orderDomain, orderFields);
 
         var orders = new List<PosOrderDto>();
         if (doc.RootElement.TryGetProperty("result", out var items) && items.ValueKind == JsonValueKind.Array)

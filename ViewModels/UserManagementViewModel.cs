@@ -120,7 +120,6 @@ public partial class UserManagementViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadUsersAsync();
     }
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();

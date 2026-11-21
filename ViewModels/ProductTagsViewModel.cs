@@ -81,7 +81,6 @@ public partial class ProductTagsViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadTagsAsync();
     }
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();

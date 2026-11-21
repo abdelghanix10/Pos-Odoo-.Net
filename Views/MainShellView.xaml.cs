@@ -24,6 +24,7 @@ public partial class MainShellView : UserControl
     public PosDashboardView DashboardControl => DashboardViewControl;
     public CompanyManagementView CompaniesControl => CompaniesViewControl;
     public PaymentMethodManagementView PaymentMethodsControl => PaymentMethodsViewControl;
+    public int LastKnownPendingSyncCount { get; private set; }
     public UserManagementView UsersControl => UsersViewControl;
     public PosCategoryManagementView CategoriesControl => CategoriesViewControl;
     public ProductAttributeManagementView AttributesControl => AttributesViewControl;
@@ -79,10 +80,7 @@ public partial class MainShellView : UserControl
         RegisterViewControl.VM.ReturnToDashboardRequested += async () =>
         {
             RegisterViewControl.Visibility = Visibility.Collapsed;
-            await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
-            await SessionsViewControl.ReloadSessionsFromDatabaseAsync(resetDetailView: false);
-            await OrdersViewControl.ReloadOrdersFromDatabaseAsync(resetDetailView: false);
-            await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
+            await RefreshActiveViewAfterSyncAsync();
             await RefreshDatabaseCountsAsync();
         };
         RegisterViewControl.VM.LogoutFromPosRequested += () =>
@@ -189,11 +187,34 @@ public partial class MainShellView : UserControl
         }
         win.ShowDialog();
 
-        await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
-        await SessionsViewControl.ReloadSessionsFromDatabaseAsync(resetDetailView: false);
-        await OrdersViewControl.ReloadOrdersFromDatabaseAsync(resetDetailView: false);
-        await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
+        await RefreshActiveViewAfterSyncAsync();
         await RefreshDatabaseCountsAsync();
+    }
+
+    public void ShutdownTimers()
+    {
+        _toastTimer.Stop();
+        _backupSchedulerTimer.Stop();
+    }
+
+    private async Task RefreshActiveViewAfterSyncAsync()
+    {
+        if (RegisterViewControl.Visibility == Visibility.Visible) return;
+        if (DashboardViewControl.Visibility == Visibility.Visible)
+            await DashboardViewControl.ReloadConfigsFromDatabaseAsync();
+        else if (SessionsViewControl.Visibility == Visibility.Visible)
+            await SessionsViewControl.ReloadSessionsFromDatabaseAsync(resetDetailView: false);
+        else if (OrdersViewControl.Visibility == Visibility.Visible)
+            await OrdersViewControl.ReloadOrdersFromDatabaseAsync(resetDetailView: false);
+        else if (PaymentsViewControl.Visibility == Visibility.Visible)
+            await PaymentsViewControl.ReloadPaymentsFromDatabaseAsync(resetDetailView: false);
+    }
+
+    public async Task OnBackgroundSyncCompletedAsync(int syncedCount)
+    {
+        await RefreshActiveViewAfterSyncAsync();
+        await RefreshDatabaseCountsAsync();
+        ShowToast($"Synchronized {syncedCount} queued POS transaction(s) with Odoo.");
     }
 
     public async Task RefreshConfigAndCountsAsync()
@@ -311,6 +332,7 @@ public partial class MainShellView : UserControl
 
             SidebarPendingCountText.Text = counts.PendingSyncCount.ToString();
             OpenPendingQueueBtnText.Text = $"Unsynced Queue ({counts.PendingSyncCount})";
+            LastKnownPendingSyncCount = counts.PendingSyncCount;
         }
         catch { }
     }

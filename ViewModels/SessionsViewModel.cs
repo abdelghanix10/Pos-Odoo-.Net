@@ -120,7 +120,6 @@ public partial class SessionsViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadSessionsAsync();
     }
 
     partial void OnSearchTextChanged(string value)
@@ -372,14 +371,11 @@ public partial class SessionsViewModel : ViewModelBase
 
     private void ApplyPaging()
     {
-        FilteredSessions.Clear();
         var pageItems = _matchingSessions
             .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
-        foreach (var s in pageItems)
-        {
-            FilteredSessions.Add(s);
-        }
+            .Take(PageSize)
+            .ToList();
+        FilteredSessions = new ObservableCollection<PosSessionRecord>(pageItems);
         UpdatePager();
     }
 

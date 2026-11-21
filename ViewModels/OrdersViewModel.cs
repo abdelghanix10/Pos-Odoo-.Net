@@ -162,7 +162,6 @@ public partial class OrdersViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadOrdersAsync();
     }
 
     partial void OnSearchTextChanged(string value)
@@ -749,14 +748,11 @@ public partial class OrdersViewModel : ViewModelBase
 
     private void ApplyPaging()
     {
-        FilteredOrders.Clear();
         var pageItems = _matchingOrders
             .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
-        foreach (var o in pageItems)
-        {
-            FilteredOrders.Add(o);
-        }
+            .Take(PageSize)
+            .ToList();
+        FilteredOrders = new ObservableCollection<PosOrderRecord>(pageItems);
         UpdatePager();
     }
 

@@ -126,7 +126,7 @@ public class ProductAttributeValueRecord : INotifyPropertyChanged
     private bool _isCustom = false;
     private string? _htmlColor;
     private string? _imageBase64;
-    private BitmapImage? _imageBitmap;
+    private BitmapSource? _imageBitmap;
     private double _defaultExtraPrice = 0.0;
 
     public long Id
@@ -183,12 +183,12 @@ public class ProductAttributeValueRecord : INotifyPropertyChanged
             {
                 _imageBase64 = value;
                 OnPropertyChanged();
-                ImageBitmap = PosImageUtils.Base64ToBitmapImage(value);
+                ImageBitmap = PosImageUtils.Base64ToBitmapSource(value);
             }
         }
     }
 
-    public BitmapImage? ImageBitmap
+    public BitmapSource? ImageBitmap
     {
         get => _imageBitmap;
         set

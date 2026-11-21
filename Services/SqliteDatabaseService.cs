@@ -320,6 +320,9 @@ public class SqliteDatabaseService
     public static SqliteDatabaseService Instance => _instance.Value;
 
     private readonly string _connectionString;
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private readonly object _cacheSync = new();
+    private const int CurrentSchemaVersion = 2;
 
     // In-memory caches (2GB RAM target: avoid re-reading the mechanical HDD on every view switch)
     private List<ProductRecord>? _cachedProducts;
@@ -365,11 +368,11 @@ public class SqliteDatabaseService
         {
             DataSource = dbPath,
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Pooling = true
+            Pooling = true,
+            DefaultTimeout = 5
         }.ToString();
 
         InitializeDatabase();
-        _ = Task.Run(WarmupCacheAsync);
     }
 
     private void InitializeDatabase()
@@ -383,7 +386,9 @@ public class SqliteDatabaseService
                 PRAGMA journal_mode = WAL;
                 PRAGMA synchronous = NORMAL;
                 PRAGMA temp_store = MEMORY;
-                PRAGMA cache_size = -8000;
+                PRAGMA cache_size = -4000;
+                PRAGMA busy_timeout = 5000;
+                PRAGMA wal_autocheckpoint = 1000;
                 """;
             pragmaCmd.ExecuteNonQuery();
         }
@@ -899,6 +904,37 @@ public class SqliteDatabaseService
                 using var markPurgedCmd = connection.CreateCommand();
                 markPurgedCmd.CommandText = "UPDATE OdooConfig SET HasPurgedLegacyDemoData = 1 WHERE Id = 1;";
                 markPurgedCmd.ExecuteNonQuery();
+            }
+        }
+
+        using (var versionCommand = connection.CreateCommand())
+        {
+            versionCommand.CommandText = "PRAGMA user_version;";
+            long dbVersion = Convert.ToInt64(versionCommand.ExecuteScalar() ?? 0L);
+            if (dbVersion < CurrentSchemaVersion)
+            {
+                using var indexCommand = connection.CreateCommand();
+                indexCommand.CommandText = """
+                    CREATE INDEX IF NOT EXISTS IX_PosOrders_SessionId ON PosOrders(SessionId);
+                    CREATE INDEX IF NOT EXISTS IX_PosOrders_SessionOdooId ON PosOrders(SessionOdooId);
+                    CREATE INDEX IF NOT EXISTS IX_PosOrders_SessionName ON PosOrders(SessionName);
+                    CREATE INDEX IF NOT EXISTS IX_PosOrders_PosConfig_State ON PosOrders(PosConfigName, State);
+                    CREATE INDEX IF NOT EXISTS IX_PosOrders_PosRef ON PosOrders(PosReference);
+                    CREATE INDEX IF NOT EXISTS IX_PosOrders_Uuid ON PosOrders(Uuid);
+                    CREATE INDEX IF NOT EXISTS IX_PosOrderLines_OrderId ON PosOrderLines(OrderId);
+                    CREATE INDEX IF NOT EXISTS IX_PosOrderLines_OrderOdooId ON PosOrderLines(OrderOdooId);
+                    CREATE INDEX IF NOT EXISTS IX_PosPayments_OrderId ON PosPayments(OrderId);
+                    CREATE INDEX IF NOT EXISTS IX_PosPayments_SessionId ON PosPayments(SessionId);
+                    CREATE INDEX IF NOT EXISTS IX_PosPayments_Date ON PosPayments(PaymentDate);
+                    CREATE INDEX IF NOT EXISTS IX_PosSessions_Config_State ON PosSessions(PosConfigId, State);
+                    CREATE INDEX IF NOT EXISTS IX_Products_Avail_Cat ON Products(AvailableInPos, PosCategoryId);
+                    CREATE INDEX IF NOT EXISTS IX_PendingSyncQueue_Status_Id ON PendingSyncQueue(Status, Id);
+                    """;
+                indexCommand.ExecuteNonQuery();
+
+                using var setVersionCommand = connection.CreateCommand();
+                setVersionCommand.CommandText = $"PRAGMA user_version = {CurrentSchemaVersion};";
+                setVersionCommand.ExecuteNonQuery();
             }
         }
     }
@@ -2781,38 +2817,49 @@ public class SqliteDatabaseService
             }
         }
 
-        // Compute live paid orders count and total payments from PosOrders for each session
-        foreach (var sess in result)
+        // One grouped query replaces one full table scan per session.
+        var statsByOdooId = new Dictionary<int, (int Count, decimal Total)>();
+        var statsBySessionId = new Dictionary<long, (int Count, decimal Total)>();
+        var statsByName = new Dictionary<string, (int Count, decimal Total)>(StringComparer.OrdinalIgnoreCase);
+        await using (var aggCmd = connection.CreateCommand())
         {
-            try
+            aggCmd.CommandText = """
+                SELECT SessionId, SessionOdooId, SessionName, COUNT(*), COALESCE(SUM(AmountTotal), 0.0)
+                FROM PosOrders
+                WHERE LOWER(COALESCE(State, 'paid')) NOT IN ('draft', 'ongoing', 'new', 'cancel', 'cancelled')
+                GROUP BY SessionId, SessionOdooId, SessionName;
+                """;
+            await using var reader = await aggCmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
             {
-                await using var statCmd = connection.CreateCommand();
-                statCmd.CommandText = """
-                    SELECT COUNT(*), COALESCE(SUM(AmountTotal), 0.0)
-                    FROM PosOrders
-                    WHERE LOWER(COALESCE(State, 'paid')) NOT IN ('draft', 'ongoing', 'new', 'cancel', 'cancelled')
-                      AND (
-                          (@odooId IS NOT NULL AND (SessionOdooId = @odooId OR SessionId = @odooId))
-                          OR SessionId = @localId
-                          OR (@sessName != '' AND LOWER(SessionName) = LOWER(@sessName))
-                      );
-                    """;
-                statCmd.Parameters.AddWithValue("@odooId", (object?)sess.OdooId ?? DBNull.Value);
-                statCmd.Parameters.AddWithValue("@localId", sess.Id);
-                statCmd.Parameters.AddWithValue("@sessName", sess.Name ?? "");
-
-                await using var sr = await statCmd.ExecuteReaderAsync();
-                if (await sr.ReadAsync())
+                int count = reader.GetInt32(3);
+                decimal total = reader.IsDBNull(4) ? 0m : Convert.ToDecimal(reader.GetDouble(4));
+                if (!reader.IsDBNull(0))
                 {
-                    int liveCount = sr.IsDBNull(0) ? 0 : sr.GetInt32(0);
-                    decimal liveTotal = sr.IsDBNull(1) ? 0.00m : Convert.ToDecimal(sr.GetDouble(1));
-                    if (liveCount > sess.OrdersCount)
-                        sess.OrdersCount = liveCount;
-                    if (liveTotal > sess.TotalPaymentsAmount)
-                        sess.TotalPaymentsAmount = liveTotal;
+                    long sessionId = reader.GetInt64(0);
+                    statsBySessionId[sessionId] = (count, total);
+                }
+                if (!reader.IsDBNull(1))
+                {
+                    int odooId = reader.GetInt32(1);
+                    statsByOdooId[odooId] = (count, total);
+                }
+                if (!reader.IsDBNull(2))
+                {
+                    string name = reader.GetString(2);
+                    if (!string.IsNullOrWhiteSpace(name)) statsByName[name] = (count, total);
                 }
             }
-            catch { }
+        }
+
+        foreach (var sess in result)
+        {
+            (int Count, decimal Total) stats = default;
+            if (sess.OdooId.HasValue) statsByOdooId.TryGetValue(sess.OdooId.Value, out stats);
+            if (stats.Count == 0) statsBySessionId.TryGetValue(sess.Id, out stats);
+            if (stats.Count == 0 && !string.IsNullOrWhiteSpace(sess.Name)) statsByName.TryGetValue(sess.Name, out stats);
+            sess.OrdersCount = Math.Max(sess.OrdersCount, stats.Count);
+            sess.TotalPaymentsAmount = Math.Max(sess.TotalPaymentsAmount, stats.Total);
         }
 
         return result;
@@ -2950,6 +2997,123 @@ public class SqliteDatabaseService
     // =========================================================================
     // 10. POS ORDERS & ORDER LINES REPOSITORY (pos.order & pos.order.line)
     // =========================================================================
+    public async Task<Dictionary<string, double[]>> LoadLast7DaysSalesByShopAsync()
+    {
+        var result = new Dictionary<string, double[]>(StringComparer.OrdinalIgnoreCase);
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        DateTime start = DateTime.Today.AddDays(-6);
+
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT PosConfigName, substr(DateOrder, 1, 10) AS DayStr, COALESCE(SUM(AmountTotal), 0.0)
+            FROM PosOrders
+            WHERE LOWER(COALESCE(State, 'paid')) NOT IN ('cancel', 'cancelled', 'draft', 'ongoing', 'new')
+              AND DateOrder >= @startDate
+            GROUP BY PosConfigName, substr(DateOrder, 1, 10);
+            """;
+        cmd.Parameters.AddWithValue("@startDate", start.ToString("yyyy-MM-dd 00:00:00", CultureInfo.InvariantCulture));
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            if (reader.IsDBNull(0) || reader.IsDBNull(1)) continue;
+            string shop = reader.GetString(0);
+            string dayStr = reader.GetString(1);
+            double sum = reader.IsDBNull(2) ? 0.0 : reader.GetDouble(2);
+            if (string.IsNullOrWhiteSpace(shop) || !DateTime.TryParse(dayStr, out var day)) continue;
+            int index = (day.Date - start).Days;
+            if (index is < 0 or > 6) continue;
+            if (!result.TryGetValue(shop, out var points))
+            {
+                points = new double[7];
+                result[shop] = points;
+            }
+            points[index] += sum;
+        }
+        return result;
+    }
+
+    public async Task LoadOrderDetailsAsync(PosOrderRecord order)
+    {
+        if (order == null) return;
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+
+        order.Lines.Clear();
+        await using (var lineCmd = connection.CreateCommand())
+        {
+            lineCmd.CommandText = """
+                SELECT Id, OdooId, OrderId, OrderOdooId, ProductId, ProductName, IsEdited, Qty, PriceUnit, Discount, Taxes, PriceSubtotal, PriceSubtotalIncl
+                FROM PosOrderLines
+                WHERE (@orderId IS NOT NULL AND OrderId = @orderId)
+                   OR (@odooId IS NOT NULL AND OrderOdooId = @odooId)
+                LIMIT 500;
+                """;
+            lineCmd.Parameters.AddWithValue("@orderId", order.Id);
+            lineCmd.Parameters.AddWithValue("@odooId", (object?)order.OdooId ?? DBNull.Value);
+            await using var reader = await lineCmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                order.Lines.Add(new PosOrderLineRecord
+                {
+                    Id = reader.GetInt64(0),
+                    OdooId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    OrderId = reader.IsDBNull(2) ? order.Id : reader.GetInt64(2),
+                    OrderOdooId = reader.IsDBNull(3) ? order.OdooId : reader.GetInt32(3),
+                    ProductId = reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                    ProductName = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                    IsEdited = !reader.IsDBNull(6) && reader.GetInt32(6) == 1,
+                    Qty = reader.IsDBNull(7) ? 1m : Convert.ToDecimal(reader.GetDouble(7)),
+                    PriceUnit = reader.IsDBNull(8) ? 0m : Convert.ToDecimal(reader.GetDouble(8)),
+                    Discount = reader.IsDBNull(9) ? 0m : Convert.ToDecimal(reader.GetDouble(9)),
+                    Taxes = reader.IsDBNull(10) ? "15%" : reader.GetString(10),
+                    PriceSubtotal = reader.IsDBNull(11) ? 0m : Convert.ToDecimal(reader.GetDouble(11)),
+                    PriceSubtotalIncl = reader.IsDBNull(12) ? 0m : Convert.ToDecimal(reader.GetDouble(12))
+                });
+            }
+        }
+
+        order.Payments.Clear();
+        await using (var payCmd = connection.CreateCommand())
+        {
+            payCmd.CommandText = """
+                SELECT Id, OdooId, OrderId, OrderOdooId, OrderName, SessionId, SessionOdooId, SessionName,
+                       CashierName, PaymentMethodId, PaymentMethodName, Amount, CurrencyName, ForeignCurrency, PaymentDate
+                FROM PosPayments
+                WHERE (@orderId IS NOT NULL AND OrderId = @orderId)
+                   OR (@odooId IS NOT NULL AND OrderOdooId = @odooId)
+                   OR (@orderName != '' AND OrderName = @orderName)
+                LIMIT 500;
+                """;
+            payCmd.Parameters.AddWithValue("@orderId", order.Id);
+            payCmd.Parameters.AddWithValue("@odooId", (object?)order.OdooId ?? DBNull.Value);
+            payCmd.Parameters.AddWithValue("@orderName", order.Name ?? "");
+            await using var reader = await payCmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                order.Payments.Add(new PosPaymentRecord
+                {
+                    Id = reader.GetInt64(0),
+                    OdooId = reader.IsDBNull(1) ? null : reader.GetInt32(1),
+                    OrderId = reader.IsDBNull(2) ? order.Id : reader.GetInt64(2),
+                    OrderOdooId = reader.IsDBNull(3) ? order.OdooId : reader.GetInt32(3),
+                    OrderName = reader.IsDBNull(4) ? (order.Name ?? "") : reader.GetString(4),
+                    SessionId = reader.IsDBNull(5) ? null : reader.GetInt64(5),
+                    SessionOdooId = reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                    SessionName = reader.IsDBNull(7) ? "" : reader.GetString(7),
+                    CashierName = reader.IsDBNull(8) ? "" : reader.GetString(8),
+                    PaymentMethodId = reader.IsDBNull(9) ? null : reader.GetInt32(9),
+                    PaymentMethodName = reader.IsDBNull(10) ? "Cash" : reader.GetString(10),
+                    Amount = reader.IsDBNull(11) ? 0m : Convert.ToDecimal(reader.GetDouble(11)),
+                    CurrencyName = reader.IsDBNull(12) ? "MAD" : reader.GetString(12),
+                    ForeignCurrency = reader.IsDBNull(13) ? "—" : reader.GetString(13),
+                    PaymentDate = reader.IsDBNull(14) ? null : (DateTime.TryParse(reader.GetString(14), out var date) ? date : null)
+                });
+            }
+        }
+    }
+
     public async Task<List<PosOrderRecord>> LoadAllOrdersAsync(string? sessionFilter = null)
     {
         if (_cachedAllOrders == null)
@@ -3194,7 +3358,8 @@ public class SqliteDatabaseService
             WHERE PosConfigName = @shop
                OR (@sessId IS NOT NULL AND (SessionOdooId = @sessId OR SessionId = @sessId))
                OR PosReference LIKE @cfgPattern
-            ORDER BY COALESCE(OdooId, Id) DESC;
+            ORDER BY COALESCE(OdooId, Id) DESC
+            LIMIT 50;
             """;
         cmd.Parameters.AddWithValue("@shop", shopName ?? "");
         cmd.Parameters.AddWithValue("@sessId", (object?)sessionOdooId ?? DBNull.Value);
@@ -3472,10 +3637,45 @@ public class SqliteDatabaseService
     {
         await using var connection = new SqliteConnection(_connectionString);
         await connection.OpenAsync();
-        await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "UPDATE OdooConfig SET LastOrdersSyncedAt = @syncedAt WHERE Id = 1;";
-        cmd.Parameters.AddWithValue("@syncedAt", syncedAt.ToString("yyyy-MM-dd HH:mm:ss"));
-        await cmd.ExecuteNonQueryAsync();
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.Transaction = transaction;
+            cmd.CommandText = "UPDATE OdooConfig SET LastOrdersSyncedAt = @syncedAt WHERE Id = 1;";
+            cmd.Parameters.AddWithValue("@syncedAt", syncedAt.ToString("yyyy-MM-dd HH:mm:ss"));
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        string cutoff = syncedAt.AddDays(-30).ToString("yyyy-MM-dd 00:00:00", CultureInfo.InvariantCulture);
+        await using (var pruneCmd = connection.CreateCommand())
+        {
+            pruneCmd.Transaction = transaction;
+            pruneCmd.CommandText = """
+                DELETE FROM PosOrderLines
+                WHERE OrderId IN (
+                    SELECT Id FROM PosOrders
+                    WHERE COALESCE(IsSynced, 1) = 1
+                      AND DateOrder < @cutoff
+                      AND LOWER(COALESCE(State, 'paid')) NOT IN ('draft','ongoing','new')
+                );
+                DELETE FROM PosPayments
+                WHERE OrderId IN (
+                    SELECT Id FROM PosOrders
+                    WHERE COALESCE(IsSynced, 1) = 1
+                      AND DateOrder < @cutoff
+                      AND LOWER(COALESCE(State, 'paid')) NOT IN ('draft','ongoing','new')
+                );
+                DELETE FROM PosOrders
+                WHERE COALESCE(IsSynced, 1) = 1
+                  AND DateOrder < @cutoff
+                  AND LOWER(COALESCE(State, 'paid')) NOT IN ('draft','ongoing','new');
+                """;
+            pruneCmd.Parameters.AddWithValue("@cutoff", cutoff);
+            await pruneCmd.ExecuteNonQueryAsync();
+        }
+        await transaction.CommitAsync();
+        lock (_cacheSync) _cachedAllOrders = null;
     }
 
     public async Task<string?> GetLastOrderSyncStatusAsync()

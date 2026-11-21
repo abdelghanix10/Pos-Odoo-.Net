@@ -80,7 +80,6 @@ public partial class ProductsViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadProductsAsync();
     }
 
     partial void OnSearchTextChanged(string value)
@@ -158,14 +157,11 @@ public partial class ProductsViewModel : ViewModelBase
 
     private void ApplyPaging()
     {
-        FilteredProducts.Clear();
         var pageItems = _matchingProducts
             .Skip((CurrentPage - 1) * PageSize)
-            .Take(PageSize);
-        foreach (var p in pageItems)
-        {
-            FilteredProducts.Add(p);
-        }
+            .Take(PageSize)
+            .ToList();
+        FilteredProducts = new ObservableCollection<ProductRecord>(pageItems);
         UpdatePager();
     }
 

@@ -11,8 +11,8 @@ namespace OdooPosLogin;
 public class ProductTagBadge
 {
     public string Name { get; set; } = string.Empty;
-    public Brush ColorBrush { get; set; } = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#017E84"));
-    public Brush SoftBackgroundBrush { get; set; } = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E6F4F5"));
+    public Brush ColorBrush { get; set; } = BrushCache.Get("#017E84");
+    public Brush SoftBackgroundBrush { get; set; } = BrushCache.Get("#E6F4F5");
 }
 
 public class ProductAttributeLine
@@ -60,7 +60,7 @@ public class ProductRecord : INotifyPropertyChanged
     private string _companyName = string.Empty;
     private string _posDescription = string.Empty;
     private string? _imageBase64;
-    private BitmapImage? _imageBitmap;
+    private BitmapSource? _imageBitmap;
     private string? _tagsJson;
     private string? _attributesJson;
     private string? _comboChoicesJson;
@@ -427,7 +427,7 @@ public class ProductRecord : INotifyPropertyChanged
             if (_imageBase64 != value)
             {
                 _imageBase64 = value;
-                ImageBitmap = PosImageUtils.Base64ToBitmapImage(value);
+                ImageBitmap = PosImageUtils.Base64ToBitmapSource(value);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasImage));
                 OnPropertyChanged(nameof(HasNoImage));
@@ -435,7 +435,7 @@ public class ProductRecord : INotifyPropertyChanged
         }
     }
 
-    public BitmapImage? ImageBitmap
+    public BitmapSource? ImageBitmap
     {
         get => _imageBitmap;
         set

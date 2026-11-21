@@ -87,7 +87,6 @@ public partial class PosCategoriesViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadCategoriesAsync();
     }
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();

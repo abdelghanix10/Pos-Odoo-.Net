@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using OdooPosLogin.ViewModels;
@@ -7,14 +8,45 @@ namespace OdooPosLogin;
 public partial class PosRegisterView : UserControl
 {
     public PosRegisterViewModel VM => (PosRegisterViewModel)DataContext;
+    private Point _lastMousePosition;
 
     public PosRegisterView()
     {
         InitializeComponent();
+
         PreviewKeyDown += PosRegisterView_PreviewKeyDown;
+        PreviewMouseDown += (_, _) => VM.RegisterUserActivity();
+        PreviewMouseWheel += (_, _) => VM.RegisterUserActivity();
+        PreviewTouchDown += (_, _) => VM.RegisterUserActivity();
+        PreviewTouchMove += (_, _) => VM.RegisterUserActivity();
+        PreviewStylusDown += (_, _) => VM.RegisterUserActivity();
+        PreviewMouseMove += PosRegisterView_PreviewMouseMove;
+
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible)
+            {
+                VM.RegisterUserActivity();
+            }
+            else
+            {
+                VM.StopTimersOnHide();
+            }
+        };
     }
 
-    private void ProductsScrollViewer_SizeChanged(object sender, System.Windows.SizeChangedEventArgs e)
+    private void PosRegisterView_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        Point pos = e.GetPosition(this);
+        // Only reset idle timer if the mouse actually moved (ignores layout-triggered MouseMove events)
+        if (Math.Abs(pos.X - _lastMousePosition.X) > 2.0 || Math.Abs(pos.Y - _lastMousePosition.Y) > 2.0)
+        {
+            _lastMousePosition = pos;
+            VM.RegisterUserActivity();
+        }
+    }
+
+    private void ProductsScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (DataContext is not PosRegisterViewModel vm) return;
         double available = e.NewSize.Width - 34.0; // Padding + scrollbar margin
@@ -27,6 +59,8 @@ public partial class PosRegisterView : UserControl
 
     private void PosRegisterView_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        VM.RegisterUserActivity();
+
         if (Keyboard.FocusedElement is TextBox)
             return;
 

@@ -25,7 +25,7 @@ public class PosUserRecord : INotifyPropertyChanged
     private string _status = "Confirmed";
     private string _language = "English (US)";
     private bool _isPurpleTheme = true;
-    private BitmapImage? _avatarBitmap;
+    private BitmapSource? _avatarBitmap;
     private string? _avatarBase64;
     private bool _isVisibleInPos = true;
 
@@ -229,7 +229,7 @@ public class PosUserRecord : INotifyPropertyChanged
             if (_avatarBase64 != value)
             {
                 _avatarBase64 = value;
-                AvatarBitmap = PosImageUtils.Base64ToBitmapImage(value);
+                AvatarBitmap = PosImageUtils.Base64ToBitmapSource(value);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasAvatar));
                 OnPropertyChanged(nameof(HasNoAvatar));
@@ -239,7 +239,7 @@ public class PosUserRecord : INotifyPropertyChanged
         }
     }
 
-    public BitmapImage? AvatarBitmap
+    public BitmapSource? AvatarBitmap
     {
         get => _avatarBitmap;
         set

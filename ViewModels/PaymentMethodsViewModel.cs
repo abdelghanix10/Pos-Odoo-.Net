@@ -77,7 +77,6 @@ public partial class PaymentMethodsViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadPaymentMethodsAsync();
     }
 
     partial void OnSearchTextChanged(string value) => RefreshFilter();

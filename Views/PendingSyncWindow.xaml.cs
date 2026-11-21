@@ -29,7 +29,8 @@ public class PendingSyncDisplayItem
 public partial class PendingSyncWindow : Window
 {
     private readonly ObservableCollection<PendingSyncDisplayItem> _items = [];
-    private readonly DispatcherTimer _autoRefreshTimer;
+    private readonly DispatcherTimer _queueRefreshTimer;
+    private bool _isClosed;
 
     public PendingSyncWindow()
     {
@@ -41,13 +42,19 @@ public partial class PendingSyncWindow : Window
         OdooSyncService.Instance.OnlineStatusChanged += OnOnlineStatusChanged;
         OdooSyncService.Instance.PendingQueueFlushed += OnPendingQueueFlushed;
 
-        _autoRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
-        _autoRefreshTimer.Tick += async (_, _) => await LoadQueueItemsAsync();
-        _autoRefreshTimer.Start();
+        _queueRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _queueRefreshTimer.Tick += async (_, _) =>
+        {
+            _queueRefreshTimer.Stop();
+            if (!_isClosed) await LoadQueueItemsAsync();
+        };
+        OdooSyncService.Instance.QueueUpdated += OnQueueUpdated;
 
         Closed += (_, _) =>
         {
-            _autoRefreshTimer.Stop();
+            _isClosed = true;
+            _queueRefreshTimer.Stop();
+            OdooSyncService.Instance.QueueUpdated -= OnQueueUpdated;
             OdooSyncService.Instance.OnlineStatusChanged -= OnOnlineStatusChanged;
             OdooSyncService.Instance.PendingQueueFlushed -= OnPendingQueueFlushed;
         };
@@ -57,7 +64,8 @@ public partial class PendingSyncWindow : Window
 
     private void OnOnlineStatusChanged(bool isOnline)
     {
-        Dispatcher.Invoke(() => UpdateOnlineIndicator(isOnline));
+        if (_isClosed || Dispatcher.HasShutdownStarted) return;
+        Dispatcher.BeginInvoke(() => { if (!_isClosed) UpdateOnlineIndicator(isOnline); });
     }
 
     private void OnPendingQueueFlushed(int count)
@@ -69,23 +77,33 @@ public partial class PendingSyncWindow : Window
         });
     }
 
+    private void OnQueueUpdated()
+    {
+        if (_isClosed || Dispatcher.HasShutdownStarted) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            _queueRefreshTimer.Stop();
+            _queueRefreshTimer.Start();
+        });
+    }
+
     private void UpdateOnlineIndicator(bool isOnline)
     {
         if (isOnline)
         {
-            ConnectionDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#10B981"));
+            ConnectionDot.Fill = BrushCache.Get("#10B981");
             ConnectionStatusLabel.Text = "Odoo Online";
-            ConnectionStatusLabel.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#065F46"));
-            ConnectionBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#ECFDF5"));
-            ConnectionBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#A7F3D0"));
+            ConnectionStatusLabel.Foreground = BrushCache.Get("#065F46");
+            ConnectionBadge.Background = BrushCache.Get("#ECFDF5");
+            ConnectionBadge.BorderBrush = BrushCache.Get("#A7F3D0");
         }
         else
         {
-            ConnectionDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F59E0B"));
+            ConnectionDot.Fill = BrushCache.Get("#F59E0B");
             ConnectionStatusLabel.Text = "Offline (Local Mode)";
-            ConnectionStatusLabel.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#92400E"));
-            ConnectionBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FFFBEB"));
-            ConnectionBadge.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FDE68A"));
+            ConnectionStatusLabel.Foreground = BrushCache.Get("#92400E");
+            ConnectionBadge.Background = BrushCache.Get("#FFFBEB");
+            ConnectionBadge.BorderBrush = BrushCache.Get("#FDE68A");
         }
     }
 
@@ -202,15 +220,15 @@ public partial class PendingSyncWindow : Window
             QueueId = rec.Id,
             OperationType = rec.OperationType,
             OperationTitle = opTitle,
-            OperationBadgeBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bgHex)),
-            OperationBadgeForeground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fgHex)),
+            OperationBadgeBackground = BrushCache.Get(bgHex),
+            OperationBadgeForeground = BrushCache.Get(fgHex),
             ShopDisplay = shopName,
             PrimarySummary = primary,
             SecondarySummary = secondary,
             CreatedAt = rec.CreatedAt,
             StatusDisplay = statusText,
-            StatusBadgeBackground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(statusBg)),
-            StatusBadgeForeground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(statusFg)),
+            StatusBadgeBackground = BrushCache.Get(statusBg),
+            StatusBadgeForeground = BrushCache.Get(statusFg),
             LastError = rec.LastError
         };
     }

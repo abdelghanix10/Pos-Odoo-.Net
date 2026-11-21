@@ -147,7 +147,6 @@ public partial class PaymentsViewModel : ViewModelBase
             IsToastVisible = false;
         };
 
-        _ = ReloadPaymentsAsync();
     }
 
     partial void OnSearchTextChanged(string value)
@@ -764,18 +763,12 @@ public partial class PaymentsViewModel : ViewModelBase
 
     private void ApplyPaging()
     {
-        FlatPayments.Clear();
-        GroupedPayments.Clear();
-
         var pageItems = _matchingPayments
             .Skip((CurrentPage - 1) * PageSize)
             .Take(PageSize)
             .ToList();
-
-        foreach (var p in pageItems)
-        {
-            FlatPayments.Add(p);
-        }
+        FlatPayments = new ObservableCollection<PosPaymentRecord>(pageItems);
+        GroupedPayments = new ObservableCollection<PaymentGroupRecord>();
 
         UpdatePager();
     }

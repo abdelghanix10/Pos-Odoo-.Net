@@ -49,12 +49,13 @@ public partial class PosRegisterView : UserControl
     private void ProductsScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (DataContext is not PosRegisterViewModel vm) return;
-        double available = e.NewSize.Width - 28.0;
-        if (available <= 180.0) return;
+        double available = e.NewSize.Width - 20.0;
+        if (available <= 160.0) return;
 
-        int cols = Math.Max(2, (int)Math.Floor(available / 168.0));
+        int cols = Math.Max(3, (int)Math.Floor(available / 146.0));
         double cardWidth = Math.Floor((available / cols) - 8.0);
-        vm.ProductCardWidth = Math.Clamp(cardWidth, 128.0, 220.0);
+        // Use a compact 4:3 image height (~86–116px) so 3+ rows of products fit comfortably on 1280x720
+        vm.ProductCardWidth = Math.Clamp(Math.Floor(cardWidth * 0.72), 86.0, 116.0);
         if (vm.GridColumns != cols)
             vm.GridColumns = cols;
     }

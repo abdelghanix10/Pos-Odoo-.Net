@@ -9,9 +9,9 @@ namespace OdooPosLogin;
 public partial class MainShellView : UserControl
 {
     private bool _isSidebarCollapsed = false;
-    private readonly double _expandedSidebarWidth = 212.0;
-    private readonly double _collapsedSidebarWidth = 64.0;
-
+    private readonly double _expandedSidebarWidth = 196.0;
+    private readonly double _collapsedSidebarWidth = 58.0;
+    
     private bool _isPasswordRevealed = false;
     private readonly DispatcherTimer _toastTimer;
     private readonly DispatcherTimer _backupSchedulerTimer;

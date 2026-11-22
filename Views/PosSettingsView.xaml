@@ -5,44 +5,35 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:local="clr-namespace:OdooPosLogin"
              mc:Ignorable="d"
-             d:DesignWidth="1280" d:DesignHeight="860"
-             Background="#F9FAFB"
-             FontFamily="Segoe UI"
+             d:DesignWidth="1080" d:DesignHeight="720"
+             Background="{StaticResource AppBackgroundBrush}"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
-        <!-- Odoo 20 Purple Rounded Active Checkbox Style (Matches Image 3) -->
         <Style x:Key="OdooPurpleCheckBoxStyle" TargetType="CheckBox">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="VerticalAlignment" Value="Top"/>
-            <Setter Property="Margin" Value="0,2,12,0"/>
-            <Setter Property="UseLayoutRounding" Value="True"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Margin" Value="0,2,10,0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
-                        <Border x:Name="ChkBox" Width="18" Height="18" CornerRadius="4"
-                                Background="White" BorderBrush="#9CA3AF" BorderThickness="1.5"
-                                UseLayoutRounding="True" SnapsToDevicePixels="True">
-                            <Viewbox x:Name="CheckMark" Width="10" Height="8"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                                     Visibility="Collapsed">
-                                <Path Data="M 1,4.5 L 4.2,7.8 L 10.5,1.2"
-                                      Stroke="White" StrokeThickness="2"
-                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        <Border x:Name="ChkBox" Width="18" Height="18" CornerRadius="5"
+                                Background="White" BorderBrush="{StaticResource InputBorderBrush}" BorderThickness="1.5">
+                            <Viewbox x:Name="CheckMark" Width="10" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed">
+                                <Path Data="M 1,4.5 L 4.2,7.8 L 10.5,1.2" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                             </Viewbox>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="ChkBox" Property="Background" Value="#68598A"/>
-                                <Setter TargetName="ChkBox" Property="BorderBrush" Value="#5B4D7A"/>
+                                <Setter TargetName="ChkBox" Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
+                                <Setter TargetName="ChkBox" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
                                 <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ChkBox" Property="BorderBrush" Value="#68598A"/>
+                                <Setter TargetName="ChkBox" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -50,120 +41,11 @@
             </Setter>
         </Style>
 
-        <!-- Multi-Select Dropdown Style Matching Sessions Filter (OdooFilterComboBoxStyle) -->
-        <Style x:Key="OdooMultiSelectComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Background" Value="#F9FAFB"/>
-            <Setter Property="Foreground" Value="#374151"/>
-            <Setter Property="BorderBrush" Value="#E5E7EB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="12.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Height" Value="26"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="ItemContainerStyle" Value="{StaticResource OdooComboBoxItemStyle}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid>
-                            <ToggleButton x:Name="ToggleButton"
-                                          Focusable="False"
-                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                          ClickMode="Press"
-                                          Cursor="Hand">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="Border"
-                                                Background="#F9FAFB"
-                                                BorderBrush="#D1D5DB"
-                                                BorderThickness="1"
-                                                CornerRadius="5"
-                                                Padding="8,2">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock x:Name="AddTxt" Text="+ Add" FontSize="12" FontWeight="SemiBold" Foreground="#4B5563" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                                <TextBlock x:Name="Arrow" Text="▾" FontSize="11" Foreground="#6B7280" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="Border" Property="BorderBrush" Value="#714B67"/>
-                                                <Setter TargetName="Border" Property="Background" Value="#F3ECF1"/>
-                                                <Setter TargetName="AddTxt" Property="Foreground" Value="#714B67"/>
-                                                <Setter TargetName="Arrow" Property="Foreground" Value="#714B67"/>
-                                            </Trigger>
-                                            <Trigger Property="IsChecked" Value="True">
-                                                <Setter TargetName="Border" Property="BorderBrush" Value="#714B67"/>
-                                                <Setter TargetName="Border" Property="Background" Value="#F3ECF1"/>
-                                                <Setter TargetName="AddTxt" Property="Foreground" Value="#714B67"/>
-                                                <Setter TargetName="Arrow" Property="Foreground" Value="#714B67"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
-
-                            <Popup x:Name="Popup"
-                                   Placement="Bottom"
-                                   PlacementTarget="{Binding ElementName=ToggleButton}"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   PopupAnimation="Fade">
-                                <Grid SnapsToDevicePixels="True"
-                                      MinWidth="190"
-                                      MaxHeight="260"
-                                      Margin="0,4,0,8">
-                                    <Border Background="#FFFFFF"
-                                            BorderBrush="#E5E7EB"
-                                            BorderThickness="1"
-                                            CornerRadius="8"
-                                            Padding="0,4">
-                                        <Border.Effect>
-                                            <DropShadowEffect Color="#000000" BlurRadius="14" ShadowDepth="4" Opacity="0.12"/>
-                                        </Border.Effect>
-                                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Grid>
-                            </Popup>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Odoo Tag Pill Remove Button -->
-        <Style x:Key="OdooTagRemoveBtnStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="#6B7280"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Padding" Value="4,0,2,0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="#DC2626"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Odoo Arrow Navigation Link Button (→ Payment Methods, → PoS Product Categories, → Attributes) -->
         <Style x:Key="OdooArrowLinkButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="#5B4B8A"/>
-            <Setter Property="FontSize" Value="13.5"/>
+            <Setter Property="Foreground" Value="{StaticResource OdooPurpleBrush}"/>
+            <Setter Property="FontSize" Value="12.5"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="HorizontalAlignment" Value="Left"/>
@@ -176,7 +58,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="#714B67"/>
+                                <Setter Property="Foreground" Value="{StaticResource OdooTealBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -191,10 +73,12 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ========================================================================= -->
-        <!-- TOP ACTION BAR (POS SETTINGS)                                             -->
-        <!-- ========================================================================= -->
-        <Border Grid.Row="0" Background="White" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="24,12"
+        <!-- TOP ACTION BAR (POS SETTINGS) -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceCardBrush}"
+                BorderBrush="{StaticResource SubtleBorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="18,9"
                 Visibility="{Binding PosSettingsSubTabVisibility}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -203,120 +87,69 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Save / Discard Buttons + Point of Sale Selector -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Command="{Binding SaveSettingsCommand}"
-                            Background="#714B67" Foreground="White"
-                            FontSize="13.5" FontWeight="SemiBold"
-                            Padding="18,7" Cursor="Hand" BorderThickness="0" Margin="0,0,8,0">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="Bd" Property="Background" Value="#5D3D54"/>
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
-                        <TextBlock Text="Save"/>
-                    </Button>
+                    <Button Command="{Binding SaveSettingsCommand}" Style="{StaticResource PosPrimaryButton}" Content="Save" Margin="0,0,8,0"/>
+                    <Button Command="{Binding DiscardSettingsCommand}" Style="{StaticResource PosSecondaryButton}" Content="Discard" Margin="0,0,16,0"/>
 
-                    <Button Command="{Binding DiscardSettingsCommand}"
-                            Background="#F3F4F6" Foreground="#374151"
-                            FontSize="13.5" FontWeight="SemiBold"
-                            Padding="16,7" Cursor="Hand" BorderThickness="1" BorderBrush="#D1D5DB" Margin="0,0,20,0">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="5" Padding="{TemplateBinding Padding}">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="Bd" Property="Background" Value="#E5E7EB"/>
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
-                        <TextBlock Text="Discard"/>
-                    </Button>
-
-                    <!-- Point of Sale Shop Selector (Sessions Filter Design) -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Point of Sale:" FontSize="13.5" FontWeight="SemiBold" Foreground="#374151" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <ComboBox Style="{StaticResource OdooFilterComboBoxStyle}"
-                                  ItemsSource="{Binding PosConfigs}"
-                                  SelectedItem="{Binding SelectedConfig, Mode=TwoWay}"
-                                  DisplayMemberPath="Name"
-                                  MinWidth="220" Height="36"/>
-                    </StackPanel>
+                    <TextBlock Text="Point of Sale:" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <ComboBox Style="{StaticResource OdooFilterComboBoxStyle}"
+                              ItemsSource="{Binding PosConfigs}"
+                              SelectedItem="{Binding SelectedConfig, Mode=TwoWay}"
+                              DisplayMemberPath="Name"
+                              MinWidth="200" Height="34"/>
                 </StackPanel>
 
-                <!-- Status Feedback Badge -->
-                <Border Grid.Column="2" Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="6" Padding="12,5"
+                <Border Grid.Column="2"
+                        Background="{StaticResource ActiveGreenSoftBrush}"
+                        BorderBrush="{StaticResource ActiveGreenBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12,4"
+                        VerticalAlignment="Center"
                         Visibility="{Binding HasStatusMessage, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{Binding StatusMessage}" FontSize="12.5" FontWeight="SemiBold" Foreground="#047857"/>
+                    <TextBlock Text="{Binding StatusMessage}" FontSize="12" FontWeight="SemiBold" Foreground="#065F46"/>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- ========================================================================= -->
-        <!-- SUB-TAB 1: POINT OF SALE SETTINGS (10 SETTINGS)                           -->
-        <!-- ========================================================================= -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+        <!-- SUB-TAB 1: POINT OF SALE SETTINGS (Fluid 2-Column Layout — Zero Horizontal Overflow at 1280px) -->
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
                       Visibility="{Binding PosSettingsSubTabVisibility}">
-            <StackPanel MaxWidth="1180" Margin="28,22,28,48" HorizontalAlignment="Stretch">
+            <StackPanel Margin="20,16,20,32" HorizontalAlignment="Stretch">
 
-                <!-- ========================================================================= -->
-                <!-- CARD 1: SETTINGS SYNCED WITH ODOO (CANNOT EDIT IN PROGRAM)                -->
-                <!-- ========================================================================= -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
-                    <TextBlock Text="Odoo Synced Settings (Cannot Edit)" FontSize="16" FontWeight="Bold" Foreground="#111827" VerticalAlignment="Center"/>
-                    <Border Background="#F3ECF1" BorderBrush="#E2D4E0" BorderThickness="1" CornerRadius="5" Padding="10,2" Margin="12,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="Read-Only • Managed in Odoo" FontSize="11.5" FontWeight="SemiBold" Foreground="#714B67"/>
+                <!-- CARD 1: ODOO SYNCED SETTINGS (READ-ONLY) -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
+                    <TextBlock Text="Odoo Synced Settings" FontSize="14.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                    <Border Background="{StaticResource OdooPurpleSoftBrush}" BorderBrush="{StaticResource OdooPurpleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Read-Only • Managed in Odoo" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource OdooPurpleBrush}"/>
                     </Border>
                 </StackPanel>
 
-                <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="28,24" Margin="0,0,0,28">
+                <Border Style="{StaticResource PosCardBorderStyle}" Padding="20,18" Margin="0,0,0,20">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="36"/>
+                            <ColumnDefinition Width="24"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <!-- Card 2 Grid Rows -->
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="20"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="20"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <!-- ========================================================= -->
-                        <!-- 1. PAYMENT METHODS (Synced with Odoo - Read-Only)         -->
-                        <!-- ========================================================= -->
-                        <Border Grid.Row="0" Grid.Column="0"
-                                BorderBrush="#D1D5DB"
-                                BorderThickness="1.5,0,0,0"
-                                Padding="14,0,0,2"
-                                Margin="30,0,0,0"
-                                Width="440"
-                                HorizontalAlignment="Left">
+                        <!-- 1. Payment Methods -->
+                        <Border Grid.Row="0" Grid.Column="0" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0" Margin="28,0,0,0">
                             <StackPanel>
-                                <TextBlock Text="Payment Methods" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                <TextBlock Text="Payment methods available" FontSize="13" Foreground="#6B7280" Margin="0,3,0,12"/>
+                                <TextBlock Text="Payment Methods" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                <TextBlock Text="Payment methods available on this register" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,2,0,8"/>
 
-                                <!-- Read-only Tag Pills (Synced with Odoo) -->
-                                <Border Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="0,0,20,8"
-                                        ToolTip="Synced with Odoo (Read-only)">
-                                    <ItemsControl ItemsSource="{Binding SelectedPaymentMethodTags}" VerticalAlignment="Center">
+                                <Border Background="{StaticResource SurfaceSubtleBrush}" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="6,4" Margin="0,0,0,6">
+                                    <ItemsControl ItemsSource="{Binding SelectedPaymentMethodTags}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel Orientation="Horizontal"/>
@@ -324,96 +157,59 @@
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#F3ECF1" BorderBrush="#E2D4E0" BorderThickness="1" CornerRadius="5" Padding="10,3,10,3" Margin="0,2,6,2">
-                                                    <TextBlock Text="{Binding}" FontSize="12.5" FontWeight="SemiBold" Foreground="#714B67" VerticalAlignment="Center"/>
+                                                <Border Background="{StaticResource OdooPurpleSoftBrush}" BorderBrush="{StaticResource OdooPurpleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="0,2,5,2">
+                                                    <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource OdooPurpleBrush}"/>
                                                 </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </Border>
 
-                                <Button Style="{StaticResource OdooArrowLinkButtonStyle}"
-                                        Command="{Binding OpenPaymentMethodsLinkCommand}"
-                                        Content="→ Payment Methods"/>
+                                <Button Style="{StaticResource OdooArrowLinkButtonStyle}" Command="{Binding OpenPaymentMethodsLinkCommand}" Content="→ Payment Methods"/>
                             </StackPanel>
                         </Border>
 
-                        <!-- ========================================================= -->
-                        <!-- 2. ONE-CLICK PAYMENT (Synced with Odoo - Read-Only)       -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsOneClickPaymentEnabled, Mode=OneWay}"
-                                      IsHitTestVisible="False"
-                                      Focusable="False"
-                                      Cursor="Arrow"
-                                      ToolTip="Synced with Odoo (Read-only)"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" HorizontalAlignment="Stretch" Width="440">
+                        <!-- 2. One-click Payment -->
+                        <Grid Grid.Row="0" Grid.Column="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsOneClickPaymentEnabled, Mode=OneWay}" IsHitTestVisible="False" Focusable="False" Cursor="Arrow"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="One-click Payment" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Shortcut to skip payment screen" FontSize="13" Foreground="#6B7280" Margin="0,3,0,12"/>
+                                    <TextBlock Text="One-click Payment" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Shortcut to skip payment screen" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,2,0,8"/>
 
-                                    <!-- Single-select Payment Method when enabled (Synced with Odoo - Read-Only) -->
-                                    <Grid Visibility="{Binding OneClickPaymentDetailsVisibility}" Margin="0,2,20,0">
+                                    <Grid Visibility="{Binding OneClickPaymentDetailsVisibility}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-
-                                        <TextBlock Grid.Column="0" Text="Payment Methods" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
-                                                   VerticalAlignment="Center" Margin="0,0,14,0"/>
-
-                                        <Border Grid.Column="1"
-                                                Background="#FFFFFF"
-                                                BorderBrush="#D1D5DB"
-                                                BorderThickness="1"
-                                                CornerRadius="6"
-                                                Height="36"
-                                                Padding="12,0"
-                                                ToolTip="Synced with Odoo (Read-only)">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0"
-                                                           Text="{Binding SelectedOneClickPaymentMethod, FallbackValue=Cash, TargetNullValue=Cash}"
-                                                           FontSize="13.5"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#111827"
-                                                           VerticalAlignment="Center"/>
-                                                <TextBlock Grid.Column="1"
-                                                           Text="▾"
-                                                           FontSize="11"
-                                                           Foreground="#6B7280"
-                                                           VerticalAlignment="Center"
-                                                           Margin="8,0,0,0"/>
-                                            </Grid>
+                                        <TextBlock Grid.Column="0" Text="Method:" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <Border Grid.Column="1" Background="{StaticResource SurfaceSubtleBrush}" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="7" Height="32" Padding="10,0">
+                                            <TextBlock Text="{Binding SelectedOneClickPaymentMethod, FallbackValue=Cash, TargetNullValue=Cash}" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                         </Border>
                                     </Grid>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 3. RESTRICT CATEGORIES (Synced with Odoo - Read-Only)     -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsRestrictCategoriesEnabled, Mode=OneWay}"
-                                      IsHitTestVisible="False"
-                                      Focusable="False"
-                                      Cursor="Arrow"
-                                      ToolTip="Synced with Odoo (Read-only)"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- 3. Restrict Categories -->
+                        <Grid Grid.Row="2" Grid.Column="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsRestrictCategoriesEnabled, Mode=OneWay}" IsHitTestVisible="False" Focusable="False" Cursor="Arrow"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Restrict Categories" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Pick which product PoS categories are available" FontSize="13" Foreground="#6B7280" Margin="0,3,0,12"/>
+                                    <TextBlock Text="Restrict Categories" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Pick which product PoS categories are available" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,8"/>
 
                                     <StackPanel Visibility="{Binding RestrictCategoriesDetailsVisibility}">
-                                        <Border Background="#FFFFFF" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="8,6" Margin="0,0,20,8"
-                                                ToolTip="Synced with Odoo (Read-only)">
-                                            <ItemsControl ItemsSource="{Binding SelectedCategoryTags}" VerticalAlignment="Center">
+                                        <Border Background="{StaticResource SurfaceSubtleBrush}" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="6,4" Margin="0,0,0,6">
+                                            <ItemsControl ItemsSource="{Binding SelectedCategoryTags}">
                                                 <ItemsControl.ItemsPanel>
                                                     <ItemsPanelTemplate>
                                                         <WrapPanel Orientation="Horizontal"/>
@@ -421,447 +217,311 @@
                                                 </ItemsControl.ItemsPanel>
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Border Background="#F3ECF1" BorderBrush="#E2D4E0" BorderThickness="1" CornerRadius="5" Padding="10,3,10,3" Margin="0,2,6,2">
-                                                            <TextBlock Text="{Binding}" FontSize="12.5" FontWeight="SemiBold" Foreground="#714B67" VerticalAlignment="Center"/>
+                                                        <Border Background="{StaticResource OdooPurpleSoftBrush}" BorderBrush="{StaticResource OdooPurpleBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="0,2,5,2">
+                                                            <TextBlock Text="{Binding}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource OdooPurpleBrush}"/>
                                                         </Border>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </Border>
-
-                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}"
-                                                Command="{Binding OpenCategoriesLinkCommand}"
-                                                Content="→ PoS Product Categories"/>
+                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}" Command="{Binding OpenCategoriesLinkCommand}" Content="→ PoS Product Categories"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 4. VARIANTS (Synced with Odoo - Read-Only)                -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsVariantsEnabled, Mode=OneWay}"
-                                      IsHitTestVisible="False"
-                                      Focusable="False"
-                                      Cursor="Arrow"
-                                      ToolTip="Synced with Odoo (Read-only)"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- 4. Variants -->
+                        <Grid Grid.Row="2" Grid.Column="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsVariantsEnabled, Mode=OneWay}" IsHitTestVisible="False" Focusable="False" Cursor="Arrow"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Variants" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Sell variants of a product using attributes (size, color, etc.)"
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,8"/>
-
-                                    <Button Style="{StaticResource OdooArrowLinkButtonStyle}"
-                                            Visibility="{Binding VariantsDetailsVisibility}"
-                                            Command="{Binding OpenAttributesLinkCommand}"
-                                            Content="→ Attributes"/>
+                                    <TextBlock Text="Variants" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Sell variants of a product using attributes (size, color, etc.)" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,6"/>
+                                    <Button Style="{StaticResource OdooArrowLinkButtonStyle}" Visibility="{Binding VariantsDetailsVisibility}" Command="{Binding OpenAttributesLinkCommand}" Content="→ Attributes"/>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 5. AUTOMATIC RECEIPT PRINTING (Synced with Odoo-Read-Only)-->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsAutomaticReceiptPrintingEnabled, Mode=OneWay}"
-                                      IsHitTestVisible="False"
-                                      Focusable="False"
-                                      Cursor="Arrow"
-                                      ToolTip="Synced with Odoo (Read-only)"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- 5. Automatic Receipt Printing -->
+                        <Grid Grid.Row="4" Grid.Column="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsAutomaticReceiptPrintingEnabled, Mode=OneWay}" IsHitTestVisible="False" Focusable="False" Cursor="Arrow"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Automatic Receipt Printing" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Print receipts automatically once the payment is registered"
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    <TextBlock Text="Automatic Receipt Printing" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Print receipts automatically once payment is registered" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
                     </Grid>
                 </Border>
 
-                <!-- ========================================================================= -->
-                <!-- CARD 2: LOCAL POINT OF SALE SETTINGS (CAN EDIT IN PROGRAM)                -->
-                <!-- ========================================================================= -->
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,12">
-                    <TextBlock Text="Local Point of Sale Settings (Can Edit)" FontSize="16" FontWeight="Bold" Foreground="#111827" VerticalAlignment="Center"/>
-                    <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="5" Padding="10,2" Margin="12,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="Editable in Program" FontSize="11.5" FontWeight="SemiBold" Foreground="#047857"/>
+                <!-- CARD 2: LOCAL POINT OF SALE SETTINGS (EDITABLE) -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
+                    <TextBlock Text="Local Point of Sale Settings" FontSize="14.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                    <Border Background="{StaticResource ActiveGreenSoftBrush}" BorderBrush="{StaticResource ActiveGreenBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Editable in Program" FontSize="11" FontWeight="SemiBold" Foreground="#065F46"/>
                     </Border>
                 </StackPanel>
 
-                <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="28,24">
+                <Border Style="{StaticResource PosCardBorderStyle}" Padding="20,18">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="36"/>
+                            <ColumnDefinition Width="24"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <!-- Card 2 Grid Rows -->
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="20"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="20"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="20"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="20"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="28"/>
+                            <RowDefinition Height="20"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <!-- ========================================================= -->
-                        <!-- 9. HIDE OPENING CASH CONTROL (Editable)                   -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsHideOpeningCashControlEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- Hide Opening Cash Control -->
+                        <Grid Grid.Row="0" Grid.Column="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsHideOpeningCashControlEnabled, Mode=TwoWay}"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Hide Opening Cash Control" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Automatically hide the opening cash control popup and set cash to the default amount"
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                                    <TextBlock Text="Hide Opening Cash Control" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Auto-hide opening cash popup and set cash to the default amount" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,8"/>
 
-                                    <StackPanel Orientation="Horizontal" Visibility="{Binding HideOpeningCashControlDetailsVisibility}" Margin="0,2,0,0">
-                                        <TextBlock Text="Default Opening Cash" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
-                                                   VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                        <Border Background="White" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6" Padding="10,5">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="$" FontSize="13.5" FontWeight="SemiBold" Foreground="#6B7280" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                <TextBox Text="{Binding DefaultOpeningCashAmountText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         Width="110" BorderThickness="0" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"/>
+                                    <StackPanel Orientation="Horizontal" Visibility="{Binding HideOpeningCashControlDetailsVisibility}">
+                                        <TextBlock Text="Default Cash:" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                        <Border Style="{StaticResource PosInputBorderStyle}" Height="32" Width="120">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="$" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                                <TextBox Text="{Binding DefaultOpeningCashAmountText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="82" BorderThickness="0" Background="Transparent" FontSize="13" FontWeight="SemiBold"/>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 6. PREVENT LINE MERGING (Editable)                        -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsPreventLineMergingEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- Prevent Line Merging -->
+                        <Grid Grid.Row="0" Grid.Column="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsPreventLineMergingEnabled, Mode=TwoWay}"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Prevent Line Merging" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Always create new order lines instead of merging quantities"
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    <TextBlock Text="Prevent Line Merging" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Always create new order lines instead of merging quantities" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 7. PRINT LAST RECEIPT (Editable)                          -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsPrintLastReceiptEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- Print Last Receipt -->
+                        <Grid Grid.Row="2" Grid.Column="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsPrintLastReceiptEnabled, Mode=TwoWay}"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Print Last Receipt" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Enable a button to print the last paid order."
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                                    <TextBlock Text="Print Last Receipt" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Enable a button to print the last paid order" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,8"/>
 
                                     <StackPanel Visibility="{Binding PrintLastReceiptDetailsVisibility}">
-                                        <Grid Margin="0,2,20,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Receipt Design" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
-                                                       VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                            <ComboBox Grid.Column="1"
-                                                      Style="{StaticResource OdooFilterComboBoxStyle}"
-                                                      ItemsSource="{Binding ReceiptDesigns}"
-                                                      SelectedItem="{Binding SelectedLastReceiptDesign, Mode=TwoWay}"
-                                                      DisplayMemberPath="Name"
-                                                      Height="36"/>
-                                        </Grid>
-                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}"
-                                                Command="{Binding OpenReceiptDesignsTabCommand}"
-                                                Content="→ Receipt Designs"/>
+                                        <ComboBox Style="{StaticResource OdooFilterComboBoxStyle}" ItemsSource="{Binding ReceiptDesigns}" SelectedItem="{Binding SelectedLastReceiptDesign, Mode=TwoWay}" DisplayMemberPath="Name" Height="32" Margin="0,0,0,4"/>
+                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}" Command="{Binding OpenReceiptDesignsTabCommand}" Content="→ Receipt Designs"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 7b. ACTIVE BUTTON PRINT (Editable)                        -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsPrintButtonEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- Active Button Print -->
+                        <Grid Grid.Row="2" Grid.Column="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsPrintButtonEnabled, Mode=TwoWay}"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Active Button Print" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Show the Print button on the payment confirmation (Change) screen."
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    <TextBlock Text="Active Button Print" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Show the Print button on the payment confirmation (Change) screen" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 8. CUSTOM ORDER RECEIPTS (Editable)                       -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="4" Grid.Column="0" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsCustomOrderReceiptsEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- Custom Order Receipts -->
+                        <Grid Grid.Row="4" Grid.Column="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsCustomOrderReceiptsEnabled, Mode=TwoWay}"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Custom Order Receipts" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Use custom receipt designs for orders."
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                                    <TextBlock Text="Custom Order Receipts" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Use custom receipt designs for customer orders" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,8"/>
 
                                     <StackPanel Visibility="{Binding CustomOrderReceiptsDetailsVisibility}">
-                                        <Grid Margin="0,2,20,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Receipt Design" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
-                                                       VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                            <ComboBox Grid.Column="1"
-                                                      Style="{StaticResource OdooFilterComboBoxStyle}"
-                                                      ItemsSource="{Binding ReceiptDesigns}"
-                                                      SelectedItem="{Binding SelectedCustomOrderReceiptDesign, Mode=TwoWay}"
-                                                      DisplayMemberPath="Name"
-                                                      Height="36"/>
-                                        </Grid>
-                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}"
-                                                Command="{Binding OpenReceiptDesignsTabCommand}"
-                                                Content="→ Receipt Designs"/>
+                                        <ComboBox Style="{StaticResource OdooFilterComboBoxStyle}" ItemsSource="{Binding ReceiptDesigns}" SelectedItem="{Binding SelectedCustomOrderReceiptDesign, Mode=TwoWay}" DisplayMemberPath="Name" Height="32" Margin="0,0,0,4"/>
+                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}" Command="{Binding OpenReceiptDesignsTabCommand}" Content="→ Receipt Designs"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 10. SECOND RECEIPT (Editable)                             -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="4" Grid.Column="2" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsSecondReceiptEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- Second Receipt -->
+                        <Grid Grid.Row="4" Grid.Column="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsSecondReceiptEnabled, Mode=TwoWay}"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Second Receipt" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Enable printing of a second simplified receipt after the main receipt."
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                                    <TextBlock Text="Second Receipt" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Print a second simplified receipt after the main receipt" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,8"/>
 
                                     <StackPanel Visibility="{Binding SecondReceiptDetailsVisibility}">
-                                        <Grid Margin="0,2,20,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Receipt Design" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
-                                                       VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                            <ComboBox Grid.Column="1"
-                                                      Style="{StaticResource OdooFilterComboBoxStyle}"
-                                                      ItemsSource="{Binding ReceiptDesigns}"
-                                                      SelectedItem="{Binding SelectedSecondReceiptDesign, Mode=TwoWay}"
-                                                      DisplayMemberPath="Name"
-                                                      Height="36"/>
-                                        </Grid>
-                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}"
-                                                Command="{Binding OpenReceiptDesignsTabCommand}"
-                                                Content="→ Receipt Designs"/>
+                                        <ComboBox Style="{StaticResource OdooFilterComboBoxStyle}" ItemsSource="{Binding ReceiptDesigns}" SelectedItem="{Binding SelectedSecondReceiptDesign, Mode=TwoWay}" DisplayMemberPath="Name" Height="32" Margin="0,0,0,4"/>
+                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}" Command="{Binding OpenReceiptDesignsTabCommand}" Content="→ Receipt Designs"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 11. HIDE CLOSING REGISTER (Editable)                      -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="6" Grid.Column="0" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsHideClosingRegisterEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- Hide Closing Register -->
+                        <Grid Grid.Row="6" Grid.Column="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsHideClosingRegisterEnabled, Mode=TwoWay}"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Hide Closing Register" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Bypass closing cash control popup and close register directly from 3 dots. Automatically prints sales details receipt."
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                                    <TextBlock Text="Hide Closing Register" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Bypass closing cash popup, close directly, and print sales details" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,8"/>
 
                                     <StackPanel Visibility="{Binding CustomSalesReceiptDetailsVisibility}">
-                                        <Grid Margin="0,2,20,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Custom Sales Receipt" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"
-                                                       VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                            <ComboBox Grid.Column="1"
-                                                      Style="{StaticResource OdooFilterComboBoxStyle}"
-                                                      ItemsSource="{Binding ReceiptDesigns}"
-                                                      SelectedItem="{Binding SelectedCustomSalesReceiptDesign, Mode=TwoWay}"
-                                                      DisplayMemberPath="Name"
-                                                      Height="36"/>
-                                        </Grid>
-                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}"
-                                                Command="{Binding OpenReceiptDesignsTabCommand}"
-                                                Content="→ Receipt Designs"/>
+                                        <ComboBox Style="{StaticResource OdooFilterComboBoxStyle}" ItemsSource="{Binding ReceiptDesigns}" SelectedItem="{Binding SelectedCustomSalesReceiptDesign, Mode=TwoWay}" DisplayMemberPath="Name" Height="32" Margin="0,0,0,4"/>
+                                        <Button Style="{StaticResource OdooArrowLinkButtonStyle}" Command="{Binding OpenReceiptDesignsTabCommand}" Content="→ Receipt Designs"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 12. HIDE REVIEW ORDERS (Editable)                         -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="6" Grid.Column="2" Orientation="Horizontal">
-                            <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                      IsChecked="{Binding IsHideReviewOrdersEnabled, Mode=TwoWay}"/>
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Width="440">
+                        <!-- Hide Review Orders -->
+                        <Grid Grid.Row="6" Grid.Column="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <CheckBox Grid.Column="0" Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding IsHideReviewOrdersEnabled, Mode=TwoWay}"/>
+                            <Border Grid.Column="1" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Hide Review Orders" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Automatically list draft orders at closing register without showing blocking warning popup."
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                    <TextBlock Text="Hide Review Orders" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                    <TextBlock Text="Skip the blocking draft-orders warning popup when closing register" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        </Grid>
 
-                        <!-- ========================================================= -->
-                        <!-- 13. NUMBERS FIRST, OR PRODUCTS (Editable)                 -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="8" Grid.Column="0" Orientation="Horizontal">
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Margin="30,0,0,0" Width="440">
-                                <StackPanel>
-                                    <TextBlock Text="Numbers first, or products" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Choose whether to select products first then quantity, or type quantity on numpad first then click product."
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
-
-                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                        <RadioButton Content="Products first"
-                                                     IsChecked="{Binding IsProductsFirst, Mode=TwoWay}"
-                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
-                                                     Margin="0,0,24,0" Cursor="Hand"/>
-                                        <RadioButton Content="Numbers first"
-                                                     IsChecked="{Binding IsNumbersFirst, Mode=TwoWay}"
-                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
-                                                     Cursor="Hand"/>
-                                    </StackPanel>
+                        <!-- Numbers first, or products -->
+                        <Border Grid.Row="8" Grid.Column="0" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0" Margin="28,0,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Numbers first, or products" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                <TextBlock Text="Select products first, or type quantity on numpad before tapping a product" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,8"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Content="Products first" IsChecked="{Binding IsProductsFirst, Mode=TwoWay}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,18,0" Cursor="Hand"/>
+                                    <RadioButton Content="Numbers first" IsChecked="{Binding IsNumbersFirst, Mode=TwoWay}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Cursor="Hand"/>
                                 </StackPanel>
-                            </Border>
-                        </StackPanel>
+                            </StackPanel>
+                        </Border>
 
-                        <!-- ========================================================= -->
-                        <!-- 14. POS REGISTER LAYOUT (Editable)                        -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="8" Grid.Column="2" Orientation="Horizontal">
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Margin="30,0,0,0" Width="440">
+                        <!-- POS Register Layout -->
+                        <Border Grid.Row="8" Grid.Column="2" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0" Margin="28,0,0,0">
+                            <StackPanel>
+                                <TextBlock Text="POS Register Layout" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                <TextBlock Text="Standard Odoo layout or Split 4-quadrant layout" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,8"/>
                                 <StackPanel>
-                                    <TextBlock Text="POS Register Layout" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Choose between the standard Odoo layout or the split 4-quadrant layout (Order top-left, Numpad top-right, Categories bottom-left, Products bottom-right)."
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
-
-                                    <StackPanel Orientation="Vertical" Margin="0,4,0,0">
-                                        <RadioButton Content="Standard Layout (Left Cart / Right Products)"
-                                                     IsChecked="{Binding IsStandardLayoutSelected, Mode=TwoWay}"
-                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
-                                                     Margin="0,0,0,8" Cursor="Hand"/>
-                                        <RadioButton Content="Split Layout (Top Order &amp; Numpad / Bottom Categories &amp; Products)"
-                                                     IsChecked="{Binding IsSplitLayoutSelected, Mode=TwoWay}"
-                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
-                                                     Cursor="Hand"/>
-                                    </StackPanel>
+                                    <RadioButton Content="Standard (Left Cart / Right Products)" IsChecked="{Binding IsStandardLayoutSelected, Mode=TwoWay}" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,6" Cursor="Hand"/>
+                                    <RadioButton Content="Split (Top Order &amp; Numpad / Bottom Grid)" IsChecked="{Binding IsSplitLayoutSelected, Mode=TwoWay}" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Cursor="Hand"/>
                                 </StackPanel>
-                            </Border>
-                        </StackPanel>
+                            </StackPanel>
+                        </Border>
 
-                        <!-- ========================================================= -->
-                        <!-- 15. POS PAYMENT VIEW LAYOUT (Editable)                    -->
-                        <!-- ========================================================= -->
-                        <StackPanel Grid.Row="10" Grid.Column="0" Orientation="Horizontal">
-                            <Border BorderBrush="#D1D5DB" BorderThickness="1.5,0,0,0" Padding="14,0,0,2" Margin="30,0,0,0" Width="440">
+                        <!-- POS Payment View Layout -->
+                        <Border Grid.Row="10" Grid.Column="0" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0" Margin="28,0,0,0">
+                            <StackPanel>
+                                <TextBlock Text="POS Payment View Layout" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                <TextBlock Text="Standard split payment screen or compact centered layout" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,8"/>
                                 <StackPanel>
-                                    <TextBlock Text="POS Payment View Layout" FontSize="14.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                    <TextBlock Text="Choose between the standard split payment screen or the centered vertical payment screen (Total, Payment Methods, Change, and Numpad centered)."
-                                               FontSize="13" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,3,0,10"/>
-
-                                    <StackPanel Orientation="Vertical" Margin="0,4,0,0">
-                                        <RadioButton Content="Standard Payment Layout (Left Numpad / Right Total)"
-                                                     IsChecked="{Binding IsStandardPaymentLayoutSelected, Mode=TwoWay}"
-                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
-                                                     Margin="0,0,0,8" Cursor="Hand"/>
-                                        <RadioButton Content="Centered Payment Layout (All Centered Vertically)"
-                                                     IsChecked="{Binding IsCenteredPaymentLayoutSelected, Mode=TwoWay}"
-                                                     FontSize="13.5" FontWeight="SemiBold" Foreground="#374151"
-                                                     Cursor="Hand"/>
-                                    </StackPanel>
+                                    <RadioButton Content="Standard Payment (Left Numpad / Right Total)" IsChecked="{Binding IsStandardPaymentLayoutSelected, Mode=TwoWay}" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,6" Cursor="Hand"/>
+                                    <RadioButton Content="Centered Payment (Compact Single Column)" IsChecked="{Binding IsCenteredPaymentLayoutSelected, Mode=TwoWay}" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Cursor="Hand"/>
                                 </StackPanel>
-                            </Border>
-                        </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Border>
             </StackPanel>
         </ScrollViewer>
 
-        <!-- ========================================================================= -->
-        <!-- SUB-TAB 2: RECEIPT DESIGNS SETTINGS (Name, Open Cash Drawer Only?, XML)   -->
-        <!-- ========================================================================= -->
-        <Grid Grid.Row="1" Visibility="{Binding ReceiptDesignsSubTabVisibility}" Margin="28,22,28,28">
+        <!-- SUB-TAB 2: RECEIPT DESIGNS EDITOR (Compact 250px Left List for 1280px) -->
+        <Grid Grid.Row="1" Visibility="{Binding ReceiptDesignsSubTabVisibility}" Margin="18,14,18,18">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320"/>
-                <ColumnDefinition Width="20"/>
+                <ColumnDefinition Width="250"/>
+                <ColumnDefinition Width="14"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left Column: Receipt Designs List -->
-            <Border Grid.Column="0" Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8">
+            <Border Grid.Column="0" Style="{StaticResource PosCardBorderStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="16,14">
+                    <Border Grid.Row="0" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,10">
                         <Grid>
-                            <TextBlock Text="Receipt Designs" FontSize="15" FontWeight="Bold" Foreground="#111827" VerticalAlignment="Center"/>
-                            <Button HorizontalAlignment="Right"
-                                    Command="{Binding NewReceiptDesignCommand}"
-                                    Background="#714B67" Foreground="White"
-                                    FontSize="12.5" FontWeight="SemiBold"
-                                    Padding="12,5" Cursor="Hand" BorderThickness="0">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
-                                            <TextBlock Text="+ New" Foreground="White" FontWeight="SemiBold"/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
+                            <TextBlock Text="Receipt Designs" FontSize="14" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                            <Button HorizontalAlignment="Right" Command="{Binding NewReceiptDesignCommand}" Style="{StaticResource PosPrimaryButton}" Height="28" Padding="10,0" FontSize="12" Content="+ New"/>
                         </Grid>
                     </Border>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding ReceiptDesigns}" Margin="10">
+                        <ItemsControl ItemsSource="{Binding ReceiptDesigns}" Margin="8">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Button Command="{Binding DataContext.SelectReceiptDesignCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"
-                                            Cursor="Hand" Margin="0,0,0,6">
+                                            CommandParameter="{Binding}" Cursor="Hand" Margin="0,0,0,5">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
-                                                <Border x:Name="ItemBd" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="14,10">
-                                                    <Grid>
-                                                        <Grid.RowDefinitions>
-                                                            <RowDefinition Height="Auto"/>
-                                                            <RowDefinition Height="Auto"/>
-                                                        </Grid.RowDefinitions>
-                                                        <TextBlock Grid.Row="0" Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold" Foreground="#111827"/>
-                                                        <TextBlock Grid.Row="1" Text="{Binding OpenCashDrawerDisplay}" FontSize="11.5" Foreground="#6B7280" Margin="0,3,0,0"/>
-                                                    </Grid>
+                                                <Border x:Name="ItemBd" Background="{StaticResource SurfaceSubtleBrush}" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="11,8">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" TextTrimming="CharacterEllipsis"/>
+                                                        <TextBlock Text="{Binding OpenCashDrawerDisplay}" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,2,0,0"/>
+                                                    </StackPanel>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                        <Setter TargetName="ItemBd" Property="Background" Value="#F3E8FF"/>
-                                                        <Setter TargetName="ItemBd" Property="BorderBrush" Value="#714B67"/>
+                                                        <Setter TargetName="ItemBd" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/>
+                                                        <Setter TargetName="ItemBd" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
                                                     </DataTrigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -874,132 +534,80 @@
                 </Grid>
             </Border>
 
-            <!-- Right Column: Receipt Design Form (Name, Open Cash Drawer Only?, Receipt XML) -->
-            <Border Grid.Column="2" Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="28,22">
+            <Border Grid.Column="2" Style="{StaticResource PosCardBorderStyle}" Padding="20,16">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Form Header Actions -->
-                    <Grid Grid.Row="0" Margin="0,0,0,20">
+                    <!-- Editor Actions -->
+                    <Grid Grid.Row="0" Margin="0,0,0,14">
                         <StackPanel Orientation="Horizontal">
-                            <Button Command="{Binding SaveReceiptDesignCommand}"
-                                    Background="#714B67" Foreground="White"
-                                    FontSize="13" FontWeight="SemiBold"
-                                    Padding="16,7" Cursor="Hand" BorderThickness="0" Margin="0,0,10,0">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
-                                            <TextBlock Text="Save Receipt Design" Foreground="White" FontWeight="SemiBold"/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-
-                            <Button Command="{Binding LoadDefaultXmlTemplateCommand}"
-                                    Background="#F3F4F6" Foreground="#374151"
-                                    FontSize="13" FontWeight="SemiBold"
-                                    Padding="14,7" Cursor="Hand" BorderBrush="#D1D5DB" BorderThickness="1" Margin="0,0,10,0">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}">
-                                            <TextBlock Text="Reset Default XML" Foreground="#374151" FontWeight="SemiBold"/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
+                            <Button Command="{Binding SaveReceiptDesignCommand}" Style="{StaticResource PosPrimaryButton}" Height="32" Content="Save Design" Margin="0,0,8,0"/>
+                            <Button Command="{Binding LoadDefaultXmlTemplateCommand}" Style="{StaticResource PosSecondaryButton}" Height="32" Content="Reset Default XML"/>
                         </StackPanel>
-
-                        <Button HorizontalAlignment="Right"
-                                Command="{Binding DeleteReceiptDesignCommand}"
-                                Background="#FEF2F2" Foreground="#DC2626"
-                                FontSize="13" FontWeight="SemiBold"
-                                Padding="14,7" Cursor="Hand" BorderBrush="#FECACA" BorderThickness="1">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}">
-                                        <TextBlock Text="Delete" Foreground="#DC2626" FontWeight="SemiBold"/>
-                                    </Border>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                        <Button HorizontalAlignment="Right" Command="{Binding DeleteReceiptDesignCommand}" Style="{StaticResource PosDangerSoftButton}" Height="32" Content="Delete"/>
                     </Grid>
 
-                    <!-- Field 1: Name -->
-                    <StackPanel Grid.Row="1" Margin="0,0,0,18">
-                        <TextBlock Text="Name" FontSize="13.5" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,6"/>
-                        <TextBox Text="{Binding DesignEditorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 FontSize="18" FontWeight="SemiBold" Foreground="#111827"
-                                 Padding="10,7" BorderBrush="#D1D5DB" BorderThickness="0,0,0,1.5"/>
-                    </StackPanel>
-
-                    <!-- Field 2: Company Information (Select Company) -->
-                    <StackPanel Grid.Row="2" Margin="0,0,0,18">
-                        <TextBlock Text="Company Information" FontSize="13.5" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,6"/>
-                        <ComboBox ItemsSource="{Binding AvailableCompanies}"
-                                  SelectedItem="{Binding SelectedDesignCompany, Mode=TwoWay}"
-                                  DisplayMemberPath="Name"
-                                  Style="{StaticResource OdooFilterComboBoxStyle}"
-                                  Height="36"
-                                  ToolTip="Select the company whose name, address, and phone will populate this receipt design."/>
-                    </StackPanel>
-
-                    <!-- Field 3: Open Cash Drawer Only? -->
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,18" VerticalAlignment="Center">
-                        <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}"
-                                  IsChecked="{Binding DesignEditorOpenCashDrawerOnly, Mode=TwoWay}"
-                                  Margin="0,0,10,0"/>
-                        <StackPanel>
-                            <TextBlock Text="Open Cash Drawer Only?" FontSize="14" FontWeight="SemiBold" Foreground="#111827"/>
-                            <TextBlock Text="When enabled, only sends the pulse signal to open the cash drawer without printing the XML body."
-                                       FontSize="12.5" Foreground="#6B7280" Margin="0,2,0,0"/>
+                    <!-- Name & Company Side-by-Side (Saves Vertical Space) -->
+                    <Grid Grid.Row="1" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.2*"/>
+                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Design Name" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,4"/>
+                            <Border Style="{StaticResource PosInputBorderStyle}" Height="34">
+                                <TextBox Text="{Binding DesignEditorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Background="Transparent" BorderThickness="0" VerticalAlignment="Center"/>
+                            </Border>
                         </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Company Information" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding AvailableCompanies}" SelectedItem="{Binding SelectedDesignCompany, Mode=TwoWay}" DisplayMemberPath="Name" Style="{StaticResource OdooFilterComboBoxStyle}" Height="34"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Open Cash Drawer Only -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
+                        <CheckBox Style="{StaticResource OdooPurpleCheckBoxStyle}" IsChecked="{Binding DesignEditorOpenCashDrawerOnly, Mode=TwoWay}" Margin="0,0,8,0"/>
+                        <TextBlock Text="Open Cash Drawer Only? (Send kick-out pulse without printing XML)" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <!-- Field 4: Receipt XML -->
-                    <Grid Grid.Row="4">
+                    <!-- XML Editor -->
+                    <Grid Grid.Row="3">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="Receipt XML" FontSize="13.5" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,8"/>
-                        <Border Grid.Row="1" Background="#1E1E2E" BorderBrush="#D1D5DB" BorderThickness="1" CornerRadius="6">
+                        <TextBlock Grid.Row="0" Text="Receipt XML" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,6"/>
+                        <Border Grid.Row="1" Background="#0F172A" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8">
                             <TextBox Text="{Binding DesignEditorReceiptXml, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                      AcceptsReturn="True" AcceptsTab="True"
                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                     FontFamily="Consolas" FontSize="13"
+                                     FontFamily="Consolas" FontSize="12.5"
                                      Background="Transparent" Foreground="#E2E8F0" CaretBrush="White"
-                                     BorderThickness="0" Padding="14"/>
+                                     BorderThickness="0" Padding="12"/>
                         </Border>
                     </Grid>
                 </Grid>
             </Border>
         </Grid>
 
-        <!-- TOAST BANNER (VISIBLE ON BOTH POS SETTINGS & RECEIPT DESIGNS TABS) -->
+        <!-- TOAST BANNER -->
         <Border Grid.Row="1"
                 Visibility="{Binding HasStatusMessage, Converter={StaticResource BoolToVis}}"
                 VerticalAlignment="Bottom"
                 HorizontalAlignment="Center"
-                Margin="0,0,0,28"
+                Margin="0,0,0,20"
                 Panel.ZIndex="900"
-                Background="#111827"
-                CornerRadius="8"
-                Padding="20,12">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="14" ShadowDepth="2" Direction="270" Color="#000000" Opacity="0.18"/>
-            </Border.Effect>
+                Style="{StaticResource PosToastBorderStyle}">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Ellipse Width="10" Height="10" Fill="#10B981" Margin="0,0,12,0"/>
-                <TextBlock Text="{Binding StatusMessage}"
-                           Foreground="#FFFFFF"
-                           FontSize="13.5"
-                           FontWeight="SemiBold"/>
+                <Ellipse Width="9" Height="9" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding StatusMessage}" Foreground="#FFFFFF" FontSize="13" FontWeight="SemiBold"/>
             </StackPanel>
         </Border>
     </Grid>

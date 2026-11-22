@@ -6,9 +6,8 @@
              xmlns:local="clr-namespace:OdooPosLogin"
              xmlns:vm="clr-namespace:OdooPosLogin.ViewModels"
              mc:Ignorable="d"
-             d:DesignWidth="1280" d:DesignHeight="732"
-             Background="#F9FAFB"
-             FontFamily="Segoe UI Variable Text, Inter, Segoe UI"
+             d:DesignWidth="1084" d:DesignHeight="720"
+             Background="{StaticResource AppBackgroundBrush}"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
 
@@ -17,141 +16,21 @@
     </UserControl.DataContext>
 
     <UserControl.Resources>
-        <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F9FAFB"/>
-        <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="SubtleBorderBrush" Color="#E5E7EB"/>
-        <SolidColorBrush x:Key="SubtleBorderLightBrush" Color="#F3F4F6"/>
-        <SolidColorBrush x:Key="InputBorderBrush" Color="#D1D5DB"/>
-
-        <SolidColorBrush x:Key="OdooPurpleBrush" Color="#714B67"/>
-        <SolidColorBrush x:Key="OdooPurpleHoverBrush" Color="#5D3D54"/>
-        <SolidColorBrush x:Key="OdooPurpleSoftBrush" Color="#F3ECF1"/>
-
-        <SolidColorBrush x:Key="OdooTealBrush" Color="#017E84"/>
-        <SolidColorBrush x:Key="OdooTealSoftBrush" Color="#E6F4F5"/>
-
-        <SolidColorBrush x:Key="PrimaryTextBrush" Color="#111827"/>
-        <SolidColorBrush x:Key="SecondaryTextBrush" Color="#6B7280"/>
-        <SolidColorBrush x:Key="PlaceholderTextBrush" Color="#9CA3AF"/>
-        <SolidColorBrush x:Key="ActiveGreenBrush" Color="#10B981"/>
-
-        <DropShadowEffect x:Key="SubtleCardShadow"
-                          BlurRadius="12"
-                          ShadowDepth="1"
-                          Direction="270"
-                          Color="#111827"
-                          Opacity="0.04"/>
-
-        <Style x:Key="OdooPrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="{StaticResource OdooPurpleBrush}"/>
-            <Setter Property="Foreground" Value="#FFFFFF"/>
-            <Setter Property="FontSize" Value="13.5"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Height" Value="36"/>
-            <Setter Property="Padding" Value="14,0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="BtnBorder"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="BtnBorder" Property="Background" Value="{StaticResource OdooPurpleHoverBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="BtnBorder" Property="Opacity" Value="0.65"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DetailPagerChevronButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="30"/>
-            <Setter Property="Height" Value="28"/>
-            <Setter Property="Background" Value="#F3F4F6"/>
-            <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Border"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#E5E7EB"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Border" Property="Opacity" Value="0.35"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Group Header Button Style Matching Screenshot 8 -->
-        <Style x:Key="GroupHeaderButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#F9FAFB"/>
-            <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="Padding" Value="14,10"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="HBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="HBorder" Property="Background" Value="#F3F4F6"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- Table Row Button Style Matching Screenshot 8 -->
         <Style x:Key="TableRowButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderLightBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Padding" Value="16,8"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="RowBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}">
+                        <Border x:Name="RowBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
                             <ContentPresenter/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RowBorder" Property="Background" Value="#F9FAFB"/>
-                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="RowBorder" Property="Background" Value="{StaticResource SurfaceSubtleBrush}"/></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -161,422 +40,194 @@
 
     <Grid Background="{StaticResource AppBackgroundBrush}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="58"/>
+            <RowDefinition Height="48"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ======================================================================= -->
-        <!-- 1. TOP ODOO 20 CONTROL BAR WITH POS SHOP & SESSION FILTERS              -->
-        <!-- ======================================================================= -->
-        <Border Grid.Row="0"
-                Background="{StaticResource SurfaceCardBrush}"
-                BorderBrush="{StaticResource SubtleBorderBrush}"
-                BorderThickness="0,0,0,1"
-                Padding="20,0">
+        <!-- 1. COMPACT PRIMARY HEADER BAR (48px) -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceCardBrush}" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="16,0">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- LEFT: Sync Button & Breadcrumb -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource OdooPrimaryButtonStyle}"
-                            Command="{Binding SyncPaymentsCommand}"
-                            IsEnabled="{Binding IsSyncing, Converter={x:Static local:InverseBooleanConverter.Instance}}"
-                            Margin="0,0,14,0">
+                    <Button Style="{StaticResource PosPrimaryButton}" Height="32" Command="{Binding SyncPaymentsCommand}"
+                            IsEnabled="{Binding IsSyncing, Converter={StaticResource InverseBooleanConverter}}" Margin="0,0,12,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Viewbox Width="14" Height="14" Margin="0,0,7,0">
+                            <Viewbox Width="13" Height="13" Margin="0,0,6,0">
                                 <Canvas Width="24" Height="24">
                                     <Path Data="M 12,4 A 8,8 0 0 1 20,12 L 18,12 A 6,6 0 0 0 12,6 L 12,9 L 7.5,4.5 L 12,0 Z" Fill="#FFFFFF"/>
                                     <Path Data="M 12,20 A 8,8 0 0 1 4,12 L 6,12 A 6,6 0 0 0 12,18 L 12,15 L 16.5,19.5 L 12,24 Z" Fill="#FFFFFF"/>
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock Text="{Binding SyncButtonText}"/>
+                            <TextBlock Text="{Binding SyncButtonText}" FontSize="12.5"/>
                         </StackPanel>
                     </Button>
 
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Command="{Binding CloseDetailCommand}"
-                                Cursor="Hand"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                VerticalAlignment="Center">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <TextBlock x:Name="CrumbRootText"
-                                               Text="Payments"
-                                               Foreground="{StaticResource PrimaryTextBrush}"
-                                               FontSize="17"
-                                               FontWeight="SemiBold"/>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="CrumbRootText" Property="Foreground" Value="{StaticResource OdooPurpleBrush}"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-
-                        <StackPanel Orientation="Horizontal"
-                                    Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                            <TextBlock Text="  /  " FontSize="17" Foreground="{StaticResource SecondaryTextBrush}"/>
-                            <TextBlock Text="{Binding SelectedPayment.AmountDisplay}"
-                                       FontSize="17"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource PrimaryTextBrush}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- CENTER: SEARCH BAR + POS SHOP FILTER + SESSION FILTER -->
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
-
-                    <!-- Search Pill -->
-                    <Border Width="220"
-                            Height="32"
-                            Background="#FFFFFF"
-                            BorderBrush="{StaticResource InputBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="16"
-                            Padding="10,0"
-                            Margin="0,0,8,0">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Viewbox Grid.Column="0" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center">
-                                <Canvas Width="24" Height="24">
-                                    <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2"/>
-                                    <Path Data="M 14,14 L 20,20" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="2" StrokeStartLineCap="Round"/>
-                                </Canvas>
-                            </Viewbox>
-
-                            <TextBlock Grid.Column="1"
-                                       Text="Search payments..."
-                                       Foreground="{StaticResource PlaceholderTextBrush}"
-                                       FontSize="12.5"
-                                       VerticalAlignment="Center"
-                                       IsHitTestVisible="False"
-                                       Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
-
-                            <TextBox Grid.Column="1"
-                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="Transparent"
-                                     BorderThickness="0"
-                                     FontSize="12.5"
-                                     Foreground="{StaticResource PrimaryTextBrush}"
-                                     VerticalAlignment="Center"/>
-
-                            <Button Grid.Column="2"
-                                    Command="{Binding ClearSearchCommand}"
-                                    Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand">
-                                <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
-                            </Button>
-                        </Grid>
-                    </Border>
-
-                    <!-- Filter by Point of Sale Shop -->
-                    <ComboBox ItemsSource="{Binding AvailableShops}"
-                              SelectedItem="{Binding SelectedShopFilter, Mode=TwoWay}"
-                              Style="{StaticResource OdooFilterComboBoxStyle}"
-                              Width="150"
-                              Height="32"
-                              Margin="0,0,8,0"
-                              ToolTip="Filter Payments by Point of Sale Shop"/>
-
-                    <!-- Filter by Session (Searchable Google Autocomplete with Top 3 Sessions per POS) -->
-                    <Grid x:Name="SessionFilterRoot" Width="200" Height="32" Margin="0,0,8,0">
-                        <Border x:Name="SessionFilterBorder"
-                                Background="#FFFFFF"
-                                BorderBrush="{StaticResource InputBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="8,0,4,0">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- Session Icon -->
-                                <TextBlock Grid.Column="0"
-                                           Text="📋"
-                                           FontSize="11"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,6,0"/>
-
-                                <!-- Placeholder / Current Selection Display -->
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding SessionPlaceholderText}"
-                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                           FontSize="12"
-                                           VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis"
-                                           IsHitTestVisible="False"
-                                           Visibility="{Binding SessionSearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
-
-                                <!-- Autocomplete TextBox -->
-                                <TextBox x:Name="SessionSearchInput"
-                                         Grid.Column="1"
-                                         Text="{Binding SessionSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="Transparent"
-                                         BorderThickness="0"
-                                         FontSize="12"
-                                         Foreground="{StaticResource PrimaryTextBrush}"
-                                         VerticalAlignment="Center"
-                                         GotFocus="SessionTextBox_GotFocus"
-                                         PreviewMouseDown="SessionTextBox_PreviewMouseDown"
-                                         KeyDown="SessionTextBox_KeyDown"/>
-
-                                <!-- Clear Button ✕ -->
-                                <Button Grid.Column="2"
-                                        Command="{Binding ClearSessionFilterCommand}"
-                                        Visibility="{Binding IsSessionFilterActive, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Padding="3,0"
-                                        Cursor="Hand"
-                                        ToolTip="Reset to All Sessions">
-                                    <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
-                                </Button>
-
-                                <!-- Dropdown Toggle Button ▾ -->
-                                <Button Grid.Column="3"
-                                        Command="{Binding ToggleSessionDropdownCommand}"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Padding="4,0"
-                                        Cursor="Hand"
-                                        ToolTip="Browse sessions">
-                                    <TextBlock Text="▾" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
-                                </Button>
-                            </Grid>
-                        </Border>
-
-                        <!-- Google-Style Autocomplete Suggestions Popup -->
-                        <Popup PlacementTarget="{Binding ElementName=SessionFilterBorder}"
-                               Placement="Bottom"
-                               IsOpen="{Binding IsSessionDropdownOpen, Mode=TwoWay}"
-                               StaysOpen="False"
-                               AllowsTransparency="True"
-                               Focusable="False"
-                               PopupAnimation="Slide">
-                            <Grid SnapsToDevicePixels="True" MinWidth="260" MaxWidth="320">
-                                <Border Background="#FFFFFF"
-                                        BorderBrush="{StaticResource SubtleBorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Padding="3,4"
-                                        Margin="0,3,0,6">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" Opacity="0.14" ShadowDepth="2" Direction="270" Color="#000000"/>
-                                    </Border.Effect>
-                                    <ScrollViewer MaxHeight="300" SnapsToDevicePixels="True" VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl ItemsSource="{Binding FilteredSessionSuggestions}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="{x:Type local:PosSessionSuggestionItem}">
-                                                    <Button Command="{Binding DataContext.SelectSessionSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                            CommandParameter="{Binding}"
-                                                            IsEnabled="{Binding IsEmptyPlaceholder, Converter={StaticResource InverseBooleanConverter}}"
-                                                            Background="Transparent"
-                                                            BorderThickness="0"
-                                                            Padding="8,6"
-                                                            HorizontalContentAlignment="Stretch"
-                                                            Cursor="Hand">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button">
-                                                                <Setter Property="Template">
-                                                                    <Setter.Value>
-                                                                        <ControlTemplate TargetType="Button">
-                                                                            <Border x:Name="SuggBorder"
-                                                                                    Background="{TemplateBinding Background}"
-                                                                                    CornerRadius="4"
-                                                                                    Margin="1"
-                                                                                    Padding="{TemplateBinding Padding}">
-                                                                                <ContentPresenter/>
-                                                                            </Border>
-                                                                            <ControlTemplate.Triggers>
-                                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                                    <Setter TargetName="SuggBorder" Property="Background" Value="#F3ECF1"/>
-                                                                                </Trigger>
-                                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                                    <Setter TargetName="SuggBorder" Property="Background" Value="#F3ECF1"/>
-                                                                                </DataTrigger>
-                                                                            </ControlTemplate.Triggers>
-                                                                        </ControlTemplate>
-                                                                    </Setter.Value>
-                                                                </Setter>
-                                                            </Style>
-                                                        </Button.Style>
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding Name}"
-                                                                           FontSize="12.5"
-                                                                           FontWeight="SemiBold"
-                                                                           Foreground="{StaticResource PrimaryTextBrush}"/>
-                                                                <TextBlock Text="{Binding Subtitle}"
-                                                                           FontSize="11"
-                                                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                                                           Margin="0,1,0,0"/>
-                                                            </StackPanel>
-                                                            <TextBlock Grid.Column="1"
-                                                                       Text="✓"
-                                                                       FontSize="12"
-                                                                       FontWeight="Bold"
-                                                                       Foreground="{StaticResource OdooPurpleBrush}"
-                                                                       VerticalAlignment="Center"
-                                                                       Margin="6,0,2,0"
-                                                                       Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                        </Grid>
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
-                                </Border>
-                            </Grid>
-                        </Popup>
-                    </Grid>
-
-                    <!-- Filter by Date Preset -->
-                    <ComboBox ItemsSource="{Binding DatePresets}"
-                              SelectedItem="{Binding SelectedDatePreset, Mode=TwoWay}"
-                              Style="{StaticResource OdooFilterComboBoxStyle}"
-                              Width="120"
-                              Height="32"
-                              Margin="0,0,8,0"
-                              ToolTip="Filter Payments by Date"/>
-
-                    <!-- Custom Date Range (shown when Custom Range selected) -->
-                    <StackPanel Orientation="Horizontal"
-                                Visibility="{Binding IsCustomDateRange, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
-                                VerticalAlignment="Center"
-                                Margin="0,0,8,0">
-                        <TextBlock Text="From:" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <DatePicker SelectedDate="{Binding StartDate, Mode=TwoWay}"
-                                    Style="{StaticResource OdooFilterDatePickerStyle}"
-                                    Width="110"
-                                    Margin="0,0,6,0"/>
-                        <TextBlock Text="To:" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <DatePicker SelectedDate="{Binding EndDate, Mode=TwoWay}"
-                                    Style="{StaticResource OdooFilterDatePickerStyle}"
-                                    Width="110"/>
-                    </StackPanel>
-
-                    <!-- Clear Filters Button -->
-                    <Button Command="{Binding ClearFiltersCommand}"
-                            Visibility="{Binding HasActiveFilter, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
-                            Style="{StaticResource OdooResetFilterButtonStyle}"
-                            ToolTip="Reset All Filters">
-                        <TextBlock Text="✕ Reset" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <Button Command="{Binding CloseDetailCommand}" Cursor="Hand" Background="Transparent" BorderThickness="0" VerticalAlignment="Center">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <TextBlock x:Name="CrumbRootText" Text="Payments" Foreground="{StaticResource PrimaryTextBrush}" FontSize="16" FontWeight="Bold"/>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="CrumbRootText" Property="Foreground" Value="{StaticResource OdooPurpleBrush}"/></Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
                     </Button>
+
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}" VerticalAlignment="Center">
+                        <TextBlock Text="  /  " FontSize="15.5" Foreground="{StaticResource MutedTextBrush}"/>
+                        <TextBlock Text="{Binding SelectedPayment.AmountDisplay}" FontSize="15.5" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <!-- RIGHT: PAGER (< >) -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding ListCounterText}"
-                               FontSize="13"
-                               Foreground="{StaticResource PrimaryTextBrush}"
-                               VerticalAlignment="Center"
-                               Margin="0,0,10,0"
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding ListCounterText}" FontSize="12.5" FontWeight="Medium" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,8,0"
                                Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
-
-                    <TextBlock Text="{Binding PagerText}"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource PrimaryTextBrush}"
-                               VerticalAlignment="Center"
-                               Margin="0,0,10,0"
+                    <TextBlock Text="{Binding PagerText}" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" Margin="0,0,8,0"
                                Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
-                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
-                            Command="{Binding PreviousRecordCommand}"
-                            IsEnabled="{Binding HasPreviousRecord}"
-                            Margin="0,0,2,0"
-                            ToolTip="Previous Payment">
-                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Path Data="M 7,1 L 1.5,6.5 L 7,12"
-                                  Stroke="{StaticResource PrimaryTextBrush}"
-                                  StrokeThickness="1.8"
-                                  StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round"
-                                  StrokeLineJoin="Round"/>
-                        </Viewbox>
+                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}" Command="{Binding PreviousRecordCommand}" IsEnabled="{Binding HasPreviousRecord}" Margin="0,0,2,0" ToolTip="Previous">
+                        <Viewbox Width="7" Height="11"><Path Data="M 7,1 L 1.5,6.5 L 7,12" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/></Viewbox>
                     </Button>
-
-                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}"
-                            Command="{Binding NextRecordCommand}"
-                            IsEnabled="{Binding HasNextRecord}"
-                            ToolTip="Next Payment">
-                        <Viewbox Width="8" Height="12" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Path Data="M 1.5,1 L 7,6.5 L 1.5,12"
-                                  Stroke="{StaticResource PrimaryTextBrush}"
-                                  StrokeThickness="1.8"
-                                  StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round"
-                                  StrokeLineJoin="Round"/>
-                        </Viewbox>
+                    <Button Style="{StaticResource DetailPagerChevronButtonStyle}" Command="{Binding NextRecordCommand}" IsEnabled="{Binding HasNextRecord}" ToolTip="Next">
+                        <Viewbox Width="7" Height="11"><Path Data="M 1.5,1 L 7,6.5 L 1.5,12" Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/></Viewbox>
                     </Button>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ======================================================================= -->
-        <!-- 2. MAIN WORKSPACE AREA                                                  -->
-        <!-- ======================================================================= -->
-        <Grid Grid.Row="1">
+        <!-- 2. WRAPPING FILTER BAR -->
+        <Border Grid.Row="1" Background="{StaticResource SurfaceSubtleBrush}" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="16,7"
+                Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="220" Style="{StaticResource PosSearchBorderStyle}" Background="#FFFFFF" Margin="0,2,8,2">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <Viewbox Grid.Column="0" Width="12" Height="12" Margin="0,0,7,0">
+                            <Canvas Width="24" Height="24">
+                                <Ellipse Canvas.Left="3" Canvas.Top="3" Width="13" Height="13" Stroke="#64748B" StrokeThickness="2"/>
+                                <Path Data="M 14,14 L 20,20" Stroke="#64748B" StrokeThickness="2" StrokeStartLineCap="Round"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock Grid.Column="1" Text="Search payments..." Foreground="{StaticResource PlaceholderTextBrush}" FontSize="12.5" VerticalAlignment="Center" IsHitTestVisible="False"
+                                   Visibility="{Binding SearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
+                        <TextBox Grid.Column="1" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Background="Transparent" BorderThickness="0" FontSize="12.5" VerticalAlignment="Center"/>
+                        <Button Grid.Column="2" Command="{Binding ClearSearchCommand}" Visibility="{Binding SearchText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="4,0">
+                            <TextBlock Text="✕" FontSize="10.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                        </Button>
+                    </Grid>
+                </Border>
 
-            <!-- ==================== VIEW 1: GROUPED COLLAPSIBLE LIST VIEW (Screenshot 8) ==================== -->
-            <Grid Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:InverseBooleanToVisibilityConverter.Instance}}">
-                <Border Background="#FFFFFF"
-                        BorderBrush="{StaticResource SubtleBorderBrush}"
-                        BorderThickness="0,0,0,1">
+                <ComboBox ItemsSource="{Binding AvailableShops}" SelectedItem="{Binding SelectedShopFilter, Mode=TwoWay}" Style="{StaticResource OdooFilterComboBoxStyle}" Width="155" Margin="0,2,8,2"/>
+
+                <Grid x:Name="SessionFilterRoot" Width="195" Height="32" Margin="0,2,8,2">
+                    <Border x:Name="SessionFilterBorder" Background="#FFFFFF" BorderBrush="{StaticResource InputBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="8,0,4,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding SessionPlaceholderText}" Foreground="{StaticResource PrimaryTextBrush}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsHitTestVisible="False"
+                                       Visibility="{Binding SessionSearchText, Converter={StaticResource StringEmptyToVisibilityConverter}}"/>
+                            <TextBox x:Name="SessionSearchInput" Grid.Column="0" Text="{Binding SessionSearchText, UpdateSourceTrigger=PropertyChanged}" Background="Transparent" BorderThickness="0" FontSize="12" VerticalAlignment="Center"
+                                     GotFocus="SessionTextBox_GotFocus" PreviewMouseDown="SessionTextBox_PreviewMouseDown" KeyDown="SessionTextBox_KeyDown"/>
+                            <Button Grid.Column="1" Command="{Binding ClearSessionFilterCommand}" Visibility="{Binding IsSessionFilterActive, Converter={StaticResource BooleanToVisibilityConverter}}" Background="Transparent" BorderThickness="0" Padding="3,0" Cursor="Hand">
+                                <TextBlock Text="✕" FontSize="10.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                            </Button>
+                            <Button Grid.Column="2" Command="{Binding ToggleSessionDropdownCommand}" Background="Transparent" BorderThickness="0" Padding="4,0" Cursor="Hand">
+                                <TextBlock Text="▾" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <Popup PlacementTarget="{Binding ElementName=SessionFilterBorder}" Placement="Bottom" IsOpen="{Binding IsSessionDropdownOpen, Mode=TwoWay}" StaysOpen="False" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                        <Grid SnapsToDevicePixels="True" MinWidth="250" MaxWidth="310">
+                            <Border Background="#FFFFFF" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="3,4" Margin="0,3,0,6" Effect="{StaticResource PosFloatingShadow}">
+                                <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding FilteredSessionSuggestions}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type local:PosSessionSuggestionItem}">
+                                                <Button Command="{Binding DataContext.SelectSessionSuggestionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding}" IsEnabled="{Binding IsEmptyPlaceholder, Converter={StaticResource InverseBooleanConverter}}"
+                                                        Background="Transparent" BorderThickness="0" Padding="8,5" HorizontalContentAlignment="Stretch" Cursor="Hand">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border x:Name="SuggBorder" Background="{TemplateBinding Background}" CornerRadius="6" Margin="1" Padding="{TemplateBinding Padding}">
+                                                                            <ContentPresenter/>
+                                                                        </Border>
+                                                                        <ControlTemplate.Triggers>
+                                                                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="SuggBorder" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/></Trigger>
+                                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter TargetName="SuggBorder" Property="Background" Value="{StaticResource OdooPurpleSoftBrush}"/></DataTrigger>
+                                                                        </ControlTemplate.Triggers>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding Name}" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                                            <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1" Text="✓" FontSize="12" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}" VerticalAlignment="Center" Margin="6,0,2,0"
+                                                                   Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                    </Popup>
+                </Grid>
+
+                <ComboBox ItemsSource="{Binding DatePresets}" SelectedItem="{Binding SelectedDatePreset, Mode=TwoWay}" Style="{StaticResource OdooFilterComboBoxStyle}" Width="125" Margin="0,2,8,2"/>
+
+                <StackPanel Orientation="Horizontal" Visibility="{Binding IsCustomDateRange, Converter={StaticResource BooleanToVisibilityConverter}}" VerticalAlignment="Center" Margin="0,2,8,2">
+                    <TextBlock Text="From:" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <DatePicker SelectedDate="{Binding StartDate, Mode=TwoWay}" Style="{StaticResource OdooFilterDatePickerStyle}" Width="110" Margin="0,0,6,0"/>
+                    <TextBlock Text="To:" FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <DatePicker SelectedDate="{Binding EndDate, Mode=TwoWay}" Style="{StaticResource OdooFilterDatePickerStyle}" Width="110"/>
+                </StackPanel>
+
+                <Button Command="{Binding ClearFiltersCommand}" Visibility="{Binding HasActiveFilter, Converter={StaticResource BooleanToVisibilityConverter}}" Style="{StaticResource OdooResetFilterButtonStyle}" Margin="0,2,0,2" Content="✕ Reset"/>
+            </WrapPanel>
+        </Border>
+
+        <!-- 3. PAYMENTS LIST & DETAIL -->
+        <Grid Grid.Row="2">
+            <Grid Visibility="{Binding IsDetailViewVisible, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                <Border Background="#FFFFFF">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="42"/>
+                            <RowDefinition Height="38"/>
                             <RowDefinition Height="*"/>
+                            <RowDefinition Height="38"/>
                         </Grid.RowDefinitions>
 
-                        <!-- TABLE HEADER -->
-                        <Border Grid.Row="0" Background="#F9FAFB" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,0">
+                        <Border Grid.Row="0" Background="{StaticResource SurfaceSubtleBrush}" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="16,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="28"/>
-                                    <ColumnDefinition Width="1.8*"/>
-                                    <ColumnDefinition Width="2*"/>
-                                    <ColumnDefinition Width="2.5*"/>
-                                    <ColumnDefinition Width="2*"/>
-                                    <ColumnDefinition Width="1.4*"/>
+                                    <ColumnDefinition Width="1.7*"/>
+                                    <ColumnDefinition Width="1.5*"/>
+                                    <ColumnDefinition Width="2.3*"/>
+                                    <ColumnDefinition Width="1.6*"/>
+                                    <ColumnDefinition Width="1.2*"/>
                                 </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="1" Text="Date" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="Payment Method" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="3" Text="Order" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="4" Text="Cashier" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="5" Text="Amount" FontWeight="Bold" FontSize="13" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                <TextBlock Grid.Column="0" Text="Date" FontWeight="Bold" FontSize="12.5" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="Payment Method" FontWeight="Bold" FontSize="12.5" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="Order" FontWeight="Bold" FontSize="12.5" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="Cashier" FontWeight="Bold" FontSize="12.5" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="Amount" FontWeight="Bold" FontSize="12.5" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" TextAlignment="Right"/>
                             </Grid>
                         </Border>
 
-                        <!-- TABLE BODY: FLAT PAYMENTS SORTED BY DATE -->
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding FlatPayments}">
                                 <ItemsControl.ItemTemplate>
@@ -586,191 +237,74 @@
                                                 CommandParameter="{Binding}">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="28"/>
-                                                    <ColumnDefinition Width="1.8*"/>
-                                                    <ColumnDefinition Width="2*"/>
-                                                    <ColumnDefinition Width="2.5*"/>
-                                                    <ColumnDefinition Width="2*"/>
-                                                    <ColumnDefinition Width="1.4*"/>
+                                                    <ColumnDefinition Width="1.7*"/>
+                                                    <ColumnDefinition Width="1.5*"/>
+                                                    <ColumnDefinition Width="2.3*"/>
+                                                    <ColumnDefinition Width="1.6*"/>
+                                                    <ColumnDefinition Width="1.2*"/>
                                                 </Grid.ColumnDefinitions>
-
-                                                <!-- Drag Handle ⋮⋮ -->
-                                                <TextBlock Grid.Column="0" Text="⋮⋮" FontSize="13" Foreground="#9CA3AF" VerticalAlignment="Center"/>
-
-                                                <!-- Date (Nov 11, 2026, 5:01 PM) -->
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding PaymentDate, StringFormat='{}{0:MMM d, yyyy, h:mm tt}'}"
-                                                           FontSize="13.5"
-                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                           VerticalAlignment="Center"/>
-
-                                                <!-- Payment Method -->
-                                                <TextBlock Grid.Column="2"
-                                                           Text="{Binding PaymentMethodName}"
-                                                           FontSize="13.5"
-                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                           VerticalAlignment="Center"/>
-
-                                                <!-- Order -->
-                                                <TextBlock Grid.Column="3"
-                                                           Text="{Binding OrderName}"
-                                                           FontSize="13.5"
-                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                           VerticalAlignment="Center"/>
-
-                                                <!-- Cashier -->
-                                                <TextBlock Grid.Column="4"
-                                                           Text="{Binding CashierName}"
-                                                           FontSize="13.5"
-                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                           VerticalAlignment="Center"/>
-
-                                                <!-- Amount -->
-                                                <TextBlock Grid.Column="5"
-                                                           Text="{Binding AmountDisplay}"
-                                                           FontSize="13.5"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{StaticResource PrimaryTextBrush}"
-                                                           TextAlignment="Right"
-                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="0" Text="{Binding PaymentDate, StringFormat='{}{0:MMM d, yyyy, h:mm tt}'}" FontSize="12.5" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                                                <Border Grid.Column="1" HorizontalAlignment="Left" VerticalAlignment="Center" Background="{StaticResource OdooTealSoftBrush}" CornerRadius="8" Padding="9,2">
+                                                    <TextBlock Text="{Binding PaymentMethodName}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource OdooTealBrush}"/>
+                                                </Border>
+                                                <TextBlock Grid.Column="2" Text="{Binding OrderName}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding CashierName}" FontSize="12.5" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="4" Text="{Binding AmountDisplay}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" TextAlignment="Right" VerticalAlignment="Center"/>
                                             </Grid>
                                         </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </ScrollViewer>
+
+                        <Border Grid.Row="2" Background="{StaticResource SurfaceSubtleBrush}" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,1,0,0" Padding="16,0">
+                            <Grid>
+                                <TextBlock Text="Filtered Payments Total" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding GrandTotalText}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
                     </Grid>
                 </Border>
 
-                <!-- EMPTY STATE PLACEHOLDER -->
-                <Border Background="#FFFFFF"
-                        BorderBrush="{StaticResource SubtleBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="10"
-                        Padding="32,28"
-                        MaxWidth="440"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
+                <Border Style="{StaticResource PosCardBorderStyle}" Padding="28,24" MaxWidth="400" HorizontalAlignment="Center" VerticalAlignment="Center"
                         Visibility="{Binding IsEmptyStateVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel HorizontalAlignment="Center">
-                        <TextBlock Text="No Payments Matching Filter" FontSize="16" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                        <TextBlock Text="Click 'Sync from Odoo' to pull POS payment transactions, or reset your Point of Sale / Session filter." FontSize="13" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,16"/>
-                        <Button Style="{StaticResource OdooPrimaryButtonStyle}" Command="{Binding SyncPaymentsCommand}" Content="Sync Payments from Odoo" HorizontalAlignment="Center"/>
+                        <TextBlock Text="No Payments Matching Filter" FontSize="15.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBlock Text="Sync payments from Odoo or reset your active filters." FontSize="12.5" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,14"/>
+                        <Button Style="{StaticResource PosPrimaryButton}" Command="{Binding SyncPaymentsCommand}" Content="Sync Payments from Odoo" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
             </Grid>
 
-            <!-- ==================== VIEW 2: PAYMENT DETAIL VIEW ==================== -->
-            <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
-                          VerticalScrollBarVisibility="Auto"
-                          Padding="24,20">
-                <StackPanel MaxWidth="820" HorizontalAlignment="Stretch">
-                    <Border Background="{StaticResource SurfaceCardBrush}"
-                            BorderBrush="{StaticResource SubtleBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="36,30"
-                            Effect="{StaticResource SubtleCardShadow}">
-                        <StackPanel>
-                            <StackPanel Margin="0,0,0,24">
-                                <TextBlock Text="Payment"
-                                           FontSize="13"
-                                           FontWeight="Bold"
-                                           Foreground="{StaticResource SecondaryTextBrush}"
-                                           Margin="0,0,0,4"/>
-                                <TextBlock Text="{Binding SelectedPayment.AmountDisplay}"
-                                           FontSize="32"
-                                           FontWeight="Bold"
-                                           Foreground="{StaticResource PrimaryTextBrush}"/>
-                            </StackPanel>
+            <!-- PAYMENT DETAIL VIEW -->
+            <ScrollViewer Visibility="{Binding IsDetailViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}" VerticalScrollBarVisibility="Auto" Padding="20,16">
+                <Border MaxWidth="740" Style="{StaticResource PosCardBorderStyle}" Padding="28,24" HorizontalAlignment="Stretch">
+                    <StackPanel>
+                        <TextBlock Text="Payment" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,2"/>
+                        <TextBlock Text="{Binding SelectedPayment.AmountDisplay}" FontSize="28" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}" Margin="0,0,0,16"/>
+                        <Border Height="1" Background="{StaticResource SubtleBorderLightBrush}" Margin="0,0,0,18"/>
 
-                            <Border Height="1" Background="{StaticResource SubtleBorderBrush}" Margin="0,0,0,24"/>
-
-                            <StackPanel>
-                                <Grid Margin="0,0,0,18">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="180"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Session" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.SessionName}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource OdooPurpleBrush}"/>
-                                </Grid>
-
-                                <Grid Margin="0,0,0,18">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="180"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Order" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.OrderName}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                </Grid>
-
-                                <Grid Margin="0,0,0,18">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="180"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Amount" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.AmountDisplay}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                </Grid>
-
-                                <Grid Margin="0,0,0,18">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="180"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Currency" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.CurrencyName}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                </Grid>
-
-                                <Grid Margin="0,0,0,18">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="180"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Payment Method" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"/>
-                                    <Border Grid.Column="1" HorizontalAlignment="Left" Background="{StaticResource OdooTealSoftBrush}" CornerRadius="10" Padding="12,3">
-                                        <TextBlock Text="{Binding SelectedPayment.PaymentMethodName}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource OdooTealBrush}"/>
-                                    </Border>
-                                </Grid>
-
-                                <Grid Margin="0,0,0,18">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="180"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Cashier" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.CashierName}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                </Grid>
-
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="180"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Payment Date" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding SelectedPayment.PaymentDateDisplay}" FontSize="13.5" Foreground="{StaticResource PrimaryTextBrush}"/>
-                                </Grid>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                        <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Grid.Column="0" Text="Session" FontSize="13" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}"/><TextBlock Grid.Column="1" Text="{Binding SelectedPayment.SessionName}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource OdooPurpleBrush}"/></Grid>
+                        <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Grid.Column="0" Text="Order" FontSize="13" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}"/><TextBlock Grid.Column="1" Text="{Binding SelectedPayment.OrderName}" FontSize="13.5" FontWeight="SemiBold"/></Grid>
+                        <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Grid.Column="0" Text="Currency" FontSize="13" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}"/><TextBlock Grid.Column="1" Text="{Binding SelectedPayment.CurrencyName}" FontSize="13"/></Grid>
+                        <Grid Margin="0,0,0,14">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Payment Method" FontSize="13" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                            <Border Grid.Column="1" HorizontalAlignment="Left" Background="{StaticResource OdooTealSoftBrush}" CornerRadius="9" Padding="10,2.5"><TextBlock Text="{Binding SelectedPayment.PaymentMethodName}" FontSize="12.5" FontWeight="SemiBold" Foreground="{StaticResource OdooTealBrush}"/></Border>
+                        </Grid>
+                        <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Grid.Column="0" Text="Cashier" FontSize="13" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}"/><TextBlock Grid.Column="1" Text="{Binding SelectedPayment.CashierName}" FontSize="13"/></Grid>
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="160"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Grid.Column="0" Text="Payment Date" FontSize="13" FontWeight="Bold" Foreground="{StaticResource SecondaryTextBrush}"/><TextBlock Grid.Column="1" Text="{Binding SelectedPayment.PaymentDateDisplay}" FontSize="13"/></Grid>
+                    </StackPanel>
+                </Border>
             </ScrollViewer>
         </Grid>
 
-        <!-- TOAST BANNER -->
-        <Border Grid.Row="1"
-                Visibility="{Binding IsToastVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
-                VerticalAlignment="Bottom"
-                HorizontalAlignment="Center"
-                Margin="0,0,0,24"
-                Background="{StaticResource PrimaryTextBrush}"
-                CornerRadius="8"
-                Padding="20,12"
-                Effect="{StaticResource SubtleCardShadow}">
+        <!-- TOAST -->
+        <Border Grid.Row="2" Visibility="{Binding IsToastVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+                VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,20" Style="{StaticResource PosToastBorderStyle}">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Ellipse Width="10" Height="10" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,12,0"/>
-                <TextBlock Text="{Binding ToastMessage}" Foreground="#FFFFFF" FontSize="13.5" FontWeight="Medium"/>
+                <Ellipse Width="9" Height="9" Fill="{StaticResource ActiveGreenBrush}" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding ToastMessage}" Foreground="#FFFFFF" FontSize="13" FontWeight="Medium"/>
             </StackPanel>
         </Border>
     </Grid>

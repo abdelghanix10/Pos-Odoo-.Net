@@ -489,7 +489,8 @@
                                                                FontSize="11"
                                                                FontWeight="SemiBold"
                                                                Foreground="{StaticResource OdooTealBrush}"
-                                                               VerticalAlignment="Center"/>
+                                                               VerticalAlignment="Center"
+                                                               Visibility="{Binding DataContext.IsProductPriceVisible, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
                                                 </Grid>
                                             </Border>
                                         </Grid>
@@ -513,7 +514,8 @@
                                                            FontWeight="SemiBold"
                                                            Foreground="{StaticResource OdooTealBrush}"
                                                            HorizontalAlignment="Center"
-                                                           Margin="0,4,0,0"/>
+                                                           Margin="0,4,0,0"
+                                                           Visibility="{Binding DataContext.IsProductPriceVisible, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
                                             </StackPanel>
 
                                             <Border HorizontalAlignment="Right"

@@ -78,6 +78,7 @@ public class PosConfigRecord : INotifyPropertyChanged
     private string _numbersFirstOrProducts = "products"; // "products" or "numbers"
     private string _posLayout = "standard"; // "standard" or "split"
     private string _paymentLayout = "standard"; // "standard" or "centered"
+    private bool _isHideProductPriceEnabled = false;
 
     public string SelectedPaymentMethodsCsv
     {
@@ -292,6 +293,13 @@ public class PosConfigRecord : INotifyPropertyChanged
 
     public bool IsStandardPaymentLayout => !IsCenteredPaymentLayout;
     public bool IsCenteredPaymentLayout => string.Equals(_paymentLayout, "centered", StringComparison.OrdinalIgnoreCase);
+
+    // Hide the price line on POS product cards (Standard and Split layouts)
+    public bool IsHideProductPriceEnabled
+    {
+        get => _isHideProductPriceEnabled;
+        set { if (_isHideProductPriceEnabled != value) { _isHideProductPriceEnabled = value; OnPropertyChanged(); } }
+    }
 
     public ObservableCollection<SparklineDataPoint> SparklinePoints { get; } = [];
 

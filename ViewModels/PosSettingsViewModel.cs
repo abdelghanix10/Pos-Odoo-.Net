@@ -58,6 +58,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
     // 12. Hide Review Orders
     private bool _isHideReviewOrdersEnabled;
+    private bool _isHideProductPriceEnabled;
 
     // 13. Numbers first, or products
     private string _numbersFirstOrProducts = "products";
@@ -656,6 +657,20 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsHideProductPriceEnabled
+    {
+        get => _isHideProductPriceEnabled;
+        set
+        {
+            if (_isHideProductPriceEnabled != value)
+            {
+                _isHideProductPriceEnabled = value;
+                OnPropertyChanged();
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
     public string NumbersFirstOrProducts
     {
         get => _numbersFirstOrProducts;
@@ -968,6 +983,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
                 : ReceiptDesigns.FirstOrDefault(d => d.Name.Contains("Sales Details", StringComparison.OrdinalIgnoreCase)) ?? ReceiptDesigns.FirstOrDefault();
 
             IsHideReviewOrdersEnabled = config.IsHideReviewOrdersEnabled;
+            IsHideProductPriceEnabled = config.IsHideProductPriceEnabled;
             NumbersFirstOrProducts = string.IsNullOrWhiteSpace(config.NumbersFirstOrProducts) ? "products" : config.NumbersFirstOrProducts;
             PosLayout = string.IsNullOrWhiteSpace(config.PosLayout) ? "standard" : config.PosLayout;
             PaymentLayout = string.IsNullOrWhiteSpace(config.PaymentLayout) ? "standard" : config.PaymentLayout;
@@ -1038,6 +1054,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         _selectedConfig.IsHideClosingRegisterEnabled = IsHideClosingRegisterEnabled;
         _selectedConfig.CustomSalesReceiptDesignId = SelectedCustomSalesReceiptDesign?.Id;
         _selectedConfig.IsHideReviewOrdersEnabled = IsHideReviewOrdersEnabled;
+        _selectedConfig.IsHideProductPriceEnabled = IsHideProductPriceEnabled;
         _selectedConfig.NumbersFirstOrProducts = NumbersFirstOrProducts;
         _selectedConfig.PosLayout = PosLayout;
         _selectedConfig.PaymentLayout = PaymentLayout;

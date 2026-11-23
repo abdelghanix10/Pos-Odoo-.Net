@@ -12,8 +12,10 @@ public readonly record struct RenderedReceiptBitmap(byte[] BgraPixels, int Width
 public static class ReceiptBitmapRenderer
 {
     private const double LogicalWidth = 300.0;
-    private static readonly FontFamily UiFont = new("Segoe UI, Cairo, Arial");
-    private static readonly FontFamily ArabicFont = new("Cairo, Segoe UI, Tahoma");
+    // Resolved lazily so the embedded font is loaded on the UI thread (inside
+    // RunOnUiThread), never on a background Task.Run thread.
+    private static FontFamily UiFont => PosFontUtils.ArabicFont;
+    private static FontFamily ArabicFont => PosFontUtils.ArabicFont;
     private static readonly FontFamily MonoFont = new("Consolas, Courier New");
 
     public static string ResolveCurrencyLabel(CompanyRecord? company)

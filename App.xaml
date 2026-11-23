@@ -8,17 +8,20 @@
         <!-- ===================================================================== -->
         <!-- 1. TYPOGRAPHY (Arabic & Latin UI)                                     -->
         <!-- ===================================================================== -->
-        <FontFamily x:Key="CairoFontFamily">Cairo, Segoe UI Variable Text, Inter, Segoe UI</FontFamily>
-        <FontFamily x:Key="DisplayFontFamily">Cairo, Segoe UI Variable Display, Inter, Segoe UI</FontFamily>
+        <!-- Defaults; replaced at startup by PosFontUtils.ApplyApplicationFonts with the
+             embedded Assets/SFProAR_semibold.ttf family. DynamicResource so the swap
+             applies to controls created after OnStartup. -->
+        <FontFamily x:Key="CairoFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>
+        <FontFamily x:Key="DisplayFontFamily">Segoe UI Variable Display, Segoe UI</FontFamily>
 
         <Style TargetType="{x:Type Control}">
-            <Setter Property="FontFamily" Value="{StaticResource CairoFontFamily}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource CairoFontFamily}"/>
             <Setter Property="Stylus.IsPressAndHoldEnabled" Value="False"/>
             <Setter Property="Stylus.IsFlicksEnabled" Value="False"/>
         </Style>
 
         <Style TargetType="{x:Type TextBlock}">
-            <Setter Property="FontFamily" Value="{StaticResource CairoFontFamily}"/>
+            <Setter Property="FontFamily" Value="{DynamicResource CairoFontFamily}"/>
         </Style>
 
         <!-- ===================================================================== -->

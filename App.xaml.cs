@@ -24,6 +24,10 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Apply the embedded Arabic font (Assets/SFProAR_semibold.ttf) before any
+        // window is created, so every control and receipt picks it up.
+        PosFontUtils.ApplyApplicationFonts(Resources);
+
         // Prevent Windows touch over-scroll from dragging/bouncing the entire window
         EventManager.RegisterClassHandler(
             typeof(UIElement),

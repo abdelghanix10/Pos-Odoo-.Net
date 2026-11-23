@@ -9,9 +9,13 @@
              d:DesignWidth="1280" d:DesignHeight="720"
              Background="{StaticResource AppBackgroundBrush}"
              FontFamily="{StaticResource CairoFontFamily}"
-             UseLayoutRounding="True"
-             SnapsToDevicePixels="True"
-             Stylus.IsPressAndHoldEnabled="False">
+             TextOptions.TextFormattingMode="Ideal"
+             TextOptions.TextRenderingMode="ClearType"
+             TextOptions.TextHintingMode="Fixed"
+             RenderOptions.BitmapScalingMode="HighQuality"
+             RenderOptions.ClearTypeHint="Enabled"
+             Stylus.IsPressAndHoldEnabled="False"
+             Stylus.IsFlicksEnabled="False">
 
     <UserControl.DataContext>
         <vm:PosRegisterViewModel x:Name="ViewModel"/>
@@ -422,7 +426,8 @@
                                         BorderBrush="#E2E8F0"
                                         BorderThickness="1,1,1,0"
                                         CornerRadius="9,9,0,0"
-                                        ClipToBounds="True">
+                                        ClipToBounds="True"
+                                        RenderOptions.ClearTypeHint="Enabled">
                                     <Grid>
                                         <!-- PRODUCT WITH IMAGE -->
                                         <Grid Visibility="{Binding HasImage, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
@@ -437,7 +442,7 @@
                                                     CornerRadius="8,8,0,0"
                                                     ClipToBounds="True">
                                                 <Grid>
-                                                    <Border CornerRadius="8,8,0,0">
+                                                    <Border CornerRadius="8,8,0,0" RenderOptions.BitmapScalingMode="HighQuality">
                                                         <Border.Background>
                                                             <ImageBrush ImageSource="{Binding ImageBitmap}"
                                                                         Stretch="UniformToFill"
@@ -551,7 +556,9 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid>
+    <Grid UseLayoutRounding="{Binding IsDefaultZoom}"
+          SnapsToDevicePixels="{Binding IsDefaultZoom}"
+          RenderOptions.ClearTypeHint="Enabled">
         <Grid.LayoutTransform>
             <ScaleTransform ScaleX="{Binding PosZoomScale}" ScaleY="{Binding PosZoomScale}"/>
         </Grid.LayoutTransform>
@@ -1159,8 +1166,9 @@
                                                         Background="{Binding CategoryButtonBgBrush}"
                                                         CornerRadius="8"
                                                         Padding="6,3"
-                                                        BorderThickness="0"
-                                                        Opacity="0.80">
+                                                        BorderThickness="1"
+                                                        BorderBrush="Transparent"
+                                                        RenderOptions.ClearTypeHint="Enabled">
                                                     <TextBlock Text="{Binding Name}"
                                                                FontSize="12.5"
                                                                FontWeight="Bold"
@@ -1175,10 +1183,9 @@
                                                     <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                         <Setter TargetName="CatBdr" Property="BorderThickness" Value="2"/>
                                                         <Setter TargetName="CatBdr" Property="BorderBrush" Value="{Binding CategoryActiveBorderBrush}"/>
-                                                        <Setter TargetName="CatBdr" Property="Opacity" Value="1.0"/>
                                                     </DataTrigger>
                                                     <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="CatBdr" Property="Opacity" Value="0.95"/>
+                                                        <Setter TargetName="CatBdr" Property="BorderBrush" Value="{Binding CategoryActiveBorderBrush}"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -1198,8 +1205,13 @@
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  ScrollViewer.CanContentScroll="True"
+                                 ScrollViewer.PanningMode="VerticalOnly"
+                                 ScrollViewer.PanningDeceleration="0.001"
                                  VirtualizingPanel.IsVirtualizing="True"
                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                 VirtualizingPanel.ScrollUnit="Pixel"
+                                 VirtualizingPanel.CacheLength="2,2"
+                                 VirtualizingPanel.CacheLengthUnit="Page"
                                  SizeChanged="ProductsScrollViewer_SizeChanged">
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem">
@@ -1292,7 +1304,7 @@
                                                                         <ColumnDefinition Width="1.2*"/>
                                                                     </Grid.ColumnDefinitions>
                                                                     <TextBlock Grid.Column="0" Text="{Binding ProductName}" FontSize="13.5" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                                                    <TextBlock Grid.Column="1" Text="{Binding UnitPrice, StringFormat='$ {0:N2}'}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                                    <TextBlock Grid.Column="1" Text="{Binding UnitPriceDisplay}" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                                     <Border Grid.Column="2" Background="{StaticResource SurfaceHoverBrush}" CornerRadius="5" Padding="8,1" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                         <TextBlock Text="{Binding QuantityDisplay}" FontWeight="Bold" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
                                                                     </Border>
@@ -1472,7 +1484,13 @@
                                                         CommandParameter="{Binding}" Height="42" Margin="0,0,0,5" Cursor="Hand">
                                                     <Button.Template>
                                                         <ControlTemplate TargetType="Button">
-                                                            <Border x:Name="CatBdr" Background="{Binding CategoryButtonBgBrush}" CornerRadius="8" Padding="10,4" BorderThickness="0" Opacity="0.82">
+                                                            <Border x:Name="CatBdr"
+                                                                    Background="{Binding CategoryButtonBgBrush}"
+                                                                    CornerRadius="8"
+                                                                    Padding="10,4"
+                                                                    BorderThickness="1"
+                                                                    BorderBrush="Transparent"
+                                                                    RenderOptions.ClearTypeHint="Enabled">
                                                                 <Grid>
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="Auto"/>
@@ -1486,10 +1504,9 @@
                                                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                                     <Setter TargetName="CatBdr" Property="BorderThickness" Value="2"/>
                                                                     <Setter TargetName="CatBdr" Property="BorderBrush" Value="{Binding CategoryActiveBorderBrush}"/>
-                                                                    <Setter TargetName="CatBdr" Property="Opacity" Value="1.0"/>
                                                                 </DataTrigger>
                                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter TargetName="CatBdr" Property="Opacity" Value="0.95"/>
+                                                                    <Setter TargetName="CatBdr" Property="BorderBrush" Value="{Binding CategoryActiveBorderBrush}"/>
                                                                 </Trigger>
                                                             </ControlTemplate.Triggers>
                                                         </ControlTemplate>
@@ -1513,8 +1530,13 @@
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  ScrollViewer.CanContentScroll="True"
+                                 ScrollViewer.PanningMode="VerticalOnly"
+                                 ScrollViewer.PanningDeceleration="0.001"
                                  VirtualizingPanel.IsVirtualizing="True"
                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                 VirtualizingPanel.ScrollUnit="Pixel"
+                                 VirtualizingPanel.CacheLength="2,2"
+                                 VirtualizingPanel.CacheLengthUnit="Page"
                                  SizeChanged="ProductsScrollViewer_SizeChanged">
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem">
@@ -2246,7 +2268,8 @@
                                Margin="0,0,0,6"/>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Text="$"
+                        <TextBlock Text="{Binding CurrencyPrefixSymbol}"
+                                   Visibility="{Binding HasCurrencyPrefix, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
                                    FontSize="64"
                                    FontWeight="Normal"
                                    Foreground="{StaticResource TextPlaceholderBrush}"
@@ -2263,6 +2286,13 @@
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    VerticalAlignment="Bottom"
                                    Margin="0,0,0,12"/>
+                        <TextBlock Text="{Binding CurrencySuffixSymbol}"
+                                   Visibility="{Binding HasCurrencySuffix, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
+                                   FontSize="52"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPlaceholderBrush}"
+                                   VerticalAlignment="Bottom"
+                                   Margin="12,0,0,16"/>
                     </StackPanel>
 
                     <Border Background="#FFFFFF"
@@ -2400,29 +2430,35 @@
                         Cursor="Hand">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="CardBdr"
-                                    Background="#FFFFFF"
-                                    BorderBrush="{StaticResource BorderLightBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="16"
-                                    Effect="{StaticResource PosSubtleShadow}">
-                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Border Width="54" Height="54" CornerRadius="14" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,0,12">
-                                        <Viewbox Width="28" Height="28">
-                                            <Canvas Width="24" Height="24">
-                                                <Path Data="M 8.5,9 L 10.5,3.5 H 13.5 L 15.5,9 M 3,9 H 21 L 18.5,20 H 5.5 Z"
-                                                      Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeLineJoin="Round" Fill="Transparent"/>
-                                                <Ellipse Canvas.Left="10.5" Canvas.Top="13" Width="3" Height="3" Fill="{StaticResource OdooPurpleBrush}"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                    </Border>
-                                    <TextBlock Text="{Binding LandingActionButtonText}"
-                                               FontSize="14.5"
-                                               FontWeight="Bold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                               HorizontalAlignment="Center"/>
-                                </StackPanel>
-                            </Border>
+                            <Grid>
+                                <Border Background="#FFFFFF"
+                                        CornerRadius="16"
+                                        Effect="{StaticResource PosSubtleShadow}"
+                                        IsHitTestVisible="False"/>
+                                <Border x:Name="CardBdr"
+                                        Background="#FFFFFF"
+                                        BorderBrush="{StaticResource BorderLightBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="16"
+                                        RenderOptions.ClearTypeHint="Enabled">
+                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Border Width="54" Height="54" CornerRadius="14" Background="{StaticResource OdooPurpleSoftBrush}" Margin="0,0,0,12">
+                                            <Viewbox Width="28" Height="28">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M 8.5,9 L 10.5,3.5 H 13.5 L 15.5,9 M 3,9 H 21 L 18.5,20 H 5.5 Z"
+                                                          Stroke="{StaticResource OdooPurpleBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeLineJoin="Round" Fill="Transparent"/>
+                                                    <Ellipse Canvas.Left="10.5" Canvas.Top="13" Width="3" Height="3" Fill="{StaticResource OdooPurpleBrush}"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <TextBlock Text="{Binding LandingActionButtonText}"
+                                                   FontSize="14.5"
+                                                   FontWeight="Bold"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="CardBdr" Property="BorderBrush" Value="{StaticResource OdooPurpleBrush}"/>
@@ -2437,15 +2473,19 @@
                 </Button>
 
                 <!-- Compact 3-Column Last Session Card (Visible when Register is Closed) -->
-                <Border Visibility="{Binding IsRegisterClosedForLanding, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
-                        Background="#FFFFFF"
-                        CornerRadius="12"
-                        BorderBrush="{StaticResource BorderLightBrush}"
-                        BorderThickness="1"
-                        Margin="0,18,0,0"
-                        Width="560"
-                        Padding="20,14"
-                        Effect="{StaticResource PosSubtleShadow}">
+                <Grid Visibility="{Binding IsRegisterClosedForLanding, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"
+                      Margin="0,18,0,0"
+                      Width="560">
+                    <Border Background="#FFFFFF"
+                            CornerRadius="12"
+                            Effect="{StaticResource PosSubtleShadow}"
+                            IsHitTestVisible="False"/>
+                    <Border Background="#FFFFFF"
+                            CornerRadius="12"
+                            BorderBrush="{StaticResource BorderLightBrush}"
+                            BorderThickness="1"
+                            Padding="20,14"
+                            RenderOptions.ClearTypeHint="Enabled">
                     <StackPanel>
                         <Grid Margin="0,0,0,10">
                             <TextBlock Text="{Binding TxtLastSessionDetails}"
@@ -2503,6 +2543,7 @@
                         </Grid>
                     </StackPanel>
                 </Border>
+            </Grid>
 
                 <!-- Print Last Session Sales Details -->
                 <Button Command="{Binding PrintLastSessionSalesDetailsCommand}"
@@ -2551,11 +2592,9 @@
         <Grid Background="{StaticResource ModalBackdropBrush}"
               Panel.ZIndex="1000"
               Visibility="{Binding IsOpeningControlModalOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-            <Border Width="500"
-                    Style="{StaticResource PosModalCardStyle}"
-                    Padding="24,22"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+            <ContentControl Width="500"
+                            Style="{StaticResource PosModalContainerStyle}"
+                            Padding="24,22">
                 <StackPanel>
                     <Grid Margin="0,0,0,16">
                         <TextBlock Text="{Binding TxtOpeningControlBtn}" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
@@ -2601,7 +2640,7 @@
                         <Button Content="{Binding TxtDiscardBtn}" Command="{Binding DiscardOpeningControlCommand}" Style="{StaticResource PosSecondaryButtonStyle}" Height="42" Padding="18,0"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </ContentControl>
         </Grid>
 
         <!-- ==================== MODAL 2: 3-DOTS SESSION MENU ==================== -->
@@ -2609,11 +2648,9 @@
               Panel.ZIndex="1100"
               MouseLeftButtonDown="HamburgerBackdrop_MouseLeftButtonDown"
               Visibility="{Binding IsHamburgerMenuOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-            <Border Width="400"
-                    Style="{StaticResource PosModalCardStyle}"
-                    Padding="20"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+            <ContentControl Width="400"
+                            Style="{StaticResource PosModalContainerStyle}"
+                            Padding="20">
                 <StackPanel>
                     <Grid Margin="0,0,0,12">
                         <TextBlock Text="{Binding TxtSessionInfoTitle}" FontSize="16.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
@@ -2672,7 +2709,7 @@
                             Height="40"
                             Content="{Binding TxtLogoutBtn}"/>
                 </StackPanel>
-            </Border>
+            </ContentControl>
         </Grid>
 
         <!-- ==================== MODAL 3 & 4: CLOSING REGISTER (Scroll-Safe for 720p) ==================== -->
@@ -2680,12 +2717,9 @@
               Panel.ZIndex="1200"
               Visibility="{Binding IsClosingRegisterModalOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
 
-            <Border Width="540"
-                    MaxHeight="640"
-                    Style="{StaticResource PosModalCardStyle}"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    ClipToBounds="True">
+            <ContentControl Width="540"
+                            MaxHeight="640"
+                            Style="{StaticResource PosModalContainerStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -2709,29 +2743,29 @@
                             <!-- Cash Breakdown -->
                             <Grid Margin="0,0,0,3">
                                 <TextBlock Text="Cash" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="{Binding CashCounted, StringFormat='$ {0:N2}'}" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
+                                <TextBlock Text="{Binding CashCounted, Converter={StaticResource CurrencyValueConverter}}" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
                             </Grid>
                             <Border BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="2,0,0,0" Margin="4,0,0,10" Padding="10,0,0,0">
                                 <StackPanel>
                                     <Grid Margin="0,1.5">
                                         <TextBlock Text="{Binding TxtOpeningSubLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="{Binding CashOpening, StringFormat='$ {0:N2}'}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{Binding CashOpening, Converter={StaticResource CurrencyValueConverter}}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                     </Grid>
                                     <Grid Margin="0,1.5">
                                         <TextBlock Text="{Binding TxtPaymentsInCashLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="{Binding CashPayments, StringFormat='$ {0:N2}'}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{Binding CashPayments, Converter={StaticResource CurrencyValueConverter}}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                     </Grid>
                                     <Grid Margin="0,1.5">
                                         <TextBlock Text="{Binding TxtCashInOutLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="{Binding CashInOut, StringFormat='+ $ {0:N2}'}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{Binding CashInOut, Converter={StaticResource CurrencyValueConverter}, ConverterParameter='+ '}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                     </Grid>
                                     <Grid Margin="0,1.5">
                                         <TextBlock Text="{Binding TxtCountedLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="{Binding CashCounted, StringFormat='$ {0:N2}'}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{Binding CashCounted, Converter={StaticResource CurrencyValueConverter}}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                     </Grid>
                                     <Grid Margin="0,1.5">
                                         <TextBlock Text="{Binding TxtDifferenceLabel}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        <TextBlock Text="{Binding CashDifference, StringFormat='$ {0:N2}'}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                        <TextBlock Text="{Binding CashDifference, Converter={StaticResource CurrencyValueConverter}}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -2748,15 +2782,15 @@
                                     <StackPanel>
                                         <Grid Margin="0,0,0,4">
                                             <TextBlock Text="Card" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                            <TextBlock Text="{Binding CardTotal, StringFormat='$ {0:N2}'}" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding CardTotal, Converter={StaticResource CurrencyValueConverter}}" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
                                         </Grid>
                                         <Grid>
                                             <TextBlock Text="{Binding TxtCountedLabel}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                            <TextBlock Text="{Binding CardCounted, StringFormat='$ {0:N2}'}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding CardCounted, Converter={StaticResource CurrencyValueConverter}}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                         </Grid>
                                         <Grid>
                                             <TextBlock Text="{Binding TxtDifferenceLabel}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                            <TextBlock Text="{Binding CardDifference, StringFormat='$ {0:N2}'}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding CardDifference, Converter={StaticResource CurrencyValueConverter}}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -2765,15 +2799,15 @@
                                     <StackPanel>
                                         <Grid Margin="0,0,0,4">
                                             <TextBlock Text="Customer Account" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding CustomerAccountTotal, StringFormat='$ {0:N2}'}" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding CustomerAccountTotal, Converter={StaticResource CurrencyValueConverter}}" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
                                         </Grid>
                                         <Grid>
                                             <TextBlock Text="{Binding TxtCountedLabel}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                            <TextBlock Text="{Binding CustomerAccountCounted, StringFormat='$ {0:N2}'}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding CustomerAccountCounted, Converter={StaticResource CurrencyValueConverter}}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                         </Grid>
                                         <Grid>
                                             <TextBlock Text="{Binding TxtDifferenceLabel}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                            <TextBlock Text="{Binding CustomerAccountDifference, StringFormat='$ {0:N2}'}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding CustomerAccountDifference, Converter={StaticResource CurrencyValueConverter}}" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -2817,16 +2851,14 @@
                         </Grid>
                     </Border>
                 </Grid>
-            </Border>
+            </ContentControl>
 
             <!-- Layered "Oh snap !" Draft Orders Warning -->
             <Grid Background="{StaticResource ModalBackdropBrush}"
                   Visibility="{Binding IsDraftOrdersWarningModalOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-                <Border Width="360"
-                        Style="{StaticResource PosModalCardStyle}"
-                        Padding="20"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
+                <ContentControl Width="360"
+                                Style="{StaticResource PosModalContainerStyle}"
+                                Padding="20">
                     <StackPanel>
                         <Grid Margin="0,0,0,10">
                             <TextBlock Text="{Binding TxtOhSnapTitle}" FontSize="17" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
@@ -2840,7 +2872,7 @@
                             <Button Content="{Binding TxtCancelOrdersBtn}" Command="{Binding CancelDraftOrdersAndCloseCommand}" Style="{StaticResource PosDangerSoftButton}" Height="38"/>
                         </StackPanel>
                     </StackPanel>
-                </Border>
+                </ContentControl>
             </Grid>
         </Grid>
 
@@ -2848,7 +2880,7 @@
         <Grid Background="{StaticResource ModalBackdropBrush}"
               Panel.ZIndex="1300"
               Visibility="{Binding IsNoteModalOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-            <Border Width="400" Style="{StaticResource PosModalCardStyle}" Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <ContentControl Width="400" Style="{StaticResource PosModalContainerStyle}" Padding="20">
                 <StackPanel>
                     <TextBlock Text="Add Note" FontSize="16.5" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
                     <Border Height="84" Background="{StaticResource SurfaceSubtleBrush}" BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,14">
@@ -2859,19 +2891,17 @@
                         <Button Content="{Binding TxtDiscardBtn}" Command="{Binding CloseNoteModalCommand}" Style="{StaticResource PosSecondaryButtonStyle}" Height="38"/>
                     </StackPanel>
                 </StackPanel>
-            </Border>
+            </ContentControl>
         </Grid>
 
         <!-- ==================== MODAL 6: PRODUCT VARIANT SELECTION (Fits 720p) ==================== -->
         <Grid Background="{StaticResource ModalBackdropBrush}"
               Panel.ZIndex="1400"
               Visibility="{Binding IsVariantPopupOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-            <Border Width="560"
-                    MaxHeight="600"
-                    Style="{StaticResource PosModalCardStyle}"
-                    Padding="22,18"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+            <ContentControl Width="560"
+                            MaxHeight="600"
+                            Style="{StaticResource PosModalContainerStyle}"
+                            Padding="22,18">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -2960,19 +2990,17 @@
                         </StackPanel>
                     </Border>
                 </Grid>
-            </Border>
+            </ContentControl>
         </Grid>
 
         <!-- ==================== MODAL 7: RECEIPT PREVIEW (Fits 720p) ==================== -->
         <Grid Background="{StaticResource ModalBackdropBrush}"
               Panel.ZIndex="1500"
               Visibility="{Binding IsReceiptPreviewModalOpen, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
-            <Border Width="480"
-                    MaxHeight="620"
-                    Style="{StaticResource PosModalCardStyle}"
-                    Padding="20,16"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+            <ContentControl Width="480"
+                            MaxHeight="620"
+                            Style="{StaticResource PosModalContainerStyle}"
+                            Padding="20,16">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -3007,17 +3035,17 @@
                         <Button Content="Close" Command="{Binding CloseReceiptPreviewModalCommand}" Style="{StaticResource PosPrimaryButtonStyle}" MinWidth="96" Height="36"/>
                     </StackPanel>
                 </Grid>
-            </Border>
+            </ContentControl>
         </Grid>
 
         <!-- POS Toast Notification -->
-        <Border Style="{StaticResource PosToastBorderStyle}"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Bottom"
-                Margin="0,0,0,20"
-                Panel.ZIndex="2000"
-                Visibility="{Binding IsPosToastVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
+        <ContentControl Style="{StaticResource PosToastContainerStyle}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Bottom"
+                        Margin="0,0,0,20"
+                        Panel.ZIndex="2000"
+                        Visibility="{Binding IsPosToastVisible, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}">
             <TextBlock Text="{Binding PosToastMessage}" Foreground="#FFFFFF" FontSize="13" FontWeight="Medium"/>
-        </Border>
+        </ContentControl>
     </Grid>
 </UserControl>

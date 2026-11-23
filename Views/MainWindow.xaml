@@ -16,6 +16,8 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         Stylus.IsPressAndHoldEnabled="False"
+        Stylus.IsFlicksEnabled="False"
+        Stylus.IsTapFeedbackEnabled="False"
         PreviewKeyDown="Window_PreviewKeyDown">
 
     <Window.Resources>

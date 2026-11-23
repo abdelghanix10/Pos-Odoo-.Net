@@ -34,6 +34,8 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     private string? _lastPurgeAt;
     private string _syncDataRetrievalPeriod = "Week";
     private string _autoPurgeOlderThanPeriod = "3Months";
+    private double _posZoomScale = 1.0;
+    private string _currency = "$";
 
     public string ScreenMode
     {
@@ -200,6 +202,34 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
         {
             string normalized = string.IsNullOrWhiteSpace(value) ? "3Months" : value.Trim();
             if (_autoPurgeOlderThanPeriod != normalized) { _autoPurgeOlderThanPeriod = normalized; OnPropertyChanged(); }
+        }
+    }
+
+    public double PosZoomScale
+    {
+        get => _posZoomScale;
+        set
+        {
+            double clamped = Math.Clamp(Math.Round(value, 2), 0.6, 1.8);
+            if (Math.Abs(_posZoomScale - clamped) > 0.001)
+            {
+                _posZoomScale = clamped;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Currency
+    {
+        get => _currency;
+        set
+        {
+            string normalized = CurrencyFormatter.Normalize(value);
+            if (_currency != normalized)
+            {
+                _currency = normalized;
+                OnPropertyChanged();
+            }
         }
     }
 

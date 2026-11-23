@@ -262,11 +262,11 @@ public class PosSessionRecord : INotifyPropertyChanged
     public bool IsStageClosingControl => State == "closing_control";
     public bool IsStageClosed => State == "closed";
 
-    public string OpeningBalanceDisplay => $"$ {OpeningBalance:N2}";
-    public string ClosingBalanceDisplay => $"$ {ClosingBalance:N2}";
+    public string OpeningBalanceDisplay => CurrencyFormatter.Format(OpeningBalance);
+    public string ClosingBalanceDisplay => CurrencyFormatter.Format(ClosingBalance);
 
     public string OrdersCountDisplay => $"{OrdersCount} {(OrdersCount == 1 ? "Order" : "Orders")}";
-    public string TotalPaymentsAmountDisplay => $"$ {TotalPaymentsAmount:N2}";
+    public string TotalPaymentsAmountDisplay => CurrencyFormatter.Format(TotalPaymentsAmount);
 
     public string EmployeesDisplay => string.IsNullOrWhiteSpace(Employees) ? UserName : Employees;
 

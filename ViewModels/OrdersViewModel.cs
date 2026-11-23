@@ -114,7 +114,7 @@ public partial class OrdersViewModel : ViewModelBase
     private bool _hasNextRecord;
 
     [ObservableProperty]
-    private string _grandTotalText = "$ 0.00";
+    private string _grandTotalText = CurrencyFormatter.Format(0m);
 
     [ObservableProperty]
     private string _activeTab = "Products";
@@ -725,7 +725,7 @@ public partial class OrdersViewModel : ViewModelBase
             }
         }
 
-        GrandTotalText = $"$ {grandTotal.ToString("N2", CultureInfo.InvariantCulture)}";
+        GrandTotalText = CurrencyFormatter.Format(grandTotal);
         IsEmptyStateVisible = _matchingOrders.Count == 0;
         CurrentPage = 1;
         ApplyPaging();

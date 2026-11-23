@@ -133,6 +133,7 @@ public partial class MainWindow : Window
         try
         {
             var settings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            CurrencyFormatter.SetCurrency(settings.Currency);
             if (settings.AutoPurgeOldDataEnabled)
             {
                 await SqliteDatabaseService.Instance.PurgeDataOlderThanPeriodAsync(settings.AutoPurgeOlderThanPeriod);

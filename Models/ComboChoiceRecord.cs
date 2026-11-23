@@ -72,8 +72,8 @@ public class ComboChoiceLineRecord : INotifyPropertyChanged
         }
     }
 
-    public string OriginalPriceDisplay => $"$ {OriginalPrice:N2}";
-    public string ExtraPriceDisplay => ExtraPrice > 0 ? $"+ $ {ExtraPrice:N2}" : "$ 0.00";
+    public string OriginalPriceDisplay => CurrencyFormatter.Format(OriginalPrice);
+    public string ExtraPriceDisplay => ExtraPrice > 0 ? $"+ {CurrencyFormatter.Format(ExtraPrice)}" : CurrencyFormatter.Format(0m);
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

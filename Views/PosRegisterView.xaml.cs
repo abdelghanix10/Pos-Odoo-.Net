@@ -18,7 +18,6 @@ public partial class PosRegisterView : UserControl
         PreviewMouseDown += (_, _) => VM.RegisterUserActivity();
         PreviewMouseWheel += (_, _) => VM.RegisterUserActivity();
         PreviewTouchDown += (_, _) => VM.RegisterUserActivity();
-        PreviewTouchMove += (_, _) => VM.RegisterUserActivity();
         PreviewStylusDown += (_, _) => VM.RegisterUserActivity();
         PreviewMouseMove += PosRegisterView_PreviewMouseMove;
 

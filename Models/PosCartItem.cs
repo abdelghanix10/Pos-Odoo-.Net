@@ -163,7 +163,8 @@ public class PosCartItem : INotifyPropertyChanged
 
     public decimal LineTaxAmount => LineTotal - PriceSubtotal;
 
-    public string LineTotalDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", LineTotal);
+    public string UnitPriceDisplay => CurrencyFormatter.Format(UnitPrice);
+    public string LineTotalDisplay => CurrencyFormatter.Format(LineTotal);
 
     public string QuantityDisplay =>
         Quantity == Math.Truncate(Quantity)
@@ -181,6 +182,7 @@ public class PosCartItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(PriceSubtotal));
         OnPropertyChanged(nameof(LineTotal));
         OnPropertyChanged(nameof(LineTaxAmount));
+        OnPropertyChanged(nameof(UnitPriceDisplay));
         OnPropertyChanged(nameof(LineTotalDisplay));
         OnPropertyChanged(nameof(QuantityDisplay));
     }

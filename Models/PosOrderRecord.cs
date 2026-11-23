@@ -150,10 +150,10 @@ public class PosOrderLineRecord : INotifyPropertyChanged
             ? ((int)Qty).ToString(CultureInfo.InvariantCulture)
             : Qty.ToString("0.##", CultureInfo.InvariantCulture);
 
-    public string PriceUnitDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", PriceUnit);
+    public string PriceUnitDisplay => CurrencyFormatter.Format(PriceUnit);
     public string DiscountDisplay => string.Format(CultureInfo.InvariantCulture, "{0:N1}%", Discount);
-    public string PriceSubtotalDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", PriceSubtotal);
-    public string PriceSubtotalInclDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", PriceSubtotalIncl);
+    public string PriceSubtotalDisplay => CurrencyFormatter.Format(PriceSubtotal);
+    public string PriceSubtotalInclDisplay => CurrencyFormatter.Format(PriceSubtotalIncl);
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -636,14 +636,14 @@ public class PosOrderRecord : INotifyPropertyChanged
     }
 
     public string InPosCashLabel => $"{PrimaryPaymentMethodLabel}:";
-    public string InPosCashAmountDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", TenderedAmount);
+    public string InPosCashAmountDisplay => CurrencyFormatter.Format(TenderedAmount);
 
     public string InPosChangeLabel => _isArabicLanguage ? "الباقي:" : "Change:";
-    public string InPosChangeAmountDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", ChangeAmount);
+    public string InPosChangeAmountDisplay => CurrencyFormatter.Format(ChangeAmount);
 
     public string InPosCashAndChangeSummary => _isArabicLanguage
-        ? $"{PrimaryPaymentMethodLabel}: $ {TenderedAmount:N2}   •   الباقي: $ {ChangeAmount:N2}"
-        : $"{PrimaryPaymentMethodLabel}: $ {TenderedAmount:N2}   •   Change: $ {ChangeAmount:N2}";
+        ? $"{PrimaryPaymentMethodLabel}: {CurrencyFormatter.Format(TenderedAmount)}   •   الباقي: {CurrencyFormatter.Format(ChangeAmount)}"
+        : $"{PrimaryPaymentMethodLabel}: {CurrencyFormatter.Format(TenderedAmount)}   •   Change: {CurrencyFormatter.Format(ChangeAmount)}";
 
     public void RefreshLanguageDisplay()
     {
@@ -678,16 +678,16 @@ public class PosOrderRecord : INotifyPropertyChanged
     public string DateDisplay => DateOrder.HasValue ? DateOrder.Value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) : "—";
     public string DateShortDisplay => DateOrder.HasValue ? DateOrder.Value.ToString("MMM d, h:mm tt", CultureInfo.InvariantCulture) : "—";
 
-    public string TotalDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", AmountTotal);
-    public string TaxDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", AmountTax);
-    public string PaidDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", AmountPaid);
+    public string TotalDisplay => CurrencyFormatter.Format(AmountTotal);
+    public string TaxDisplay => CurrencyFormatter.Format(AmountTax);
+    public string PaidDisplay => CurrencyFormatter.Format(AmountPaid);
 
     // Aliases for XAML compatibility
     public string AmountTotalDisplay => TotalDisplay;
     public string AmountTaxDisplay => TaxDisplay;
     public string AmountPaidDisplay => PaidDisplay;
 
-    public string MarginDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2} ({1:N1}%)", Margin, MarginRatio);
+    public string MarginDisplay => $"{CurrencyFormatter.Format(Margin)} ({MarginRatio:N1}%)";
 
     public string StateDisplay => State?.ToLowerInvariant() switch
     {

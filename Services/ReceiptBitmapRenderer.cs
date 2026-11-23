@@ -18,6 +18,8 @@ public static class ReceiptBitmapRenderer
 
     public static string ResolveCurrencyLabel(CompanyRecord? company)
     {
+        if (!string.IsNullOrWhiteSpace(CurrencyFormatter.CurrentCurrency))
+            return CurrencyFormatter.CurrentCurrency;
         string raw = company?.CurrencyName?.Trim() ?? "MAD";
         if (raw.Equals("MAD", StringComparison.OrdinalIgnoreCase) || raw.Equals("DH", StringComparison.OrdinalIgnoreCase)) return "DH";
         if (raw.Equals("EUR", StringComparison.OrdinalIgnoreCase)) return "€";
@@ -25,8 +27,14 @@ public static class ReceiptBitmapRenderer
         return string.IsNullOrWhiteSpace(raw) ? "DH" : raw;
     }
 
-    private static string Money(decimal amount, string currency) =>
-        string.Format(CultureInfo.InvariantCulture, "{0:N2} {1}", amount, currency);
+    private static string Money(decimal amount, string currency)
+    {
+        bool isSuffix = currency.Equals("MAD", StringComparison.OrdinalIgnoreCase) ||
+                        currency.Equals("DH", StringComparison.OrdinalIgnoreCase);
+        return isSuffix
+            ? string.Format(CultureInfo.InvariantCulture, "{0:N2} {1}", amount, currency)
+            : string.Format(CultureInfo.InvariantCulture, "{0} {1:N2}", currency, amount);
+    }
 
     private static string Qty(decimal qty) =>
         qty == Math.Truncate(qty)

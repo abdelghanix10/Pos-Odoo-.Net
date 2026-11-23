@@ -207,7 +207,7 @@
                                                             <Ellipse Width="16" Height="16" Fill="{Binding ColorBrush}" Visibility="{Binding ColorVisibility}"/>
                                                             <TextBlock Text="—" Foreground="{StaticResource MutedTextBrush}" Visibility="{Binding NoColorVisibility}"/>
                                                         </StackPanel>
-                                                        <TextBlock Grid.Column="2" Text="{Binding PriceExtraDisplay, StringFormat='+ $ {0}'}" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource OdooTealBrush}" TextAlignment="Right" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding DefaultExtraPrice, Converter={StaticResource CurrencyValueConverter}, ConverterParameter='+ '}" FontSize="12.5" FontWeight="Bold" Foreground="{StaticResource OdooTealBrush}" TextAlignment="Right" VerticalAlignment="Center"/>
                                                         <TextBlock Grid.Column="3" Text="{Binding CustomTextDisplay}" FontSize="12" TextAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource SecondaryTextBrush}"/>
                                                     </Grid>
                                                 </Border>

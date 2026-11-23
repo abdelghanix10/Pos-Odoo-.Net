@@ -161,7 +161,7 @@ public class PosVariantOptionItem : INotifyPropertyChanged
 
     public bool HasExtraPrice => ExtraPrice > 0.001m;
     public Visibility ExtraPriceVisibility => HasExtraPrice ? Visibility.Visible : Visibility.Collapsed;
-    public string ExtraPriceDisplay => HasExtraPrice ? $"+ $ {ExtraPrice:N2}" : string.Empty;
+    public string ExtraPriceDisplay => HasExtraPrice ? $"+ {CurrencyFormatter.Format(ExtraPrice)}" : string.Empty;
 
     public Visibility ShowCustomInputVisibility => (IsSelected && (IsCustom || string.Equals(ValueName, "Custom", StringComparison.OrdinalIgnoreCase)))
         ? Visibility.Visible

@@ -241,4 +241,29 @@ namespace OdooPosLogin.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotImplementedException();
     }
+
+    public class CurrencyValueConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            decimal amount = value switch
+            {
+                decimal d => d,
+                double db => System.Convert.ToDecimal(db),
+                float f => System.Convert.ToDecimal(f),
+                int i => i,
+                long l => l,
+                _ => 0m
+            };
+
+            string formatted = CurrencyFormatter.Format(amount);
+            if (parameter is string prefix && !string.IsNullOrEmpty(prefix))
+                return $"{prefix}{formatted}";
+
+            return formatted;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
 }

@@ -13,6 +13,8 @@
 
         <Style TargetType="{x:Type Control}">
             <Setter Property="FontFamily" Value="{StaticResource CairoFontFamily}"/>
+            <Setter Property="Stylus.IsPressAndHoldEnabled" Value="False"/>
+            <Setter Property="Stylus.IsFlicksEnabled" Value="False"/>
         </Style>
 
         <Style TargetType="{x:Type TextBlock}">
@@ -31,6 +33,7 @@
         <conv:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibilityConverter"/>
         <conv:StringEmptyToVisibilityConverter x:Key="StringEmptyToVisibilityConverter"/>
         <conv:IntEqualToVisibilityConverter x:Key="IntEqualToVisibilityConverter"/>
+        <conv:CurrencyValueConverter x:Key="CurrencyValueConverter"/>
 
         <!-- ===================================================================== -->
         <!-- 3. DESIGN SYSTEM COLOR PALETTE (Clean Flat-Modern POS for 1280x720)   -->
@@ -390,6 +393,69 @@
             <Setter Property="Effect" Value="{StaticResource PosFloatingShadow}"/>
         </Style>
 
+        <!-- Crisp Modal Container: shadow on empty sibling Border so child text is never bitmap-rasterized -->
+        <Style x:Key="PosModalContainerStyle" TargetType="ContentControl">
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceCardBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource SubtleBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Grid>
+                            <!-- Shadow layer ONLY (no child text/controls) -->
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="12"
+                                    Effect="{StaticResource PosModalShadow}"
+                                    IsHitTestVisible="False"/>
+                            <!-- Crisp vector content layer (NO Effect) -->
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="12"
+                                    Padding="{TemplateBinding Padding}"
+                                    ClipToBounds="True"
+                                    RenderOptions.ClearTypeHint="Enabled">
+                                <ContentPresenter/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Crisp Toast Container: shadow on empty sibling Border -->
+        <Style x:Key="PosToastContainerStyle" TargetType="ContentControl">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="Background" Value="{StaticResource PrimaryTextBrush}"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContentControl">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="10"
+                                    Effect="{StaticResource PosFloatingShadow}"
+                                    IsHitTestVisible="False"/>
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="10"
+                                    Padding="{TemplateBinding Padding}"
+                                    RenderOptions.ClearTypeHint="Enabled">
+                                <ContentPresenter/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="PosSectionHeaderTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="Bold"/>
@@ -697,6 +763,27 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Smooth Touchscreen Panning with Inertia for all ScrollViewers & ListBoxes -->
+        <Style TargetType="ScrollViewer">
+            <Setter Property="PanningMode" Value="VerticalOnly"/>
+            <Setter Property="PanningDeceleration" Value="0.001"/>
+            <Setter Property="PanningRatio" Value="1"/>
+            <Setter Property="Stylus.IsPressAndHoldEnabled" Value="False"/>
+            <Setter Property="Stylus.IsFlicksEnabled" Value="False"/>
+            <Style.Triggers>
+                <Trigger Property="VerticalScrollBarVisibility" Value="Disabled">
+                    <Setter Property="PanningMode" Value="HorizontalOnly"/>
+                </Trigger>
+                <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                        <Condition Property="HorizontalScrollBarVisibility" Value="Auto"/>
+                        <Condition Property="VerticalScrollBarVisibility" Value="Auto"/>
+                    </MultiTrigger.Conditions>
+                    <Setter Property="PanningMode" Value="Both"/>
+                </MultiTrigger>
+            </Style.Triggers>
         </Style>
 
         <Style TargetType="ScrollBar">

@@ -50,7 +50,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     }
 
     public string SessionTotalOrdersDisplay => SessionTotalOrdersCount.ToString();
-    public string SessionTotalPaymentsDisplay => $"$ {SessionTotalPaymentsAmount:N2}";
+    public string SessionTotalPaymentsDisplay => CurrencyFormatter.Format(SessionTotalPaymentsAmount);
 
     [ObservableProperty]
     private string _cashierName = "Mitchell Admin";
@@ -152,7 +152,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     private string _lastSessionOrdersCountDisplay = "0";
 
     [ObservableProperty]
-    private string _lastSessionTotalDisplay = "$ 0.00";
+    private string _lastSessionTotalDisplay = CurrencyFormatter.Format(0m);
 
     partial void OnCurrentConfigChanged(PosConfigRecord? value)
     {
@@ -164,6 +164,8 @@ public partial class PosRegisterViewModel : ViewModelBase
             _ = LoadLastSessionInfoAsync();
         }
     }
+
+    private long _lastActivityTickMs;
 
     partial void OnIsPosLandingScreenOpenChanged(bool value)
     {
@@ -179,6 +181,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         else
         {
             // User entered the POS register — start the 10-minute inactivity timer
+            _lastActivityTickMs = Environment.TickCount64;
             _inactivityTimer.Stop();
             _inactivityTimer.Start();
         }
@@ -186,11 +189,14 @@ public partial class PosRegisterViewModel : ViewModelBase
 
     public void RegisterUserActivity()
     {
-        if (!IsPosLandingScreenOpen)
-        {
-            _inactivityTimer.Stop();
-            _inactivityTimer.Start();
-        }
+        if (IsPosLandingScreenOpen) return;
+
+        long now = Environment.TickCount64;
+        if (now - _lastActivityTickMs < 5000) return; // throttle to once every 5s
+
+        _lastActivityTickMs = now;
+        _inactivityTimer.Stop();
+        _inactivityTimer.Start();
     }
 
     public void StopTimersOnHide()
@@ -358,7 +364,7 @@ public partial class PosRegisterViewModel : ViewModelBase
             LastSessionOpeningDateDisplay = openDate;
             LastSessionClosingDateDisplay = closeDate;
             LastSessionOrdersCountDisplay = ordersCount.ToString();
-            LastSessionTotalDisplay = $"$ {totalAmount:N2}";
+            LastSessionTotalDisplay = CurrencyFormatter.Format(totalAmount);
         }
         catch (Exception ex)
         {
@@ -376,7 +382,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         LastSessionOpeningDateDisplay = "—";
         LastSessionClosingDateDisplay = "—";
         LastSessionOrdersCountDisplay = "0";
-        LastSessionTotalDisplay = "$ 0.00";
+        LastSessionTotalDisplay = CurrencyFormatter.Format(0m);
     }
 
     // ==================== TOP NAVIGATION & ACTIVE VIEW ====================
@@ -402,32 +408,56 @@ public partial class PosRegisterViewModel : ViewModelBase
     public bool ShowExpandedNumpad => (HasCurrentOrderItems || (CurrentConfig?.IsNumbersFirst == true)) && IsCartNumpadVisible && !IsClosingRegisterModalOpen;
 
     // ==================== CHROME-STYLE ZOOM CONTROLS ====================
+    private readonly SemaphoreSlim _zoomSaveLock = new(1, 1);
+
     [ObservableProperty]
     private double _posZoomScale = 1.0;
 
     public string PosZoomPercentageText => $"{Math.Round(PosZoomScale * 100)}%";
+    public bool IsDefaultZoom => Math.Abs(PosZoomScale - 1.0) < 0.001;
 
     partial void OnPosZoomScaleChanged(double value)
     {
         OnPropertyChanged(nameof(PosZoomPercentageText));
+        OnPropertyChanged(nameof(IsDefaultZoom));
     }
 
     [RelayCommand]
     public void ZoomIn()
     {
         PosZoomScale = Math.Min(1.8, Math.Round(PosZoomScale + 0.1, 2));
+        _ = PersistZoomScaleAsync();
     }
 
     [RelayCommand]
     public void ZoomOut()
     {
         PosZoomScale = Math.Max(0.6, Math.Round(PosZoomScale - 0.1, 2));
+        _ = PersistZoomScaleAsync();
     }
 
     [RelayCommand]
     public void ResetZoom()
     {
         PosZoomScale = 1.0;
+        _ = PersistZoomScaleAsync();
+    }
+
+    private async Task PersistZoomScaleAsync()
+    {
+        await _zoomSaveLock.WaitAsync();
+        try
+        {
+            await SqliteDatabaseService.Instance.SavePosZoomScaleAsync(PosZoomScale);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PosRegisterViewModel] Failed to save zoom scale: {ex.Message}");
+        }
+        finally
+        {
+            _zoomSaveLock.Release();
+        }
     }
 
     // ==================== NUMBERS FIRST MODE ====================
@@ -589,29 +619,33 @@ public partial class PosRegisterViewModel : ViewModelBase
     public bool CanValidatePayment => AmountTendered >= AmountDue && AmountDue > 0m;
     public bool IsPaymentUnderpaid => AmountTendered < AmountDue;
     public decimal RemainingAmount => Math.Max(0m, AmountDue - AmountTendered);
-    public string RemainingDisplay => $"$ {RemainingAmount:N2}";
+    public string RemainingDisplay => CurrencyFormatter.Format(RemainingAmount);
     public string ChangeDisplay
     {
         get
         {
             decimal diff = AmountTendered - AmountDue;
             if (diff > 0m)
-                return $"$- {diff:N2}";
-            return "$ 0.00";
+                return $"- {CurrencyFormatter.Format(diff)}";
+            return CurrencyFormatter.Format(0m);
         }
     }
-    public string PaymentLineAmountDisplay => $"$ {AmountTendered:N2}";
+    public string PaymentLineAmountDisplay => CurrencyFormatter.Format(AmountTendered);
     public bool HasPaymentTendered => AmountTendered > 0m || !string.IsNullOrEmpty(_paymentInputBuffer);
 
     public string PaymentPrimaryButtonText => string.IsNullOrWhiteSpace(SelectedPaymentMethod) ? "Cash" : SelectedPaymentMethod;
-    public string PaymentCurrencySymbol => "$";
+    public string PaymentCurrencySymbol => CurrencyFormatter.CurrentCurrency;
+    public string CurrencyPrefixSymbol => CurrencyFormatter.PrefixSymbol;
+    public string CurrencySuffixSymbol => CurrencyFormatter.SuffixSymbol;
+    public bool HasCurrencyPrefix => !CurrencyFormatter.IsSuffix;
+    public bool HasCurrencySuffix => CurrencyFormatter.IsSuffix;
 
     public string OrderTotalDisplay
     {
         get
         {
             decimal val = CurrentOrder?.TotalAmount ?? AmountDue;
-            return $"$ {val:N2}";
+            return CurrencyFormatter.Format(val);
         }
     }
 
@@ -742,9 +776,9 @@ public partial class PosRegisterViewModel : ViewModelBase
         }
     }
 
-    public string ConfirmedChangeDisplay => $"$ {ConfirmedChangeAmount:N2}";
-    public string ConfirmedCashDisplay => $"$ {ConfirmedCashAmount:N2}";
-    public string ConfirmedPaidDisplay => $"$ {ConfirmedPaidAmount:N2}";
+    public string ConfirmedChangeDisplay => CurrencyFormatter.Format(ConfirmedChangeAmount);
+    public string ConfirmedCashDisplay => CurrencyFormatter.Format(ConfirmedCashAmount);
+    public string ConfirmedPaidDisplay => CurrencyFormatter.Format(ConfirmedPaidAmount);
 
     // ==================== MODAL 2: HAMBURGER MENU (Screenshot 7) ====================
     [ObservableProperty]
@@ -764,7 +798,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     private string _closingNote = string.Empty;
 
     [ObservableProperty]
-    private string _sessionSummaryText = "1 orders: $ 25.59";
+    private string _sessionSummaryText = $"0 orders: {CurrencyFormatter.Format(0m)}";
 
     // Cash breakdown
     [ObservableProperty]
@@ -850,7 +884,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     [ObservableProperty]
     private decimal _variantPopupTotalPrice;
 
-    public string VariantPopupTotalPriceDisplay => $"$ {VariantPopupTotalPrice:N2}";
+    public string VariantPopupTotalPriceDisplay => CurrencyFormatter.Format(VariantPopupTotalPrice);
 
     public ObservableCollection<PosVariantAttributeGroup> VariantAttributeGroups { get; } = [];
 
@@ -915,6 +949,25 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         PosLanguage = string.IsNullOrWhiteSpace(language) ? "English" : language.Trim();
         NotifyLanguagePropertiesChanged();
+    }
+
+    public void RefreshCurrencyDisplay()
+    {
+        OnPropertyChanged(nameof(PaymentCurrencySymbol));
+        OnPropertyChanged(nameof(CurrencyPrefixSymbol));
+        OnPropertyChanged(nameof(CurrencySuffixSymbol));
+        OnPropertyChanged(nameof(HasCurrencyPrefix));
+        OnPropertyChanged(nameof(HasCurrencySuffix));
+        OnPropertyChanged(nameof(SessionTotalPaymentsDisplay));
+        OnPropertyChanged(nameof(ConfirmedChangeDisplay));
+        OnPropertyChanged(nameof(ConfirmedCashDisplay));
+        OnPropertyChanged(nameof(ConfirmedPaidDisplay));
+        OnPropertyChanged(nameof(VariantPopupTotalPriceDisplay));
+        NotifyPaymentCalculationsChanged();
+        CurrentOrder?.NotifyTotalsChanged();
+        UpdateSessionBreakdownFromMemory();
+        foreach (var ord in FilteredInPosOrders)
+            ord.RefreshLanguageDisplay();
     }
 
     partial void OnPosLanguageChanged(string value)
@@ -1322,6 +1375,8 @@ public partial class PosRegisterViewModel : ViewModelBase
             var genSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
             ShowUnsyncedButtonInPos = genSettings.ShowUnsyncedButtonInPos;
             SetPosLanguage(genSettings.PosLanguage);
+            PosZoomScale = Math.Clamp(Math.Round(genSettings.PosZoomScale, 2), 0.6, 1.8);
+            CurrencyFormatter.SetCurrency(genSettings.Currency);
         }
         catch { }
 
@@ -3886,7 +3941,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         CashPayments = cashSales;
 
         decimal expectedCash = openBal + cashSales + CashInOut;
-        SessionSummaryText = $"{count} orders: $ {totalSessionSales:N2}";
+        SessionSummaryText = $"{count} orders: {CurrencyFormatter.Format(totalSessionSales)}";
 
         OnPropertyChanged(nameof(CurrentSessionDisplayName));
         OnPropertyChanged(nameof(SessionTotalOrdersDisplay));

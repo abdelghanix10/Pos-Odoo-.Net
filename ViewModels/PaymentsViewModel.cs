@@ -111,7 +111,7 @@ public partial class PaymentsViewModel : ViewModelBase
     private bool _hasNextRecord;
 
     [ObservableProperty]
-    private string _grandTotalText = "$ 0.00";
+    private string _grandTotalText = CurrencyFormatter.Format(0m);
 
     [ObservableProperty]
     private string? _sessionFilter;
@@ -741,7 +741,7 @@ public partial class PaymentsViewModel : ViewModelBase
             grandTotal += p.Amount;
         }
 
-        GrandTotalText = $"$ {grandTotal.ToString("N2", CultureInfo.InvariantCulture)}";
+        GrandTotalText = CurrencyFormatter.Format(grandTotal);
         IsEmptyStateVisible = _matchingPayments.Count == 0;
         CurrentPage = 1;
         ApplyPaging();

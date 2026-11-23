@@ -117,6 +117,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
     public PosSettingsViewModel()
     {
+        CurrencyFormatter.CurrencyChanged += () => OnPropertyChanged(nameof(CurrencySymbol));
         SaveSettingsCommand = new RelayCommand(async _ => await SaveCurrentConfigSettingsAsync(showFeedback: true));
         DiscardSettingsCommand = new RelayCommand(async _ => await LoadDataAsync(_selectedConfig?.OdooId));
 
@@ -554,6 +555,8 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     }
 
     public Visibility HideOpeningCashControlDetailsVisibility => _isHideOpeningCashControlEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+    public string CurrencySymbol => CurrencyFormatter.CurrentCurrency;
 
     public string DefaultOpeningCashAmountText
     {
@@ -1020,7 +1023,13 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         _selectedConfig.IsCustomOrderReceiptsEnabled = IsCustomOrderReceiptsEnabled;
         _selectedConfig.CustomOrderReceiptDesignId = SelectedCustomOrderReceiptDesign?.Id;
         _selectedConfig.IsHideOpeningCashControlEnabled = IsHideOpeningCashControlEnabled;
-        if (decimal.TryParse(DefaultOpeningCashAmountText.Replace("$", "").Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal defCash) && defCash >= 0m)
+        string rawCash = DefaultOpeningCashAmountText
+            .Replace("$", "")
+            .Replace("£", "")
+            .Replace("MAD", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("DH", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+        if (decimal.TryParse(rawCash, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal defCash) && defCash >= 0m)
         {
             _selectedConfig.DefaultOpeningCashAmount = defCash;
         }

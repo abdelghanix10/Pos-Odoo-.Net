@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace OdooPosLogin;
@@ -22,6 +23,12 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Prevent Windows touch over-scroll from dragging/bouncing the entire window
+        EventManager.RegisterClassHandler(
+            typeof(UIElement),
+            UIElement.ManipulationBoundaryFeedbackEvent,
+            new EventHandler<ManipulationBoundaryFeedbackEventArgs>((_, args) => args.Handled = true));
 
         try
         {

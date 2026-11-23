@@ -586,6 +586,27 @@
                                         </StackPanel>
                                         <ComboBox x:Name="GeneralCompanyComboBox" Grid.Column="1" Style="{StaticResource OdooFilterComboBoxStyle}" Height="34" Width="260" HorizontalAlignment="Left" DisplayMemberPath="Name" SelectedValuePath="Id"/>
                                     </Grid>
+
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="200"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Currency" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Display currency across POS &amp; receipts" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                        <ComboBox x:Name="GeneralCurrencyComboBox"
+                                                  Grid.Column="1"
+                                                  Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                  Height="34" Width="260"
+                                                  HorizontalAlignment="Left">
+                                            <ComboBoxItem Content="MAD — Moroccan Dirham (MAD)" Tag="MAD"/>
+                                            <ComboBoxItem Content="DH — Dirham (DH)" Tag="DH"/>
+                                            <ComboBoxItem Content="$ — US Dollar ($)" Tag="$" IsSelected="True"/>
+                                            <ComboBoxItem Content="£ — British Pound (£)" Tag="£"/>
+                                        </ComboBox>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 

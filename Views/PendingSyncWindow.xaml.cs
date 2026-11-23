@@ -155,7 +155,7 @@ public partial class PendingSyncWindow : Window
                     if (p != null)
                     {
                         if (!string.IsNullOrWhiteSpace(p.ConfigName)) shopName = p.ConfigName;
-                        primary = $"Opening Cash: $ {p.OpeningBalance:N2}  •  Cashier: {p.CashierName}";
+                        primary = $"Opening Cash: {CurrencyFormatter.Format(p.OpeningBalance)}  •  Cashier: {p.CashierName}";
                         secondary = string.IsNullOrWhiteSpace(p.OpeningNote)
                             ? "Opens POS session in Odoo and sets opening control balance."
                             : $"Opening Note: {p.OpeningNote}";
@@ -170,9 +170,9 @@ public partial class PendingSyncWindow : Window
                     var p = JsonSerializer.Deserialize<CreateOrderSyncPayload>(rec.PayloadJson);
                     if (p != null)
                     {
-                        primary = $"Order #{p.TrackingNumber}  (Receipt: {p.PosReference})  —  Total: $ {p.AmountTotal:N2}";
+                        primary = $"Order #{p.TrackingNumber}  (Receipt: {p.PosReference})  —  Total: {CurrencyFormatter.Format(p.AmountTotal)}";
                         string itemsPreview = string.Join(", ", p.Lines.Select(l => $"{l.ProductName} x{l.Qty:0.##}"));
-                        string methodsPreview = string.Join(", ", p.Payments.Select(pay => $"{pay.PaymentMethodName}: $ {pay.Amount:N2}"));
+                        string methodsPreview = string.Join(", ", p.Payments.Select(pay => $"{pay.PaymentMethodName}: {CurrencyFormatter.Format(pay.Amount)}"));
                         secondary = $"Items: {itemsPreview}   |   Payment: {methodsPreview}";
                     }
                     break;
@@ -186,7 +186,7 @@ public partial class PendingSyncWindow : Window
                     if (p != null)
                     {
                         string dir = p.Amount >= 0 ? "Cash In" : "Cash Out";
-                        primary = $"{dir}: $ {Math.Abs(p.Amount):N2}";
+                        primary = $"{dir}: {CurrencyFormatter.Format(Math.Abs(p.Amount))}";
                         secondary = $"Reason: {p.Reason}";
                     }
                     break;
@@ -199,7 +199,7 @@ public partial class PendingSyncWindow : Window
                     var p = JsonSerializer.Deserialize<CloseSessionSyncPayload>(rec.PayloadJson);
                     if (p != null)
                     {
-                        primary = $"Counted Closing Cash: $ {p.ClosingCashCount:N2}";
+                        primary = $"Counted Closing Cash: {CurrencyFormatter.Format(p.ClosingCashCount)}";
                         secondary = string.IsNullOrWhiteSpace(p.ClosingNote)
                             ? "Posts closing cash details and closes POS session in Odoo."
                             : $"Closing Note: {p.ClosingNote}";

@@ -717,6 +717,8 @@ public class SqliteDatabaseService
                 AutoPurgeOldDataEnabled INTEGER DEFAULT 1,
                 DataRetentionMonths INTEGER DEFAULT 2,
                 LastPurgeAt TEXT,
+                PosZoomScale REAL DEFAULT 1.0,
+                Currency TEXT DEFAULT '$',
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -811,6 +813,8 @@ public class SqliteDatabaseService
             "ALTER TABLE GeneralSettings ADD COLUMN LastPurgeAt TEXT;",
             "ALTER TABLE GeneralSettings ADD COLUMN SyncDataRetrievalPeriod TEXT DEFAULT 'Week';",
             "ALTER TABLE GeneralSettings ADD COLUMN AutoPurgeOlderThanPeriod TEXT DEFAULT '3Months';",
+            "ALTER TABLE GeneralSettings ADD COLUMN PosZoomScale REAL DEFAULT 1.0;",
+            "ALTER TABLE GeneralSettings ADD COLUMN Currency TEXT DEFAULT '$';",
             "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN CustomOrderReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN IsHideOpeningCashControlEnabled INTEGER DEFAULT 0;",
@@ -4397,7 +4401,9 @@ public class SqliteDatabaseService
                    COALESCE(g.DataRetentionMonths, 2),
                    g.LastPurgeAt,
                    COALESCE(g.SyncDataRetrievalPeriod, 'Week'),
-                   COALESCE(g.AutoPurgeOlderThanPeriod, '3Months')
+                   COALESCE(g.AutoPurgeOlderThanPeriod, '3Months'),
+                   COALESCE(g.PosZoomScale, 1.0),
+                   COALESCE(g.Currency, '$')
             FROM GeneralSettings g
             LEFT JOIN Companies c ON g.DefaultCompanyId = c.OdooId OR g.DefaultCompanyId = c.Id
             WHERE g.Id = 1;
@@ -4433,6 +4439,8 @@ public class SqliteDatabaseService
             record.LastPurgeAt = reader.IsDBNull(19) ? null : reader.GetString(19);
             record.SyncDataRetrievalPeriod = reader.IsDBNull(20) ? "Week" : reader.GetString(20);
             record.AutoPurgeOlderThanPeriod = reader.IsDBNull(21) ? "3Months" : reader.GetString(21);
+            record.PosZoomScale = reader.IsDBNull(22) ? 1.0 : reader.GetDouble(22);
+            record.Currency = reader.IsDBNull(23) ? "$" : reader.GetString(23);
         }
         else
         {
@@ -4444,6 +4452,7 @@ public class SqliteDatabaseService
         }
 
         _cachedGeneralSettings = record;
+        CurrencyFormatter.SetCurrency(record.Currency);
         return record;
     }
 
@@ -4456,11 +4465,16 @@ public class SqliteDatabaseService
         cmd.CommandText = """
             INSERT INTO GeneralSettings (Id, ScreenMode, DefaultCompanyId, DefaultPrinterName, PaperWidth,
                                          AutoPrintReceipt, CashDrawerPulse, PrintHeaderLogo, PrinterEncoding,
-                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt, PosLanguage, ShowUnsyncedButtonInPos, ShowSetupButtonOnLogin, AutoPurgeOldDataEnabled, DataRetentionMonths, LastPurgeAt, SyncDataRetrievalPeriod, AutoPurgeOlderThanPeriod, UpdatedAt)
+                                         BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt,
+                                         PosLanguage, ShowUnsyncedButtonInPos, ShowSetupButtonOnLogin, AutoPurgeOldDataEnabled,
+                                         DataRetentionMonths, LastPurgeAt, SyncDataRetrievalPeriod, AutoPurgeOlderThanPeriod,
+                                         PosZoomScale, Currency, UpdatedAt)
             VALUES (1, @screenMode, @companyId, @printerName, @paperWidth,
                     @autoPrint, @drawerPulse, @printLogo, @encoding,
                     @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt,
-                    @posLanguage, @showUnsyncedPos, @showSetupLogin, @autoPurge, @retentionMonths, @lastPurgeAt, @syncRetrieval, @autoPurgePeriod, CURRENT_TIMESTAMP)
+                    @posLanguage, @showUnsyncedPos, @showSetupLogin, @autoPurge,
+                    @retentionMonths, @lastPurgeAt, @syncRetrieval, @autoPurgePeriod,
+                    @posZoomScale, @currency, CURRENT_TIMESTAMP)
             ON CONFLICT(Id) DO UPDATE SET
                 ScreenMode = @screenMode,
                 DefaultCompanyId = @companyId,
@@ -4483,6 +4497,8 @@ public class SqliteDatabaseService
                 LastPurgeAt = COALESCE(@lastPurgeAt, GeneralSettings.LastPurgeAt),
                 SyncDataRetrievalPeriod = @syncRetrieval,
                 AutoPurgeOlderThanPeriod = @autoPurgePeriod,
+                PosZoomScale = @posZoomScale,
+                Currency = @currency,
                 UpdatedAt = CURRENT_TIMESTAMP;
             """;
 
@@ -4507,9 +4523,43 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@lastPurgeAt", (object?)settings.LastPurgeAt ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@syncRetrieval", settings.SyncDataRetrievalPeriod ?? "Week");
         cmd.Parameters.AddWithValue("@autoPurgePeriod", settings.AutoPurgeOlderThanPeriod ?? "3Months");
+        cmd.Parameters.AddWithValue("@posZoomScale", settings.PosZoomScale);
+        cmd.Parameters.AddWithValue("@currency", CurrencyFormatter.Normalize(settings.Currency));
 
         await cmd.ExecuteNonQueryAsync();
+        CurrencyFormatter.SetCurrency(settings.Currency);
         _cachedGeneralSettings = null;
+    }
+
+    public async Task SavePosZoomScaleAsync(double zoomScale)
+    {
+        double clamped = Math.Clamp(Math.Round(zoomScale, 2), 0.6, 1.8);
+        await _writeLock.WaitAsync();
+        try
+        {
+            await using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync();
+
+            await using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO GeneralSettings (Id, PosZoomScale, UpdatedAt)
+                VALUES (1, @posZoomScale, CURRENT_TIMESTAMP)
+                ON CONFLICT(Id) DO UPDATE SET
+                    PosZoomScale = @posZoomScale,
+                    UpdatedAt = CURRENT_TIMESTAMP;
+                """;
+            cmd.Parameters.AddWithValue("@posZoomScale", clamped);
+            await cmd.ExecuteNonQueryAsync();
+
+            if (_cachedGeneralSettings != null)
+            {
+                _cachedGeneralSettings.PosZoomScale = clamped;
+            }
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     public Task<(int OrdersDeleted, int PaymentsDeleted, int SessionsDeleted)> PurgeDataOlderThanMonthsAsync(int months = 2) =>

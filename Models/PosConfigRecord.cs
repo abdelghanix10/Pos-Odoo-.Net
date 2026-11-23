@@ -531,11 +531,11 @@ public class PosConfigRecord : INotifyPropertyChanged
 
     public string LastClosingBalanceDisplay =>
         HasLastClosingHistory
-            ? string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", LastClosingBalance)
+            ? CurrencyFormatter.Format(LastClosingBalance)
             : string.Empty;
 
     public string OpeningBalanceDisplay =>
-        string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", OpeningBalance);
+        CurrencyFormatter.Format(OpeningBalance);
 
     public Visibility ClosedMetricsVisibility => IsClosed ? Visibility.Visible : Visibility.Collapsed;
     public Visibility OpeningControlMetricsVisibility => IsOpeningControl ? Visibility.Visible : Visibility.Collapsed;

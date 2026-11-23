@@ -130,8 +130,8 @@ public class PosPaymentRecord : INotifyPropertyChanged
     }
 
     // ==================== COMPUTED & DISPLAY PROPERTIES ====================
-    public string AmountDisplay => $"$ {Amount:N2}";
-    public string AmountInCurrencyDisplay => $"$ {Amount:N2}";
+    public string AmountDisplay => CurrencyFormatter.Format(Amount);
+    public string AmountInCurrencyDisplay => CurrencyFormatter.Format(Amount);
     public string PaymentDateDisplay => PaymentDate.HasValue ? PaymentDate.Value.ToString("yyyy-MM-dd HH:mm:ss") : "—";
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -204,7 +204,7 @@ public class PaymentGroupRecord : INotifyPropertyChanged
 
     public int Count => Payments.Count;
     public string CountDisplay => $"({Count} {(Count == 1 ? "record" : "records")})";
-    public string SubtotalDisplay => $"$ {Subtotal:N2}";
+    public string SubtotalDisplay => CurrencyFormatter.Format(Subtotal);
     public string CollapseIconGlyph => IsExpanded ? "▾" : "▸";
 
     public void Recalculate()

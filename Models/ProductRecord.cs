@@ -516,8 +516,8 @@ public class ProductRecord : INotifyPropertyChanged
     // ==================== COMPUTED & DISPLAY PROPERTIES ====================
     public bool HasMultipleVariants => VariantCount > 1;
     public string VariantCountDisplay => $"{VariantCount} Variants";
-    public string PriceDisplay => $"$ {ListPrice:N2}";
-    public string CostDisplay => $"$ {StandardPrice:N2}";
+    public string PriceDisplay => CurrencyFormatter.Format(ListPrice);
+    public string CostDisplay => CurrencyFormatter.Format(StandardPrice);
     public string QtyAvailableDisplay => $"{QtyAvailable:N2}";
     public string SkuDisplay => string.IsNullOrWhiteSpace(DefaultCode) ? string.Empty : DefaultCode;
     public bool HasSku => !string.IsNullOrWhiteSpace(DefaultCode);
@@ -541,7 +541,7 @@ public class ProductRecord : INotifyPropertyChanged
             decimal incl = IsSalesTaxIncluded
                 ? ListPrice
                 : Math.Round(ListPrice * (1.0m + (SalesTaxRate / 100.0m)), 2);
-            return $"(= $ {incl:N2} Incl. Taxes)";
+            return $"(= {CurrencyFormatter.Format(incl)} Incl. Taxes)";
         }
     }
 

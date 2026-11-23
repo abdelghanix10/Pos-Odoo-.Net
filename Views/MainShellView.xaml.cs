@@ -745,6 +745,10 @@ public partial class MainShellView : UserControl
                 GeneralCompanyComboBox.SelectedIndex = 0;
             }
 
+            // Set Currency
+            SelectComboItemByTag(GeneralCurrencyComboBox, settings.Currency, "$");
+            CurrencyFormatter.SetCurrency(settings.Currency);
+
             // Set Default Printer
             if (!string.IsNullOrWhiteSpace(settings.DefaultPrinterName) && printers.Contains(settings.DefaultPrinterName))
             {
@@ -1076,14 +1080,21 @@ public partial class MainShellView : UserControl
                 compName = comp.Name;
             }
 
+            string currency = GetSelectedComboTag(GeneralCurrencyComboBox, "$");
+
             var current = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
             current.ScreenMode = screenMode;
             current.DefaultCompanyId = compId;
             current.DefaultCompanyName = compName;
+            current.Currency = currency;
             current.ShowUnsyncedButtonInPos = GeneralShowUnsyncedInPosCheckBox.IsChecked ?? true;
             current.ShowSetupButtonOnLogin = GeneralShowSetupOnLoginCheckBox.IsChecked ?? true;
 
             await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
+
+            CurrencyFormatter.SetCurrency(currency);
+            RegisterViewControl.VM.RefreshCurrencyDisplay();
+            await ReloadAllChildViewsAsync();
 
             RegisterViewControl.VM.ShowUnsyncedButtonInPos = current.ShowUnsyncedButtonInPos;
             if (Application.Current?.MainWindow is MainWindow mw)

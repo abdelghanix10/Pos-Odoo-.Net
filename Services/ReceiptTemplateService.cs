@@ -275,7 +275,8 @@ public static class ReceiptTemplateService
                 }
                 else
                 {
-                    sb.AppendLine($"{line.Qty:0.##} x {line.ProductName,-22} $ {line.PriceSubtotalIncl,7:N2}");
+                    string formattedPrice = CurrencyFormatter.Format(line.PriceSubtotalIncl);
+                    sb.AppendLine($"{line.Qty:0.##} x {line.ProductName,-20} {formattedPrice,11}");
                     if (line.Discount > 0)
                         sb.AppendLine($"   Discount: {line.Discount:0.#}%");
                 }
@@ -287,15 +288,15 @@ public static class ReceiptTemplateService
         {
             if (order.AmountTax > 0)
             {
-                sb.AppendLine($"Taxes:                       $ {order.AmountTax,8:N2}");
+                sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-24} {1,14}", "Taxes:", CurrencyFormatter.Format(order.AmountTax)));
             }
-            sb.AppendLine($"TOTAL:                       $ {order.AmountTotal,8:N2}");
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-24} {1,14}", "TOTAL:", CurrencyFormatter.Format(order.AmountTotal)));
 
             if (order.Payments.Count > 0)
             {
                 foreach (var p in order.Payments)
                 {
-                    sb.AppendLine($"{p.PaymentMethodName,-28} $ {p.Amount,8:N2}");
+                    sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-24} {1,14}", p.PaymentMethodName, CurrencyFormatter.Format(p.Amount)));
                 }
             }
         }
@@ -349,7 +350,7 @@ public static class ReceiptTemplateService
         sb.AppendLine("----------------------------------------");
 
         decimal totalSales = sessionOrders.Sum(o => o.AmountTotal);
-        sb.AppendLine(CenterText(string.Format(CultureInfo.InvariantCulture, "TOTAL SALES: {0:N2} DH", totalSales), 40));
+        sb.AppendLine(CenterText($"TOTAL SALES: {CurrencyFormatter.Format(totalSales)}", 40));
         sb.AppendLine("----------------------------------------");
         sb.AppendLine("SALES BREAKDOWN");
         sb.AppendLine(string.Format("{0,-20} {1,6} {2,11}", "Item", "Qty", "Amount"));
@@ -367,7 +368,7 @@ public static class ReceiptTemplateService
             decimal qty = grp.Sum(l => l.Qty);
             decimal amt = grp.Sum(l => l.PriceSubtotalIncl);
             string name = grp.Key.Length > 20 ? grp.Key[..17] + "..." : grp.Key;
-            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-20} {1,6:0.##} {2,8:N2} DH", name, qty, amt));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-20} {1,6:0.##} {2,11}", name, qty, CurrencyFormatter.Format(amt)));
         }
 
         sb.AppendLine("----------------------------------------");
@@ -384,16 +385,16 @@ public static class ReceiptTemplateService
             foreach (var pGrp in payGroups)
             {
                 decimal pTotal = pGrp.Sum(p => p.Amount);
-                sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-26} {1,8:N2} DH", pGrp.Key + ":", pTotal));
+                sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-22} {1,16}", pGrp.Key + ":", CurrencyFormatter.Format(pTotal)));
             }
         }
         else
         {
-            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-26} {1,8:N2} DH", "Cash:", totalSales));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-22} {1,16}", "Cash:", CurrencyFormatter.Format(totalSales)));
         }
 
         sb.AppendLine("----------------------------------------");
-        sb.AppendLine(CenterText(string.Format(CultureInfo.InvariantCulture, "TOTAL SALES: {0:N2} DH", totalSales), 40));
+        sb.AppendLine(CenterText($"TOTAL SALES: {CurrencyFormatter.Format(totalSales)}", 40));
         sb.AppendLine("----------------------------------------");
         sb.AppendLine(CenterText("Thank you for using Odoo POS", 40));
         sb.AppendLine(CenterText($"Generated on {DateTime.Now:yyyy-MM-dd HH:mm:ss}", 40));

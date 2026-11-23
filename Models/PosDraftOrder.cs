@@ -164,12 +164,12 @@ public class PosDraftOrder : INotifyPropertyChanged
     public decimal Taxes => CartItems.Sum(i => i.LineTaxAmount);
     public decimal TotalAmount => CartItems.Sum(i => i.LineTotal);
 
-    public string SubTotalDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", SubTotal);
-    public string TaxesDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", Taxes);
-    public string TotalDisplay => string.Format(CultureInfo.InvariantCulture, "$ {0:N2}", TotalAmount);
+    public string SubTotalDisplay => CurrencyFormatter.Format(SubTotal);
+    public string TaxesDisplay => CurrencyFormatter.Format(Taxes);
+    public string TotalDisplay => CurrencyFormatter.Format(TotalAmount);
 
     // Split formatting for the giant "$ 18.62" display on the Payment & Confirmation screens
-    public string TotalCurrencySymbol => "$";
+    public string TotalCurrencySymbol => CurrencyFormatter.CurrentCurrency;
 
     public string TotalIntegerPart
     {
@@ -201,6 +201,7 @@ public class PosDraftOrder : INotifyPropertyChanged
         OnPropertyChanged(nameof(SubTotalDisplay));
         OnPropertyChanged(nameof(TaxesDisplay));
         OnPropertyChanged(nameof(TotalDisplay));
+        OnPropertyChanged(nameof(TotalCurrencySymbol));
         OnPropertyChanged(nameof(TotalIntegerPart));
         OnPropertyChanged(nameof(TotalDecimalPart));
     }

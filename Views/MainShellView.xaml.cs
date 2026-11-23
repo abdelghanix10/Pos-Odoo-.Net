@@ -48,19 +48,35 @@ public partial class MainShellView : UserControl
         };
 
         for (int h = 0; h < 24; h++)
-            BackupHourComboBox.Items.Add(h.ToString("D2"));
+        {
+            string hh = h.ToString("D2");
+            BackupHourComboBox.Items.Add(hh);
+            AutoPurgeHourComboBox.Items.Add(hh);
+        }
         for (int m = 0; m < 60; m++)
-            BackupMinuteComboBox.Items.Add(m.ToString("D2"));
+        {
+            string mm = m.ToString("D2");
+            BackupMinuteComboBox.Items.Add(mm);
+            AutoPurgeMinuteComboBox.Items.Add(mm);
+        }
         BackupHourComboBox.SelectedItem = "23";
         BackupMinuteComboBox.SelectedItem = "00";
+        AutoPurgeHourComboBox.SelectedItem = "23";
+        AutoPurgeMinuteComboBox.SelectedItem = "00";
 
         _backupSchedulerTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _backupSchedulerTimer.Tick += async (_, _) =>
         {
             string? createdPath = await SqliteDatabaseService.Instance.CheckAndRunScheduledBackupAsync();
-            if (!string.IsNullOrWhiteSpace(createdPath))
+            var purgeResult = await SqliteDatabaseService.Instance.CheckAndRunScheduledPurgeAsync();
+
+            if (!string.IsNullOrWhiteSpace(createdPath) || purgeResult.HasValue)
             {
                 await LoadGeneralAndPrinterSettingsAsync();
+                if (purgeResult.HasValue)
+                {
+                    await RefreshDatabaseCountsAsync();
+                }
             }
         };
         _backupSchedulerTimer.Start();
@@ -816,10 +832,16 @@ public partial class MainShellView : UserControl
                 SelectComboItemByTag(SyncDataRetrievalComboBox, settings.SyncDataRetrievalPeriod, "Week");
                 AutoPurgeOldDataCheckBox.IsChecked = settings.AutoPurgeOldDataEnabled;
                 SelectComboItemByTag(AutoPurgePeriodComboBox, settings.AutoPurgeOlderThanPeriod, "3Months");
-                AutoPurgePeriodComboBox.IsEnabled = settings.AutoPurgeOldDataEnabled;
-                LastPurgeStatusText.Text = string.IsNullOrWhiteSpace(settings.LastPurgeAt)
-                    ? "Last cleanup: Never"
-                    : $"Last cleanup: {settings.LastPurgeAt}";
+                SelectComboItemByTag(AutoPurgeFrequencyComboBox, settings.AutoPurgeFrequency, "Daily");
+
+                string[] purgeTimeParts = (settings.AutoPurgeTime ?? "23:00").Split(':');
+                string purgeHour = purgeTimeParts.Length > 0 && int.TryParse(purgeTimeParts[0], out int ph) ? Math.Clamp(ph, 0, 23).ToString("D2") : "23";
+                string purgeMin = purgeTimeParts.Length > 1 && int.TryParse(purgeTimeParts[1], out int pm) ? Math.Clamp(pm, 0, 59).ToString("D2") : "00";
+                AutoPurgeHourComboBox.SelectedItem = purgeHour;
+                AutoPurgeMinuteComboBox.SelectedItem = purgeMin;
+
+                SetAutoPurgeControlsEnabled(settings.AutoPurgeOldDataEnabled);
+                UpdatePurgeStatusLabels(settings);
             }
             finally
             {
@@ -1261,10 +1283,36 @@ public partial class MainShellView : UserControl
             ? cbItem.Tag.ToString()!
             : fallbackTag;
 
+    private void SetAutoPurgeControlsEnabled(bool enabled)
+    {
+        AutoPurgePeriodComboBox.IsEnabled = enabled;
+        AutoPurgeFrequencyComboBox.IsEnabled = enabled;
+        AutoPurgeHourComboBox.IsEnabled = enabled;
+        AutoPurgeMinuteComboBox.IsEnabled = enabled;
+    }
+
+    private void UpdatePurgeStatusLabels(GeneralSettingsRecord settings)
+    {
+        LastPurgeStatusText.Text = string.IsNullOrWhiteSpace(settings.LastPurgeAt)
+            ? "Last cleanup: Never"
+            : $"Last cleanup: {settings.LastPurgeAt}";
+
+        if (!settings.AutoPurgeOldDataEnabled)
+        {
+            NextPurgeStatusText.Text = "Next cleanup: Disabled (Manual Only)";
+            return;
+        }
+
+        DateTime nextDt = SqliteDatabaseService.GetNextScheduledPurgeDateTime(settings);
+        NextPurgeStatusText.Text = DateTime.Now >= nextDt
+            ? $"Next cleanup: Due Now ({settings.AutoPurgeFrequency} at {settings.AutoPurgeTime})"
+            : $"Next cleanup: {nextDt:yyyy-MM-dd HH:mm} ({settings.AutoPurgeFrequency})";
+    }
+
     private void AutoPurgeOldDataCheckBox_Changed(object sender, RoutedEventArgs e)
     {
         if (AutoPurgePeriodComboBox == null) return;
-        AutoPurgePeriodComboBox.IsEnabled = AutoPurgeOldDataCheckBox.IsChecked == true;
+        SetAutoPurgeControlsEnabled(AutoPurgeOldDataCheckBox.IsChecked == true);
         if (!_isLoadingSyncPolicy) _ = SaveSyncPolicyAsync(showToast: false);
     }
 
@@ -1283,13 +1331,26 @@ public partial class MainShellView : UserControl
         try
         {
             var current = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            string selectedHour = AutoPurgeHourComboBox.SelectedItem?.ToString() ?? "23";
+            string selectedMinute = AutoPurgeMinuteComboBox.SelectedItem?.ToString() ?? "00";
+            string purgeTime = $"{selectedHour}:{selectedMinute}";
+
             current.SyncDataRetrievalPeriod = GetSelectedComboTag(SyncDataRetrievalComboBox, "Week");
             current.AutoPurgeOldDataEnabled = AutoPurgeOldDataCheckBox.IsChecked == true;
             current.AutoPurgeOlderThanPeriod = GetSelectedComboTag(AutoPurgePeriodComboBox, "3Months");
+            current.AutoPurgeFrequency = GetSelectedComboTag(AutoPurgeFrequencyComboBox, "Daily");
+            current.AutoPurgeTime = purgeTime;
+
             await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
+            UpdatePurgeStatusLabels(current);
 
             if (showToast)
-                ShowToast($"Sync policy saved (Retrieve: {current.SyncDataRetrievalPeriod}, Auto-delete: {(current.AutoPurgeOldDataEnabled ? current.AutoPurgeOlderThanPeriod : "Off")}).");
+            {
+                string purgeDesc = current.AutoPurgeOldDataEnabled
+                    ? $"{current.AutoPurgeOlderThanPeriod} ({current.AutoPurgeFrequency} at {current.AutoPurgeTime})"
+                    : "Off";
+                ShowToast($"Sync policy saved (Retrieve: {current.SyncDataRetrievalPeriod}, Auto-cleanup: {purgeDesc}).");
+            }
         }
         catch (Exception ex)
         {
@@ -1313,9 +1374,7 @@ public partial class MainShellView : UserControl
             var (ordersDel, paymentsDel, sessionsDel) =
                 await SqliteDatabaseService.Instance.PurgeDataOlderThanPeriodAsync(periodTag);
             var updated = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
-            LastPurgeStatusText.Text = string.IsNullOrWhiteSpace(updated.LastPurgeAt)
-                ? "Last cleanup: Just now"
-                : $"Last cleanup: {updated.LastPurgeAt}";
+            UpdatePurgeStatusLabels(updated);
             await RefreshDatabaseCountsAsync();
             await ReloadAllChildViewsAsync();
             ShowToast($"Cleanup complete: removed {ordersDel} order(s), {paymentsDel} payment(s), {sessionsDel} session(s) older than {periodLabel}.");

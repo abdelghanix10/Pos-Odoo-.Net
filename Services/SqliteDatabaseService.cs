@@ -720,6 +720,8 @@ public class SqliteDatabaseService
                 LastPurgeAt TEXT,
                 PosZoomScale REAL DEFAULT 1.0,
                 Currency TEXT DEFAULT '$',
+                AutoPurgeFrequency TEXT DEFAULT 'Daily',
+                AutoPurgeTime TEXT DEFAULT '23:00',
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -814,6 +816,8 @@ public class SqliteDatabaseService
             "ALTER TABLE GeneralSettings ADD COLUMN LastPurgeAt TEXT;",
             "ALTER TABLE GeneralSettings ADD COLUMN SyncDataRetrievalPeriod TEXT DEFAULT 'Week';",
             "ALTER TABLE GeneralSettings ADD COLUMN AutoPurgeOlderThanPeriod TEXT DEFAULT '3Months';",
+            "ALTER TABLE GeneralSettings ADD COLUMN AutoPurgeFrequency TEXT DEFAULT 'Daily';",
+            "ALTER TABLE GeneralSettings ADD COLUMN AutoPurgeTime TEXT DEFAULT '23:00';",
             "ALTER TABLE GeneralSettings ADD COLUMN PosZoomScale REAL DEFAULT 1.0;",
             "ALTER TABLE GeneralSettings ADD COLUMN Currency TEXT DEFAULT '$';",
             "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
@@ -4409,7 +4413,9 @@ public class SqliteDatabaseService
                    COALESCE(g.SyncDataRetrievalPeriod, 'Week'),
                    COALESCE(g.AutoPurgeOlderThanPeriod, '3Months'),
                    COALESCE(g.PosZoomScale, 1.0),
-                   COALESCE(g.Currency, '$')
+                   COALESCE(g.Currency, '$'),
+                   COALESCE(g.AutoPurgeFrequency, 'Daily'),
+                   COALESCE(g.AutoPurgeTime, '23:00')
             FROM GeneralSettings g
             LEFT JOIN Companies c ON g.DefaultCompanyId = c.OdooId OR g.DefaultCompanyId = c.Id
             WHERE g.Id = 1;
@@ -4447,6 +4453,10 @@ public class SqliteDatabaseService
             record.AutoPurgeOlderThanPeriod = reader.IsDBNull(21) ? "3Months" : reader.GetString(21);
             record.PosZoomScale = reader.IsDBNull(22) ? 1.0 : reader.GetDouble(22);
             record.Currency = reader.IsDBNull(23) ? "$" : reader.GetString(23);
+            string purgeFreq = reader.IsDBNull(24) ? "Daily" : reader.GetString(24);
+            record.AutoPurgeFrequency = string.IsNullOrWhiteSpace(purgeFreq) ? "Daily" : purgeFreq;
+            string purgeTime = reader.IsDBNull(25) ? "23:00" : reader.GetString(25);
+            record.AutoPurgeTime = string.IsNullOrWhiteSpace(purgeTime) ? "23:00" : purgeTime;
         }
         else
         {
@@ -4474,13 +4484,13 @@ public class SqliteDatabaseService
                                          BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt,
                                          PosLanguage, ShowUnsyncedButtonInPos, ShowSetupButtonOnLogin, AutoPurgeOldDataEnabled,
                                          DataRetentionMonths, LastPurgeAt, SyncDataRetrievalPeriod, AutoPurgeOlderThanPeriod,
-                                         PosZoomScale, Currency, UpdatedAt)
+                                         PosZoomScale, Currency, AutoPurgeFrequency, AutoPurgeTime, UpdatedAt)
             VALUES (1, @screenMode, @companyId, @printerName, @paperWidth,
                     @autoPrint, @drawerPulse, @printLogo, @encoding,
                     @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt,
                     @posLanguage, @showUnsyncedPos, @showSetupLogin, @autoPurge,
                     @retentionMonths, @lastPurgeAt, @syncRetrieval, @autoPurgePeriod,
-                    @posZoomScale, @currency, CURRENT_TIMESTAMP)
+                    @posZoomScale, @currency, @autoPurgeFreq, @autoPurgeTime, CURRENT_TIMESTAMP)
             ON CONFLICT(Id) DO UPDATE SET
                 ScreenMode = @screenMode,
                 DefaultCompanyId = @companyId,
@@ -4505,6 +4515,8 @@ public class SqliteDatabaseService
                 AutoPurgeOlderThanPeriod = @autoPurgePeriod,
                 PosZoomScale = @posZoomScale,
                 Currency = @currency,
+                AutoPurgeFrequency = @autoPurgeFreq,
+                AutoPurgeTime = @autoPurgeTime,
                 UpdatedAt = CURRENT_TIMESTAMP;
             """;
 
@@ -4531,6 +4543,8 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@autoPurgePeriod", settings.AutoPurgeOlderThanPeriod ?? "3Months");
         cmd.Parameters.AddWithValue("@posZoomScale", settings.PosZoomScale);
         cmd.Parameters.AddWithValue("@currency", CurrencyFormatter.Normalize(settings.Currency));
+        cmd.Parameters.AddWithValue("@autoPurgeFreq", settings.AutoPurgeFrequency ?? "Daily");
+        cmd.Parameters.AddWithValue("@autoPurgeTime", settings.AutoPurgeTime ?? "23:00");
 
         await cmd.ExecuteNonQueryAsync();
         CurrencyFormatter.SetCurrency(settings.Currency);
@@ -4657,7 +4671,8 @@ public class SqliteDatabaseService
         string destConnString = new SqliteConnectionStringBuilder
         {
             DataSource = backupFilePath,
-            Mode = SqliteOpenMode.ReadWriteCreate
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Pooling = false
         }.ToString();
 
         await using (var sourceConnection = new SqliteConnection(_connectionString))
@@ -4667,6 +4682,9 @@ public class SqliteDatabaseService
             await destinationConnection.OpenAsync();
             sourceConnection.BackupDatabase(destinationConnection);
         }
+
+        // Keep only the 10 most recent backups and permanently delete older ones
+        PruneOldBackups(targetFolder, MaxRetainedBackups);
 
         settings.BackupFolderPath = targetFolder;
         settings.LastBackupAt = now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
@@ -4713,9 +4731,111 @@ public class SqliteDatabaseService
         }
     }
 
-    public async Task<string?> CheckAndRunScheduledBackupAsync()
+    public static DateTime GetNextScheduledPurgeDateTime(GeneralSettingsRecord settings)
+    {
+        if (!TimeSpan.TryParseExact(settings.AutoPurgeTime, @"hh\:mm", CultureInfo.InvariantCulture, out TimeSpan scheduledTimeOfDay) &&
+            !TimeSpan.TryParse(settings.AutoPurgeTime, CultureInfo.InvariantCulture, out scheduledTimeOfDay))
+        {
+            scheduledTimeOfDay = new TimeSpan(23, 0, 0);
+        }
+
+        DateTime todayScheduled = DateTime.Today.Add(scheduledTimeOfDay);
+
+        bool hasLastPurge = !string.IsNullOrWhiteSpace(settings.LastPurgeAt) &&
+                            DateTime.TryParse(settings.LastPurgeAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
+
+        if (!hasLastPurge)
+        {
+            return todayScheduled;
+        }
+
+        DateTime.TryParse(settings.LastPurgeAt, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime lastDt);
+
+        if (string.Equals(settings.AutoPurgeFrequency, "Monthly", StringComparison.OrdinalIgnoreCase))
+        {
+            return lastDt.Date.AddMonths(1).Add(scheduledTimeOfDay);
+        }
+
+        if (string.Equals(settings.AutoPurgeFrequency, "Weekly", StringComparison.OrdinalIgnoreCase))
+        {
+            return lastDt.Date.AddDays(7).Add(scheduledTimeOfDay);
+        }
+
+        // Daily
+        return lastDt >= todayScheduled ? todayScheduled.AddDays(1) : todayScheduled;
+    }
+
+    public async Task<(int OrdersDeleted, int PaymentsDeleted, int SessionsDeleted)?> CheckAndRunScheduledPurgeAsync()
     {
         try
+        {
+            var settings = await GetGeneralSettingsAsync();
+            if (!settings.AutoPurgeOldDataEnabled)
+            {
+                return null;
+            }
+
+            DateTime nextScheduled = GetNextScheduledPurgeDateTime(settings);
+            if (DateTime.Now >= nextScheduled)
+            {
+                return await PurgeDataOlderThanPeriodAsync(settings.AutoPurgeOlderThanPeriod);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ScheduledPurge] Error: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    private const int MaxRetainedBackups = 10;
+
+    private static int PruneOldBackups(string targetFolder, int maxBackupsToKeep = MaxRetainedBackups)
+    {
+        int deletedCount = 0;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(targetFolder) || !Directory.Exists(targetFolder))
+                return 0;
+
+            var backupFiles = new DirectoryInfo(targetFolder)
+                .GetFiles("pos_data_backup_*.db", SearchOption.TopDirectoryOnly)
+                .OrderByDescending(f => f.LastWriteTimeUtc)
+                .ThenByDescending(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (backupFiles.Count <= maxBackupsToKeep)
+                return 0;
+
+            foreach (var oldFile in backupFiles.Skip(maxBackupsToKeep))
+            {
+                try
+                {
+                    oldFile.Delete();
+                    deletedCount++;
+
+                    string walPath = oldFile.FullName + "-wal";
+                    string shmPath = oldFile.FullName + "-shm";
+                    if (File.Exists(walPath)) File.Delete(walPath);
+                    if (File.Exists(shmPath)) File.Delete(shmPath);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[BackupRetention] Failed to delete '{oldFile.FullName}': {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BackupRetention] Error scanning '{targetFolder}': {ex.Message}");
+        }
+
+        return deletedCount;
+    }
+
+    public async Task<string?> CheckAndRunScheduledBackupAsync()
+    {        try
         {
             var settings = await GetGeneralSettingsAsync();
             if (!settings.AutoBackupEnabled || string.IsNullOrWhiteSpace(settings.BackupFolderPath))

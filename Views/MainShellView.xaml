@@ -807,9 +807,31 @@
                                                 <ComboBoxItem Content="Year" Tag="Year"/>
                                             </ComboBox>
                                         </StackPanel>
+
+                                        <!-- Frequency & Time Controls -->
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
+                                            <TextBlock Text="Frequency &amp; Time:" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <ComboBox x:Name="AutoPurgeFrequencyComboBox" Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                      Height="32" Width="110" Margin="0,0,10,0" SelectionChanged="SyncPolicyControl_Changed">
+                                                <ComboBoxItem Content="Daily" Tag="Daily" IsSelected="True"/>
+                                                <ComboBoxItem Content="Weekly" Tag="Weekly"/>
+                                                <ComboBoxItem Content="Monthly" Tag="Monthly"/>
+                                            </ComboBox>
+                                            <ComboBox x:Name="AutoPurgeHourComboBox" Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                      Height="32" Width="68" SelectionChanged="SyncPolicyControl_Changed"/>
+                                            <TextBlock Text=":" FontSize="15" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"
+                                                       VerticalAlignment="Center" Margin="5,0"/>
+                                            <ComboBox x:Name="AutoPurgeMinuteComboBox" Style="{StaticResource OdooFilterComboBoxStyle}"
+                                                      Height="32" Width="68" SelectionChanged="SyncPolicyControl_Changed"/>
+                                        </StackPanel>
+
                                         <Grid>
-                                            <TextBlock x:Name="LastPurgeStatusText" Text="Last cleanup: Never" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock x:Name="LastPurgeStatusText" Text="Last cleanup: Never" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                                <TextBlock x:Name="NextPurgeStatusText" Text="Next cleanup: Not Scheduled" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource OdooTealBrush}"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                 <Button x:Name="SaveSyncPolicyBtn" Style="{StaticResource PosPrimaryButton}" Height="30" Padding="12,0" FontSize="12" Margin="0,0,8,0" Click="SaveSyncPolicyBtn_Click" Content="Save Policy"/>
                                                 <Button x:Name="PurgeOldDataNowBtn" Style="{StaticResource PosDangerSoftButton}" Height="30" Padding="12,0" FontSize="12" Click="PurgeOldDataNowBtn_Click" Content="Clean Now"/>
                                             </StackPanel>

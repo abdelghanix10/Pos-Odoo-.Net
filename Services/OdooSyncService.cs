@@ -4395,7 +4395,7 @@ public class OdooSyncService
         var retentionSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
         if (retentionSettings.AutoPurgeOldDataEnabled)
         {
-            await SqliteDatabaseService.Instance.PurgeDataOlderThanPeriodAsync(retentionSettings.AutoPurgeOlderThanPeriod);
+            await SqliteDatabaseService.Instance.CheckAndRunScheduledPurgeAsync();
         }
 
         string summaryMsg = $"Synchronized {companies.Count} companies, {posConfigs.Count} shops, {products.Count} products, {paymentMethods.Count} payment methods, {orders.Count} orders, {users.Count} users.";

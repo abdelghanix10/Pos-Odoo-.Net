@@ -134,10 +134,7 @@ public partial class MainWindow : Window
         {
             var settings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
             CurrencyFormatter.SetCurrency(settings.Currency);
-            if (settings.AutoPurgeOldDataEnabled)
-            {
-                await SqliteDatabaseService.Instance.PurgeDataOlderThanPeriodAsync(settings.AutoPurgeOlderThanPeriod);
-            }
+            await SqliteDatabaseService.Instance.CheckAndRunScheduledPurgeAsync();
             ApplyScreenMode(settings.ScreenMode);
             ApplyLoginSetupButtonVisibility(settings.ShowSetupButtonOnLogin);
 

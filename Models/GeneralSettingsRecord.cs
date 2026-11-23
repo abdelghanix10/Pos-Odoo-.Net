@@ -34,6 +34,8 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     private string? _lastPurgeAt;
     private string _syncDataRetrievalPeriod = "Week";
     private string _autoPurgeOlderThanPeriod = "3Months";
+    private string _autoPurgeFrequency = "Daily"; // "Daily", "Weekly", or "Monthly"
+    private string _autoPurgeTime = "23:00";      // "HH:mm" (24-hour format)
     private double _posZoomScale = 1.0;
     private string _currency = "$";
 
@@ -206,8 +208,7 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     }
 
     public double PosZoomScale
-    {
-        get => _posZoomScale;
+    {        get => _posZoomScale;
         set
         {
             double clamped = Math.Clamp(Math.Round(value, 2), 0.6, 1.8);
@@ -228,6 +229,34 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
             if (_currency != normalized)
             {
                 _currency = normalized;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string AutoPurgeFrequency
+    {
+        get => _autoPurgeFrequency;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "Daily" : value.Trim();
+            if (_autoPurgeFrequency != normalized)
+            {
+                _autoPurgeFrequency = normalized;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string AutoPurgeTime
+    {
+        get => _autoPurgeTime;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "23:00" : value.Trim();
+            if (_autoPurgeTime != normalized)
+            {
+                _autoPurgeTime = normalized;
                 OnPropertyChanged();
             }
         }

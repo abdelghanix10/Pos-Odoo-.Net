@@ -693,6 +693,7 @@ public class SqliteDatabaseService
                 IsHideReviewOrdersEnabled INTEGER DEFAULT 0,
                 NumbersFirstOrProducts TEXT DEFAULT 'products',
                 IsHideProductPriceEnabled INTEGER DEFAULT 0,
+                IsShowCashChangeEnabled INTEGER DEFAULT 1,
                 UpdatedAt TEXT DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -832,6 +833,7 @@ public class SqliteDatabaseService
             "ALTER TABLE PosConfigs ADD COLUMN NumbersFirstOrProducts TEXT DEFAULT 'products';",
             "ALTER TABLE PosConfigs ADD COLUMN PaymentLayout TEXT DEFAULT 'standard';",
             "ALTER TABLE PosConfigs ADD COLUMN IsHideProductPriceEnabled INTEGER DEFAULT 0;",
+            "ALTER TABLE PosConfigs ADD COLUMN IsShowCashChangeEnabled INTEGER DEFAULT 1;",
             "ALTER TABLE PosReceiptDesigns ADD COLUMN CompanyId INTEGER;"
         ];
 
@@ -4006,7 +4008,8 @@ public class SqliteDatabaseService
                    COALESCE(c.IsPrintButtonEnabled, 1),
                    COALESCE(c.PosLayout, 'standard'),
                    COALESCE(c.PaymentLayout, 'standard'),
-                   COALESCE(c.IsHideProductPriceEnabled, 0)
+                   COALESCE(c.IsHideProductPriceEnabled, 0),
+                   COALESCE(c.IsShowCashChangeEnabled, 1)
             FROM PosConfigs c
             LEFT JOIN Users u ON c.ActiveUserId = u.OdooId
             ORDER BY COALESCE(c.OdooId, c.Id) ASC;
@@ -4053,7 +4056,8 @@ public class SqliteDatabaseService
                 IsPrintButtonEnabled = reader.IsDBNull(33) || reader.GetInt32(33) != 0,
                 PosLayout = reader.IsDBNull(34) ? "standard" : reader.GetString(34),
                 PaymentLayout = reader.IsDBNull(35) ? "standard" : reader.GetString(35),
-                IsHideProductPriceEnabled = !reader.IsDBNull(36) && reader.GetInt32(36) != 0
+                IsHideProductPriceEnabled = !reader.IsDBNull(36) && reader.GetInt32(36) != 0,
+                IsShowCashChangeEnabled = reader.IsDBNull(37) || reader.GetInt32(37) != 0
             });
         }
 
@@ -4265,6 +4269,7 @@ public class SqliteDatabaseService
                 PosLayout = @posLayout,
                 PaymentLayout = @paymentLayout,
                 IsHideProductPriceEnabled = @hideProductPrice,
+                IsShowCashChangeEnabled = @showCashChange,
                 UpdatedAt = CURRENT_TIMESTAMP
             WHERE Id = @id OR OdooId = @odooId;
             """;
@@ -4286,6 +4291,7 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@posLayout", config.PosLayout ?? "standard");
         cmd.Parameters.AddWithValue("@paymentLayout", config.PaymentLayout ?? "standard");
         cmd.Parameters.AddWithValue("@hideProductPrice", config.IsHideProductPriceEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@showCashChange", config.IsShowCashChangeEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@id", config.Id);
         cmd.Parameters.AddWithValue("@odooId", config.OdooId);
 

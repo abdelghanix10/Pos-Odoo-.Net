@@ -597,10 +597,12 @@ public class PosOrderRecord : INotifyPropertyChanged
             if (_isArabicLanguage)
             {
                 string timePart = dt.ToString("h:mm", CultureInfo.InvariantCulture);
-                string amPm = dt.Hour < 12 ? "ص" : "م";
+                string amPm = dt.Hour < 12 ? "صباحاً" : "مساءًا";
                 return $"{timePart} {amPm}";
             }
-            return dt.ToString("h:mmtt", CultureInfo.InvariantCulture).ToLowerInvariant();
+            string time = dt.ToString("h:mm", CultureInfo.InvariantCulture);
+            string period = dt.ToString("tt", CultureInfo.InvariantCulture).ToUpperInvariant();
+            return $"{time} {period}";
         }
     }
 
@@ -641,9 +643,16 @@ public class PosOrderRecord : INotifyPropertyChanged
     public string InPosChangeLabel => _isArabicLanguage ? "الباقي:" : "Change:";
     public string InPosChangeAmountDisplay => CurrencyFormatter.Format(ChangeAmount);
 
-    public string InPosCashAndChangeSummary => _isArabicLanguage
-        ? $"{PrimaryPaymentMethodLabel}: {CurrencyFormatter.Format(TenderedAmount)}   •   الباقي: {CurrencyFormatter.Format(ChangeAmount)}"
-        : $"{PrimaryPaymentMethodLabel}: {CurrencyFormatter.Format(TenderedAmount)}   •   Change: {CurrencyFormatter.Format(ChangeAmount)}";
+    public string InPosTotalSummaryDisplay => CurrencyFormatter.Format(AmountTotal);
+
+    public string InPosCashAndChangeSummary
+    {
+        get
+        {
+            string changeLabel = _isArabicLanguage ? "الباقي:" : "Change:";
+            return $"\u200E{PrimaryPaymentMethodLabel}: \u200E{CurrencyFormatter.Format(TenderedAmount)}   •   \u200E{changeLabel} \u200E{CurrencyFormatter.Format(ChangeAmount)}";
+        }
+    }
 
     public void RefreshLanguageDisplay()
     {
@@ -657,6 +666,7 @@ public class PosOrderRecord : INotifyPropertyChanged
         OnPropertyChanged(nameof(InPosChangeLabel));
         OnPropertyChanged(nameof(InPosChangeAmountDisplay));
         OnPropertyChanged(nameof(InPosCashAndChangeSummary));
+        OnPropertyChanged(nameof(InPosTotalSummaryDisplay));
     }
 
     public string InPosStatusText => State?.ToLowerInvariant() switch

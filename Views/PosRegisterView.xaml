@@ -1673,7 +1673,11 @@
 
                                                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding TotalDisplay}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                            <TextBlock Text="{Binding InPosCashAndChangeSummary}" FontSize="11.5" FontWeight="Light" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                            <TextBlock Text="{Binding InPosCashAndChangeSummary}"
+                                                                       FontSize="11.5"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       Visibility="{Binding DataContext.IsShowCashChangeVisible, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
                                                         </StackPanel>
 
                                                         <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
@@ -1708,12 +1712,23 @@
                                                         </StackPanel>
                                                     </Grid>
 
-                                                    <!-- Order Lines & Cash/Change Breakdown -->
+                                                    <!-- Order Lines & Total Breakdown -->
                                                     <Border Background="{StaticResource SurfaceSubtleBrush}"
                                                             BorderBrush="{StaticResource BorderLightBrush}"
                                                             BorderThickness="0,1,0,0"
                                                             Padding="24,8,16,8">
                                                         <StackPanel>
+                                                            <!-- Product Lines Header -->
+                                                            <Grid Margin="0,0,0,4">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="30"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Grid.Column="0" Text="{Binding DataContext.TxtUnitsColumn, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=Units}" FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                <TextBlock Grid.Column="1" Text="{Binding DataContext.TxtItemColumn, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=Item}" FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                <TextBlock Grid.Column="2" Text="{Binding DataContext.TxtTotalLabel, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=Total}" FontWeight="Bold" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"/>
+                                                            </Grid>
                                                             <ItemsControl ItemsSource="{Binding Lines}">
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate DataType="{x:Type local:PosOrderLineRecord}">
@@ -1725,22 +1740,17 @@
                                                                             </Grid.ColumnDefinitions>
                                                                             <TextBlock Grid.Column="0" Text="{Binding QtyShortDisplay}" FontWeight="Bold" FontSize="12.5" Foreground="{StaticResource TextSecondaryBrush}"/>
                                                                             <TextBlock Grid.Column="1" Text="{Binding ProductName}" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}"/>
-                                                                            <TextBlock Grid.Column="2" Text="{Binding PriceSubtotalInclDisplay}" FontWeight="SemiBold" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                            <TextBlock Grid.Column="2" Text="{Binding PriceSubtotalInclDisplay}" FontWeight="SemiBold" FontSize="12.5" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
                                                                         </Grid>
                                                                     </DataTemplate>
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
 
+                                                            <!-- Total Under Products (Replaces Cash & Change) -->
                                                             <Border BorderBrush="{StaticResource BorderLightBrush}" BorderThickness="0,1,0,0" Margin="0,5,0,0" Padding="0,5,0,0">
                                                                 <Grid>
-                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                                                        <TextBlock Text="{Binding InPosCashLabel}" FontSize="11.5" FontWeight="Light" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,5,0"/>
-                                                                        <TextBlock Text="{Binding InPosCashAmountDisplay}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                                    </StackPanel>
-                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                                        <TextBlock Text="{Binding InPosChangeLabel}" FontSize="11.5" FontWeight="Light" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,5,0"/>
-                                                                        <TextBlock Text="{Binding InPosChangeAmountDisplay}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                                    </StackPanel>
+                                                                    <TextBlock Text="{Binding DataContext.InPosTotalLabel, RelativeSource={RelativeSource AncestorType=UserControl}}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Left"/>
+                                                                    <TextBlock Text="{Binding InPosTotalSummaryDisplay}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Right"/>
                                                                 </Grid>
                                                             </Border>
                                                         </StackPanel>

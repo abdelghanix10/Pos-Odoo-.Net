@@ -301,6 +301,14 @@ public class PosConfigRecord : INotifyPropertyChanged
         set { if (_isHideProductPriceEnabled != value) { _isHideProductPriceEnabled = value; OnPropertyChanged(); } }
     }
 
+    // Show or hide Cash & Change info on POS order cards
+    private bool _isShowCashChangeEnabled = true;
+    public bool IsShowCashChangeEnabled
+    {
+        get => _isShowCashChangeEnabled;
+        set { if (_isShowCashChangeEnabled != value) { _isShowCashChangeEnabled = value; OnPropertyChanged(); } }
+    }
+
     public ObservableCollection<SparklineDataPoint> SparklinePoints { get; } = [];
 
     private static SolidColorBrush CreateFrozenBrush(string hex)

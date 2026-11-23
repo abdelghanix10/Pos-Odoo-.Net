@@ -159,6 +159,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsSplitPosLayout));
         OnPropertyChanged(nameof(IsStandardPosLayout));
         OnPropertyChanged(nameof(IsProductPriceVisible));
+        OnPropertyChanged(nameof(IsShowCashChangeVisible));
         UpdateLandingState();
         if (IsRegisterClosedForLanding)
         {
@@ -871,6 +872,8 @@ public partial class PosRegisterViewModel : ViewModelBase
     public bool IsCenteredPaymentLayout => CurrentConfig?.IsCenteredPaymentLayout == true;
     public bool IsStandardPaymentLayout => !IsCenteredPaymentLayout;
     public bool IsProductPriceVisible => CurrentConfig == null || !CurrentConfig.IsHideProductPriceEnabled;
+    public bool IsShowCashChangeVisible => CurrentConfig == null || CurrentConfig.IsShowCashChangeEnabled;
+    public string InPosTotalLabel => PosOrderRecord.IsArabicLanguage ? "الإجمالي:" : "Total:";
     public bool IsAllCategoriesSelected => SelectedCategory == null;
 
     // ==================== MODAL 6: PRODUCT VARIANT SELECTION POPUP ====================
@@ -1317,6 +1320,8 @@ public partial class PosRegisterViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsCenteredPaymentLayout));
         OnPropertyChanged(nameof(IsStandardPaymentLayout));
         OnPropertyChanged(nameof(IsProductPriceVisible));
+        OnPropertyChanged(nameof(IsShowCashChangeVisible));
+        OnPropertyChanged(nameof(InPosTotalLabel));
         OnPropertyChanged(nameof(IsAllCategoriesSelected));
     }
 

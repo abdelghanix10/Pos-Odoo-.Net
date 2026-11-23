@@ -59,6 +59,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     // 12. Hide Review Orders
     private bool _isHideReviewOrdersEnabled;
     private bool _isHideProductPriceEnabled;
+    private bool _isShowCashChangeEnabled = true;
 
     // 13. Numbers first, or products
     private string _numbersFirstOrProducts = "products";
@@ -671,6 +672,20 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsShowCashChangeEnabled
+    {
+        get => _isShowCashChangeEnabled;
+        set
+        {
+            if (_isShowCashChangeEnabled != value)
+            {
+                _isShowCashChangeEnabled = value;
+                OnPropertyChanged();
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
     public string NumbersFirstOrProducts
     {
         get => _numbersFirstOrProducts;
@@ -984,6 +999,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
             IsHideReviewOrdersEnabled = config.IsHideReviewOrdersEnabled;
             IsHideProductPriceEnabled = config.IsHideProductPriceEnabled;
+            IsShowCashChangeEnabled = config.IsShowCashChangeEnabled;
             NumbersFirstOrProducts = string.IsNullOrWhiteSpace(config.NumbersFirstOrProducts) ? "products" : config.NumbersFirstOrProducts;
             PosLayout = string.IsNullOrWhiteSpace(config.PosLayout) ? "standard" : config.PosLayout;
             PaymentLayout = string.IsNullOrWhiteSpace(config.PaymentLayout) ? "standard" : config.PaymentLayout;
@@ -1055,6 +1071,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         _selectedConfig.CustomSalesReceiptDesignId = SelectedCustomSalesReceiptDesign?.Id;
         _selectedConfig.IsHideReviewOrdersEnabled = IsHideReviewOrdersEnabled;
         _selectedConfig.IsHideProductPriceEnabled = IsHideProductPriceEnabled;
+        _selectedConfig.IsShowCashChangeEnabled = IsShowCashChangeEnabled;
         _selectedConfig.NumbersFirstOrProducts = NumbersFirstOrProducts;
         _selectedConfig.PosLayout = PosLayout;
         _selectedConfig.PaymentLayout = PaymentLayout;

@@ -1721,7 +1721,7 @@
                                                             <!-- Product Lines Header -->
                                                             <Grid Margin="0,0,0,4">
                                                                 <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="30"/>
+                                                                    <ColumnDefinition Width="75"/>
                                                                     <ColumnDefinition Width="*"/>
                                                                     <ColumnDefinition Width="Auto"/>
                                                                 </Grid.ColumnDefinitions>
@@ -1734,7 +1734,7 @@
                                                                     <DataTemplate DataType="{x:Type local:PosOrderLineRecord}">
                                                                         <Grid Margin="0,2">
                                                                             <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="30"/>
+                                                                                <ColumnDefinition Width="75"/>
                                                                                 <ColumnDefinition Width="*"/>
                                                                                 <ColumnDefinition Width="Auto"/>
                                                                             </Grid.ColumnDefinitions>

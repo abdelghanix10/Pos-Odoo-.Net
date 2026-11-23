@@ -479,8 +479,8 @@
                                                     </Grid.RowDefinitions>
                                                     <TextBlock Grid.Row="0"
                                                                Text="{Binding Name}"
-                                                               FontSize="12"
-                                                               FontWeight="SemiBold"
+                                                               FontSize="12.5"
+                                                               FontWeight="Bold"
                                                                Foreground="{StaticResource TextPrimaryBrush}"
                                                                TextTrimming="CharacterEllipsis"
                                                                VerticalAlignment="Center"/>

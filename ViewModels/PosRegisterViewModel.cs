@@ -16,6 +16,7 @@ public partial class PosRegisterViewModel : ViewModelBase
     private readonly List<ProductAttributeRecord> _allProductAttributes = [];
     private readonly List<ReceiptDesignRecord> _allReceiptDesigns = [];
     private readonly List<CompanyRecord> _allCompanies = [];
+    private CompanyRecord? _operatingCompany;
     private PosSessionRecord? _lastClosedSession;
     private PosOrderRecord? _lastPaidOrder;
 
@@ -1477,8 +1478,9 @@ public partial class PosRegisterViewModel : ViewModelBase
         try
         {
             var companies = await SqliteDatabaseService.Instance.LoadAllCompaniesAsync();
-            var firstCompany = companies.FirstOrDefault(c => c.HasLogo) ?? companies.FirstOrDefault();
-            CompanyLogoBitmap = firstCompany?.LogoBitmap;
+            var genSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
+            _operatingCompany = ResolveReceiptCompany(genSettings, companies);
+            CompanyLogoBitmap = _operatingCompany?.LogoBitmap;
             CompanyLogoBitmap ??= PosImageUtils.LoadCustomProgramLogoFromDisk()
                                   ?? PosImageUtils.GetDefaultProgramIcon();
 
@@ -3545,21 +3547,18 @@ public partial class PosRegisterViewModel : ViewModelBase
     }
 
     private static CompanyRecord? ResolveReceiptCompany(
-        ReceiptDesignRecord? design,
         GeneralSettingsRecord genSettings,
         List<CompanyRecord> companies)
     {
         CompanyRecord? company = null;
-        if (design?.CompanyId != null)
-        {
-            company = companies.FirstOrDefault(c =>
-                c.Id == design.CompanyId.Value || c.OdooId == design.CompanyId.Value);
-        }
-        if (company == null && genSettings.DefaultCompanyId != null)
+        if (genSettings.DefaultCompanyId != null)
         {
             company = companies.FirstOrDefault(c =>
                 c.Id == genSettings.DefaultCompanyId.Value || c.OdooId == genSettings.DefaultCompanyId.Value);
         }
+        if (company == null && !string.IsNullOrWhiteSpace(genSettings.DefaultCompanyName))
+            company = companies.FirstOrDefault(c =>
+                string.Equals(c.Name, genSettings.DefaultCompanyName, StringComparison.OrdinalIgnoreCase));
         company ??= companies.FirstOrDefault(c => c.HasLogo) ?? companies.FirstOrDefault();
         if (company != null && company.LogoBitmap == null && !string.IsNullOrWhiteSpace(company.LogoBase64))
             company.LogoBitmap = PosImageUtils.Base64ToBitmapSource(company.LogoBase64);
@@ -3629,7 +3628,7 @@ public partial class PosRegisterViewModel : ViewModelBase
             {
                 var gen = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
                 int dotWidth = PosPrinterService.GetPrinterDotWidth(gen.PaperWidth);
-                var company = ResolveReceiptCompany(mainDesignCopy, gen, companiesSnapshot);
+                var company = ResolveReceiptCompany(gen, companiesSnapshot);
 
                 if (mainIsDrawerOnly)
                     PosPrinterService.OpenCashDrawerOnly(gen.DefaultPrinterName);
@@ -3639,15 +3638,15 @@ public partial class PosRegisterViewModel : ViewModelBase
                         order, mainDesignCopy, company, shopNameCopy, gen.PrintHeaderLogo, dotWidth);
                     PosPrinterService.PrintBgraRasterToEscPos(
                         gen.DefaultPrinterName, bitmap.BgraPixels, bitmap.Width, bitmap.Height,
-                        cashDrawerPulse: gen.CashDrawerPulse);
+                        cashDrawerPulse: gen.CashDrawerPulse, cutMode: gen.PrinterCutMode);
                 }
 
                 if (secondDesignCopy != null && !secondDesignCopy.OpenCashDrawerOnly)
                 {
-                    var secondBitmap = ReceiptBitmapRenderer.RenderSecondReceipt(order, company, dotWidth);
+                    var secondBitmap = ReceiptBitmapRenderer.RenderSecondReceipt(order, company, dotWidth, secondDesignCopy);
                     PosPrinterService.PrintBgraRasterToEscPos(
                         gen.DefaultPrinterName, secondBitmap.BgraPixels,
-                        secondBitmap.Width, secondBitmap.Height, cashDrawerPulse: false);
+                        secondBitmap.Width, secondBitmap.Height, cashDrawerPulse: false, cutMode: gen.PrinterCutMode);
                 }
             }
             catch (Exception ex)
@@ -3712,7 +3711,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 }
                 design ??= designsSnapshot.FirstOrDefault(d => d.Name == ReceiptTemplateService.SaleDetailsReportName);
 
-                var company = ResolveReceiptCompany(design, genSettings, companiesSnapshot);
+                var company = ResolveReceiptCompany(genSettings, companiesSnapshot);
                 var productCatById = _allProducts
                     .Where(p => p.OdooId.HasValue && !string.IsNullOrWhiteSpace(p.PosCategoryName))
                     .GroupBy(p => p.OdooId!.Value)
@@ -3725,10 +3724,11 @@ public partial class PosRegisterViewModel : ViewModelBase
                 int dotWidth = PosPrinterService.GetPrinterDotWidth(genSettings.PaperWidth);
                 var report = ReceiptBitmapRenderer.RenderSaleDetailsReport(
                     targetSession, configSnapshot, company, sessOrders,
-                    productCatById, productCatByName, dotWidth);
+                    productCatById, productCatByName, dotWidth, design);
                 PosPrinterService.PrintBgraRasterToEscPos(
                     genSettings.DefaultPrinterName, report.BgraPixels,
-                    report.Width, report.Height, cashDrawerPulse: genSettings.CashDrawerPulse);
+                    report.Width, report.Height, cashDrawerPulse: genSettings.CashDrawerPulse,
+                    cutMode: genSettings.PrinterCutMode);
             }
             catch (Exception ex)
             {
@@ -3744,12 +3744,7 @@ public partial class PosRegisterViewModel : ViewModelBase
             return $"[PULSE SIGNAL] Cash Drawer Opened via \"{design.Name}\".\n(Open Cash Drawer Only = Yes)";
         }
 
-        CompanyRecord? company = null;
-        if (design?.CompanyId != null)
-        {
-            company = _allCompanies.FirstOrDefault(c => c.Id == design.CompanyId.Value);
-        }
-
+        CompanyRecord? company = _operatingCompany ?? _allCompanies.FirstOrDefault(c => c.HasLogo) ?? _allCompanies.FirstOrDefault();
         return ReceiptTemplateService.FormatOrderReceiptText(order, design, company, ActiveShopName, isSimplified);
     }
 
@@ -4150,7 +4145,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                     design = _allReceiptDesigns.FirstOrDefault(d => d.Name == ReceiptTemplateService.SaleDetailsReportName);
                 }
 
-                var company = ResolveReceiptCompany(design, genSettings, _allCompanies.ToList());
+                var company = ResolveReceiptCompany(genSettings, _allCompanies.ToList());
                 var productCatById = _allProducts
                     .Where(p => p.OdooId.HasValue && !string.IsNullOrWhiteSpace(p.PosCategoryName))
                     .GroupBy(p => p.OdooId!.Value)
@@ -4162,10 +4157,11 @@ public partial class PosRegisterViewModel : ViewModelBase
                 int dotWidth = PosPrinterService.GetPrinterDotWidth(genSettings.PaperWidth);
                 var report = ReceiptBitmapRenderer.RenderSaleDetailsReport(
                     session, config, company, sessOrders,
-                    productCatById, productCatByName, dotWidth);
+                    productCatById, productCatByName, dotWidth, design);
                 PosPrinterService.PrintBgraRasterToEscPos(
                     genSettings.DefaultPrinterName, report.BgraPixels,
-                    report.Width, report.Height, cashDrawerPulse: genSettings.CashDrawerPulse);
+                    report.Width, report.Height, cashDrawerPulse: genSettings.CashDrawerPulse,
+                    cutMode: genSettings.PrinterCutMode);
             }
             catch (Exception ex)
             {

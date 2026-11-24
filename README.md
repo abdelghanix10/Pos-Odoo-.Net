@@ -43,7 +43,8 @@ Designed for touchscreens and optimized to run smoothly with zero lag—even on 
 
 ### 5. Thermal Receipt Printing & Custom XML Designs
 - **RAW ESC/POS Hardware Printing (`winspool.Drv`)**: Supports `80mm` and `58mm` thermal printers, automatic receipt printing, cash drawer kick-out pulse (`ESC p`), and multiple character encodings (`UTF-8`, `CP864`, `Windows-1256`, `CP437`).
-- **Custom Receipt Designs**: Built-in XML templates for **Standard Order Receipt**, **Pastry Receipt**, **Cafe Receipt**, **Simplified Kitchen / Second Receipt**, **Open Cash Drawer Pulse Only**, and **Sales Details Report (`report_saledetails.xml`)**.
+- **Printer Cut Modes**: Select standard cut, backfeed cut, pre-print reverse feed, or immediate cut from Printer Settings to reduce hardware cutter top gaps.
+- **Custom Receipt Designs**: Built-in XML templates for **Pastry Receipt**, **Cafe Receipt**, **Second Receipt**, **Open Cash Drawer Pulse Only**, and **Sales Details Report (`report_saledetails.xml`)**.
 - **Last Session Sales Details Printing**: Print the Sales Details report directly from the Opening Control screen when the register is closed, or automatically when closing a session.
 
 ### 6. Automated Database Backup & Restore

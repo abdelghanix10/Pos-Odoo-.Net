@@ -10,6 +10,40 @@ public static class ReceiptTemplateService
     public const string PastryReceiptName = "Pastry Receipt";
     public const string CafeReceiptName = "Cafe Receipt";
     public const string SaleDetailsReportName = "Sales Details Report";
+    public const string SecondReceiptName = "Second Receipt";
+
+    public static string GetSecondReceiptDefaultXml() =>
+        """
+        <div class="pos-receipt" style="font-family: monospace; font-size: 12.5px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span>Date:</span>
+                <span><t t-esc="order.datetime"/></span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span>Order No:</span>
+                <span style="font-weight:bold;"><t t-esc="receipt.name"/></span>
+            </div>
+            <hr style="border-top:1px dashed #000;"/>
+            <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+                <thead>
+                    <tr style="border-bottom:1.5px solid #000;">
+                        <th style="text-align:left; font-weight:bold; padding:2px 0 4px 0;">Item</th>
+                        <th style="text-align:center; font-weight:bold; padding:2px 0 4px 0;">Qty</th>
+                        <th style="text-align:right; font-weight:bold; padding:2px 0 4px 0;">Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <t t-foreach="props.orderlines" t-as="orderline">
+                        <tr style="border-bottom:1px dashed #000;">
+                            <td style="text-align:left; font-weight:bold; padding:3px 0;"><t t-esc="orderline.productName"/></td>
+                            <td style="text-align:center; font-weight:normal; padding:3px 0;"><t t-esc="orderline.qty"/></td>
+                            <td style="text-align:right; font-weight:normal; padding:3px 0;"><t t-esc="orderline.price"/></td>
+                        </tr>
+                    </t>
+                </tbody>
+            </table>
+        </div>
+        """;
 
     public static string GetPastryDefaultXml()
     {
@@ -41,16 +75,16 @@ public static class ReceiptTemplateService
                     <thead>
                         <tr style="border-top:2px solid #000; border-bottom:1px solid #000;">
                             <th style="text-align:left; padding:5px 0;">Product</th>
-                            <th style="text-align:center;">Qty</th>
-                            <th style="text-align:right;">Price</th>
+                            <th style="text-align:center; padding:5px 0;">Qty</th>
+                            <th style="text-align:right; padding:5px 0;">Price</th>
                         </tr>
                     </thead>
                     <tbody>
                         <t t-foreach="props.orderlines" t-as="orderline">
                             <tr style="border-bottom:1px dashed #ccc;">
                                 <td style="padding:8px 0; text-align:left;"><t t-esc="orderline.productName"/></td>
-                                <td style="text-align:center;"><t t-esc="orderline.qty"/></td>
-                                <td style="text-align:right; font-weight:500;"><t t-esc="orderline.price"/></td>
+                                <td style="padding:8px 0; text-align:center;"><t t-esc="orderline.qty"/></td>
+                                <td style="padding:8px 0; text-align:right; font-weight:500;"><t t-esc="orderline.price"/></td>
                             </tr>
                         </t>
                     </tbody>
@@ -111,16 +145,16 @@ public static class ReceiptTemplateService
                     <thead>
                         <tr style="border-top:2px solid #000; border-bottom:1px solid #000;">
                             <th style="text-align:left; padding:5px 0;">Product</th>
-                            <th style="text-align:center;">Qty</th>
-                            <th style="text-align:right;">Price</th>
+                            <th style="text-align:center; padding:5px 0;">Qty</th>
+                            <th style="text-align:right; padding:5px 0;">Price</th>
                         </tr>
                     </thead>
                     <tbody>
                         <t t-foreach="props.orderlines" t-as="orderline">
                             <tr style="border-bottom:1px dashed #ccc;">
                                 <td style="padding:8px 0; text-align:left;"><t t-esc="orderline.productName"/></td>
-                                <td style="text-align:center;"><t t-esc="orderline.qty"/></td>
-                                <td style="text-align:right; font-weight:500;"><t t-esc="orderline.price"/></td>
+                                <td style="padding:8px 0; text-align:center;"><t t-esc="orderline.qty"/></td>
+                                <td style="padding:8px 0; text-align:right; font-weight:500;"><t t-esc="orderline.price"/></td>
                             </tr>
                         </t>
                     </tbody>
@@ -225,7 +259,7 @@ public static class ReceiptTemplateService
             return $"[PULSE SIGNAL] Cash Drawer Opened via \"{design.Name}\".\n(Open Cash Drawer Only = Yes)";
         }
 
-        string compName = !string.IsNullOrWhiteSpace(company?.Name) ? company.Name : (!string.IsNullOrWhiteSpace(design?.CompanyName) ? design.CompanyName : shopName);
+        string compName = !string.IsNullOrWhiteSpace(company?.Name) ? company.Name : shopName;
         string compStreet = !string.IsNullOrWhiteSpace(company?.Street) ? company.Street : (company?.City ?? "");
         string compPhone = !string.IsNullOrWhiteSpace(company?.Phone) ? company.Phone : "";
 
@@ -329,7 +363,7 @@ public static class ReceiptTemplateService
         CompanyRecord? company,
         List<PosOrderRecord> sessionOrders)
     {
-        string compName = !string.IsNullOrWhiteSpace(company?.Name) ? company.Name : (!string.IsNullOrWhiteSpace(design?.CompanyName) ? design.CompanyName : config.Name);
+        string compName = !string.IsNullOrWhiteSpace(company?.Name) ? company.Name : config.Name;
         string compStreet = !string.IsNullOrWhiteSpace(company?.Street) ? company.Street : (company?.City ?? "");
         string compPhone = !string.IsNullOrWhiteSpace(company?.Phone) ? company.Phone : "";
 

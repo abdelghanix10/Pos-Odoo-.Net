@@ -803,6 +803,7 @@ public partial class MainShellView : UserControl
             PrinterAutoPrintCheckBox.IsChecked = settings.AutoPrintReceipt;
             PrinterCashDrawerCheckBox.IsChecked = settings.CashDrawerPulse;
             PrinterHeaderLogoCheckBox.IsChecked = settings.PrintHeaderLogo;
+            SelectComboItemByTag(PrinterCutModeComboBox, settings.PrinterCutMode, "Standard");
 
             // Set Backup Controls
             BackupFolderPathTextBox.Text = settings.BackupFolderPath;
@@ -1115,6 +1116,8 @@ public partial class MainShellView : UserControl
             await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
 
             CurrencyFormatter.SetCurrency(currency);
+            if (PosSettingsViewControl.VM.PosConfigs.Count > 0)
+                await PosSettingsViewControl.VM.LoadDataAsync();
             RegisterViewControl.VM.RefreshCurrencyDisplay();
             await ReloadAllChildViewsAsync();
 
@@ -1177,8 +1180,11 @@ public partial class MainShellView : UserControl
             current.AutoPrintReceipt = autoPrint;
             current.CashDrawerPulse = cashDrawer;
             current.PrintHeaderLogo = headerLogo;
+            current.PrinterCutMode = GetSelectedComboTag(PrinterCutModeComboBox, "Standard");
 
             await SqliteDatabaseService.Instance.SaveGeneralSettingsAsync(current);
+            if (PosSettingsViewControl.VM.PosConfigs.Count > 0)
+                await PosSettingsViewControl.VM.LoadDataAsync();
 
             ShowToast("Printer settings saved successfully!");
         }
@@ -1204,7 +1210,8 @@ public partial class MainShellView : UserControl
         try
         {
             ShowToast($"Sending test receipt to '{printerName}'...");
-            bool ok = await Task.Run(() => PosPrinterService.PrintTestReceipt(printerName, paperWidth));
+            string cutMode = GetSelectedComboTag(PrinterCutModeComboBox, "Standard");
+            bool ok = await Task.Run(() => PosPrinterService.PrintTestReceipt(printerName, paperWidth, cutMode));
             if (ok)
             {
                 ShowToast("Test receipt printed successfully!");

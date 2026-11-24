@@ -607,6 +607,20 @@
                                             <ComboBoxItem Content="£ — British Pound (£)" Tag="£"/>
                                         </ComboBox>
                                     </Grid>
+                                    
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="190"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="Top Margin / Cut Mode" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                            <TextBlock Text="Reduce top gap after cut" FontSize="11.5" Foreground="{StaticResource SecondaryTextBrush}"/>
+                                        </StackPanel>
+                                        <ComboBox x:Name="PrinterCutModeComboBox" Grid.Column="1" Style="{StaticResource OdooFilterComboBoxStyle}" Height="34" Width="280" HorizontalAlignment="Left">
+                                            <ComboBoxItem Content="Standard Cut (GS V 66 0)" Tag="Standard" IsSelected="True"/>
+                                            <ComboBoxItem Content="Backfeed Cut — Reduce Top (GS V 104 0)" Tag="BackfeedCut"/>
+                                            <ComboBoxItem Content="Pre-Print Reverse Feed (ESC j 48)" Tag="PrePrintBackfeed"/>
+                                            <ComboBoxItem Content="Immediate Cut (GS V 1)" Tag="ImmediateCut"/>
+                                        </ComboBox>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 

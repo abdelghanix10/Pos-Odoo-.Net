@@ -821,6 +821,7 @@ public class SqliteDatabaseService
             "ALTER TABLE GeneralSettings ADD COLUMN AutoPurgeTime TEXT DEFAULT '23:00';",
             "ALTER TABLE GeneralSettings ADD COLUMN PosZoomScale REAL DEFAULT 1.0;",
             "ALTER TABLE GeneralSettings ADD COLUMN Currency TEXT DEFAULT '$';",
+            "ALTER TABLE GeneralSettings ADD COLUMN PrinterCutMode TEXT DEFAULT 'Standard';",
             "ALTER TABLE PosConfigs ADD COLUMN IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN CustomOrderReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN IsHideOpeningCashControlEnabled INTEGER DEFAULT 0;",
@@ -858,33 +859,13 @@ public class SqliteDatabaseService
                 using var seedDesignCmd = connection.CreateCommand();
                 seedDesignCmd.CommandText = """
                     INSERT INTO PosReceiptDesigns (Name, OpenCashDrawerOnly, ReceiptXml)
-                    VALUES
-                        ('Standard Order Receipt', 0, @stdXml),
-                        ('Simplified Kitchen / Second Receipt', 0, @secXml),
-                        ('Open Cash Drawer Pulse Only', 1, '<receipt open-cashdrawer="true" />');
+                    VALUES ('Open Cash Drawer Pulse Only', 1, '<receipt open-cashdrawer="true" />');
                     """;
-                seedDesignCmd.Parameters.AddWithValue("@stdXml", ReceiptDesignRecord.GetDefaultXmlTemplate());
-                seedDesignCmd.Parameters.AddWithValue("@secXml", """
-<t t-name="point_of_sale.SecondReceipt">
-    <div class="pos-receipt">
-        <div class="pos-receipt-order-data">
-            <h2><t t-esc="receipt.name" /></h2>
-            <div>Date: <t t-esc="receipt.date.localestring" /></div>
-        </div>
-        <br />
-        <div class="orderlines">
-            <t t-foreach="receipt.orderlines" t-as="line" t-key="line.id">
-                <div><t t-esc="line.qty" /> x <t t-esc="line.product_name" /></div>
-            </t>
-        </div>
-    </div>
-</t>
-""");
                 seedDesignCmd.ExecuteNonQuery();
             }
         }
 
-        // Ensure Pastry Receipt, Cafe Receipt, and Sales Details Report exist in PosReceiptDesigns
+        // Ensure the built-in receipt designs exist.
         void EnsureDesignSeeded(string name, string xml)
         {
             try
@@ -908,6 +889,82 @@ public class SqliteDatabaseService
         EnsureDesignSeeded(ReceiptTemplateService.PastryReceiptName, ReceiptTemplateService.GetPastryDefaultXml());
         EnsureDesignSeeded(ReceiptTemplateService.CafeReceiptName, ReceiptTemplateService.GetCafeDefaultXml());
         EnsureDesignSeeded(ReceiptTemplateService.SaleDetailsReportName, ReceiptTemplateService.GetSaleDetailsReportDefaultXml());
+        EnsureDesignSeeded(ReceiptTemplateService.SecondReceiptName, ReceiptTemplateService.GetSecondReceiptDefaultXml());
+
+        try
+        {
+            using var fixPastryCmd = connection.CreateCommand();
+            fixPastryCmd.CommandText = """
+                UPDATE PosReceiptDesigns
+                SET ReceiptXml = REPLACE(
+                        REPLACE(
+                            REPLACE(
+                                REPLACE(ReceiptXml,
+                                    '<th style="text-align:center;">Qty</th>',
+                                    '<th style="text-align:center; padding:5px 0;">Qty</th>'),
+                                '<th style="text-align:right;">Price</th>',
+                                '<th style="text-align:right; padding:5px 0;">Price</th>'),
+                            '<td style="text-align:center;">',
+                            '<td style="padding:8px 0; text-align:center;">'),
+                        '<td style="text-align:right; font-weight:500;">',
+                        '<td style="padding:8px 0; text-align:right; font-weight:500;">'),
+                    UpdatedAt = CURRENT_TIMESTAMP
+                WHERE LOWER(Name) IN (LOWER(@pastry), LOWER(@cafe));
+                """;
+            fixPastryCmd.Parameters.AddWithValue("@pastry", ReceiptTemplateService.PastryReceiptName);
+            fixPastryCmd.Parameters.AddWithValue("@cafe", ReceiptTemplateService.CafeReceiptName);
+            fixPastryCmd.ExecuteNonQuery();
+        }
+        catch { }
+
+        try
+        {
+            using var fixSecondCmd = connection.CreateCommand();
+            fixSecondCmd.CommandText = """
+                UPDATE PosReceiptDesigns
+                SET ReceiptXml = @secondXml, UpdatedAt = CURRENT_TIMESTAMP
+                WHERE LOWER(Name) = LOWER(@secondName)
+                  AND (ReceiptXml IS NULL OR ReceiptXml = '' OR ReceiptXml NOT LIKE '%order.datetime%');
+                """;
+            fixSecondCmd.Parameters.AddWithValue("@secondXml", ReceiptTemplateService.GetSecondReceiptDefaultXml());
+            fixSecondCmd.Parameters.AddWithValue("@secondName", ReceiptTemplateService.SecondReceiptName);
+            fixSecondCmd.ExecuteNonQuery();
+        }
+        catch { }
+
+        try
+        {
+            using var cleanupDesignsCmd = connection.CreateCommand();
+            cleanupDesignsCmd.CommandText = """
+                UPDATE PosConfigs
+                SET LastReceiptDesignId = NULL
+                WHERE LastReceiptDesignId IN (
+                    SELECT Id FROM PosReceiptDesigns
+                    WHERE Name IN ('Standard Order Receipt', 'Simplified Kitchen / Second Receipt')
+                );
+
+                UPDATE PosConfigs
+                SET CustomOrderReceiptDesignId = (SELECT Id FROM PosReceiptDesigns WHERE Name = @pastryName LIMIT 1)
+                WHERE CustomOrderReceiptDesignId IN (
+                    SELECT Id FROM PosReceiptDesigns
+                    WHERE Name IN ('Standard Order Receipt', 'Simplified Kitchen / Second Receipt')
+                );
+
+                UPDATE PosConfigs
+                SET SecondReceiptDesignId = (SELECT Id FROM PosReceiptDesigns WHERE Name = @secondName LIMIT 1)
+                WHERE SecondReceiptDesignId IN (
+                    SELECT Id FROM PosReceiptDesigns
+                    WHERE Name IN ('Standard Order Receipt', 'Simplified Kitchen / Second Receipt')
+                );
+
+                DELETE FROM PosReceiptDesigns
+                WHERE Name IN ('Standard Order Receipt', 'Simplified Kitchen / Second Receipt');
+                """;
+            cleanupDesignsCmd.Parameters.AddWithValue("@pastryName", ReceiptTemplateService.PastryReceiptName);
+            cleanupDesignsCmd.Parameters.AddWithValue("@secondName", ReceiptTemplateService.SecondReceiptName);
+            cleanupDesignsCmd.ExecuteNonQuery();
+        }
+        catch { }
 
         using var checkConfig = connection.CreateCommand();
         checkConfig.CommandText = "SELECT COUNT(*) FROM OdooConfig WHERE Id = 1;";
@@ -4421,7 +4478,8 @@ public class SqliteDatabaseService
                    COALESCE(g.PosZoomScale, 1.0),
                    COALESCE(g.Currency, '$'),
                    COALESCE(g.AutoPurgeFrequency, 'Daily'),
-                   COALESCE(g.AutoPurgeTime, '23:00')
+                   COALESCE(g.AutoPurgeTime, '23:00'),
+                   COALESCE(g.PrinterCutMode, 'Standard')
             FROM GeneralSettings g
             LEFT JOIN Companies c ON g.DefaultCompanyId = c.OdooId OR g.DefaultCompanyId = c.Id
             WHERE g.Id = 1;
@@ -4463,6 +4521,7 @@ public class SqliteDatabaseService
             record.AutoPurgeFrequency = string.IsNullOrWhiteSpace(purgeFreq) ? "Daily" : purgeFreq;
             string purgeTime = reader.IsDBNull(25) ? "23:00" : reader.GetString(25);
             record.AutoPurgeTime = string.IsNullOrWhiteSpace(purgeTime) ? "23:00" : purgeTime;
+            record.PrinterCutMode = reader.IsDBNull(26) ? "Standard" : reader.GetString(26);
         }
         else
         {
@@ -4490,13 +4549,13 @@ public class SqliteDatabaseService
                                          BackupFolderPath, AutoBackupEnabled, BackupFrequency, BackupTime, LastBackupAt,
                                          PosLanguage, ShowUnsyncedButtonInPos, ShowSetupButtonOnLogin, AutoPurgeOldDataEnabled,
                                          DataRetentionMonths, LastPurgeAt, SyncDataRetrievalPeriod, AutoPurgeOlderThanPeriod,
-                                         PosZoomScale, Currency, AutoPurgeFrequency, AutoPurgeTime, UpdatedAt)
+                                         PosZoomScale, Currency, AutoPurgeFrequency, AutoPurgeTime, PrinterCutMode, UpdatedAt)
             VALUES (1, @screenMode, @companyId, @printerName, @paperWidth,
                     @autoPrint, @drawerPulse, @printLogo, @encoding,
                     @backupFolder, @autoBackup, @backupFreq, @backupTime, @lastBackupAt,
                     @posLanguage, @showUnsyncedPos, @showSetupLogin, @autoPurge,
                     @retentionMonths, @lastPurgeAt, @syncRetrieval, @autoPurgePeriod,
-                    @posZoomScale, @currency, @autoPurgeFreq, @autoPurgeTime, CURRENT_TIMESTAMP)
+                    @posZoomScale, @currency, @autoPurgeFreq, @autoPurgeTime, @printerCutMode, CURRENT_TIMESTAMP)
             ON CONFLICT(Id) DO UPDATE SET
                 ScreenMode = @screenMode,
                 DefaultCompanyId = @companyId,
@@ -4523,6 +4582,7 @@ public class SqliteDatabaseService
                 Currency = @currency,
                 AutoPurgeFrequency = @autoPurgeFreq,
                 AutoPurgeTime = @autoPurgeTime,
+                PrinterCutMode = @printerCutMode,
                 UpdatedAt = CURRENT_TIMESTAMP;
             """;
 
@@ -4551,6 +4611,7 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@currency", CurrencyFormatter.Normalize(settings.Currency));
         cmd.Parameters.AddWithValue("@autoPurgeFreq", settings.AutoPurgeFrequency ?? "Daily");
         cmd.Parameters.AddWithValue("@autoPurgeTime", settings.AutoPurgeTime ?? "23:00");
+        cmd.Parameters.AddWithValue("@printerCutMode", settings.PrinterCutMode ?? "Standard");
 
         await cmd.ExecuteNonQueryAsync();
         CurrencyFormatter.SetCurrency(settings.Currency);

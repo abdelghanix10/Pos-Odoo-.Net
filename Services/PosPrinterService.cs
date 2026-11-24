@@ -122,12 +122,35 @@ public static class PosPrinterService
             ? 384
             : 576;
 
+    private static void WritePrePrintBackfeed(MemoryStream ms, string? cutMode)
+    {
+        if (string.Equals(cutMode, "PrePrintBackfeed", StringComparison.OrdinalIgnoreCase))
+            ms.Write([0x1B, 0x6A, 0x30]);
+    }
+
+    private static void WriteCutCommand(MemoryStream ms, string? cutMode)
+    {
+        switch ((cutMode ?? "Standard").Trim())
+        {
+            case "BackfeedCut":
+                ms.Write([0x1D, 0x56, 0x68, 0x00]);
+                break;
+            case "ImmediateCut":
+                ms.Write([0x1D, 0x56, 0x01]);
+                break;
+            default:
+                ms.Write([0x1D, 0x56, 0x42, 0x00]);
+                break;
+        }
+    }
+
     public static bool PrintBgraRasterToEscPos(
         string? printerName,
         byte[] bgraPixels,
         int width,
         int height,
-        bool cashDrawerPulse = false)
+        bool cashDrawerPulse = false,
+        string cutMode = "Standard")
     {
         if (bgraPixels == null || bgraPixels.Length == 0 || width <= 0 || height <= 0)
             return false;
@@ -176,25 +199,44 @@ public static class PosPrinterService
             }
         }
 
-        using var ms = new MemoryStream(monoBits.Length + 256);
+        int firstInkRow = -1;
+        int lastInkRow = -1;
+        for (int y = 0; y < height; y++)
+        {
+            int offset = y * bytesPerRow;
+            for (int b = 0; b < bytesPerRow; b++)
+            {
+                if (monoBits[offset + b] != 0)
+                {
+                    if (firstInkRow < 0) firstInkRow = y;
+                    lastInkRow = y;
+                    break;
+                }
+            }
+        }
+
+        int startRow = firstInkRow >= 0 ? firstInkRow : 0;
+        int endRow = lastInkRow >= 0 ? lastInkRow : height - 1;
+
+        using var ms = new MemoryStream(monoBits.Length + 64);
         ms.Write([0x1B, 0x40]);
         if (cashDrawerPulse)
             ms.Write([0x1B, 0x70, 0x00, 0x19, 0xFA]);
+        WritePrePrintBackfeed(ms, cutMode);
         ms.Write([0x1B, 0x61, 0x01]);
 
         const int maxBandHeight = 256;
         byte xL = (byte)(bytesPerRow & 0xFF);
         byte xH = (byte)((bytesPerRow >> 8) & 0xFF);
-        for (int y = 0; y < height; y += maxBandHeight)
+        for (int y = startRow; y <= endRow; y += maxBandHeight)
         {
-            int bandHeight = Math.Min(maxBandHeight, height - y);
+            int bandHeight = Math.Min(maxBandHeight, endRow - y + 1);
             ms.Write([0x1D, 0x76, 0x30, 0x00, xL, xH,
                 (byte)(bandHeight & 0xFF), (byte)((bandHeight >> 8) & 0xFF)]);
             ms.Write(monoBits, y * bytesPerRow, bandHeight * bytesPerRow);
         }
 
-        ms.Write([0x0A, 0x0A, 0x0A, 0x0A]);
-        ms.Write([0x1D, 0x56, 0x42, 0x00]);
+        WriteCutCommand(ms, cutMode);
         return SendRawBytesToPrinter(targetPrinter, ms.ToArray());
     }
 
@@ -208,7 +250,8 @@ public static class PosPrinterService
         string? printerName,
         string receiptText,
         bool cashDrawerPulse = false,
-        string encodingName = "UTF-8")
+        string encodingName = "UTF-8",
+        string cutMode = "Standard")
     {
         if (string.IsNullOrWhiteSpace(receiptText)) return false;
 
@@ -236,19 +279,20 @@ public static class PosPrinterService
         {
             ms.Write([0x1B, 0x70, 0x00, 0x19, 0xFA]);
         }
+        WritePrePrintBackfeed(ms, cutMode);
 
         // 3. Write text bytes
         byte[] textBytes = enc.GetBytes(receiptText);
         ms.Write(textBytes);
 
-        // 4. Feed paper and partial cut: \n\n\n GS V 66 0
-        ms.Write([0x0A, 0x0A, 0x0A, 0x0A]);
-        ms.Write([0x1D, 0x56, 0x42, 0x00]);
+        // GS V 66 0 handles the feed to the cutter.
+        ms.Write([0x0A]);
+        WriteCutCommand(ms, cutMode);
 
         return SendRawBytesToPrinter(targetPrinter, ms.ToArray());
     }
 
-    public static bool PrintTestReceipt(string? printerName, string paperWidth = "80mm")
+    public static bool PrintTestReceipt(string? printerName, string paperWidth = "80mm", string cutMode = "Standard")
     {
         var sb = new StringBuilder();
         sb.AppendLine("========================================");
@@ -266,6 +310,6 @@ public static class PosPrinterService
         sb.AppendLine("      Odoo POS Hardware Verified        ");
         sb.AppendLine("========================================");
 
-        return PrintReceiptText(printerName, sb.ToString(), cashDrawerPulse: false);
+        return PrintReceiptText(printerName, sb.ToString(), cashDrawerPulse: false, cutMode: cutMode);
     }
 }

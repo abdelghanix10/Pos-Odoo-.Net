@@ -4,6 +4,8 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace OdooPosLogin;
 
@@ -71,7 +73,13 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     private string _designEditorName = string.Empty;
     private bool _designEditorOpenCashDrawerOnly;
     private string _designEditorReceiptXml = string.Empty;
-    private CompanyRecord? _selectedDesignCompany;
+    // Operating Company & Live Preview state
+    private CompanyRecord? _operatingCompany;
+    private bool _printHeaderLogo = true;
+    private string _paperWidth = "80mm";
+    private BitmapSource? _livePreviewBitmap;
+    private string? _livePreviewError;
+    private readonly DispatcherTimer _previewDebounceTimer;
 
     private List<string> _allPaymentMethodNames = [];
     private List<string> _allCategoryNames = [];
@@ -88,7 +96,6 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     public ObservableCollection<string> AvailableCategoriesToAdd { get; } = [];
 
     public ObservableCollection<ReceiptDesignRecord> ReceiptDesigns { get; } = [];
-    public ObservableCollection<CompanyRecord> AvailableCompanies { get; } = [];
 
     public event Action? NavigateToPaymentMethodsRequested;
     public event Action? NavigateToCategoriesRequested;
@@ -119,6 +126,13 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
     public PosSettingsViewModel()
     {
+        _previewDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+        _previewDebounceTimer.Tick += (_, _) =>
+        {
+            _previewDebounceTimer.Stop();
+            RefreshLivePreviewNow();
+        };
+
         CurrencyFormatter.CurrencyChanged += () => OnPropertyChanged(nameof(CurrencySymbol));
         SaveSettingsCommand = new RelayCommand(async _ => await SaveCurrentConfigSettingsAsync(showFeedback: true));
         DiscardSettingsCommand = new RelayCommand(async _ => await LoadDataAsync(_selectedConfig?.OdooId));
@@ -233,27 +247,8 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             design.Name.Contains("Sale Details", StringComparison.OrdinalIgnoreCase))
             return ReceiptTemplateService.GetSaleDetailsReportDefaultXml();
 
-        if (design.Name.Contains("Simplified", StringComparison.OrdinalIgnoreCase) ||
-            design.Name.Contains("Kitchen", StringComparison.OrdinalIgnoreCase) ||
-            design.Name.Contains("Second", StringComparison.OrdinalIgnoreCase))
-        {
-            return """
-            <t t-name="point_of_sale.SecondReceipt">
-                <div class="pos-receipt">
-                    <div class="pos-receipt-order-data">
-                        <h2><t t-esc="receipt.name" /></h2>
-                        <div>Date: <t t-esc="receipt.date.localestring" /></div>
-                    </div>
-                    <br />
-                    <div class="orderlines">
-                        <t t-foreach="receipt.orderlines" t-as="line" t-key="line.id">
-                            <div><t t-esc="line.qty" /> x <t t-esc="line.product_name" /></div>
-                        </t>
-                    </div>
-                </div>
-            </t>
-            """;
-        }
+        if (design.Name.Contains("Second", StringComparison.OrdinalIgnoreCase))
+            return ReceiptTemplateService.GetSecondReceiptDefaultXml();
 
         return ReceiptDesignRecord.GetDefaultXmlTemplate();
     }
@@ -776,18 +771,30 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     // =========================================================================
     // RECEIPT DESIGNS EDITOR PROPERTIES
     // =========================================================================
-    public CompanyRecord? SelectedDesignCompany
+    public BitmapSource? LivePreviewBitmap
     {
-        get => _selectedDesignCompany;
-        set
+        get => _livePreviewBitmap;
+        private set { if (_livePreviewBitmap != value) { _livePreviewBitmap = value; OnPropertyChanged(); } }
+    }
+
+    public string? LivePreviewError
+    {
+        get => _livePreviewError;
+        private set
         {
-            if (_selectedDesignCompany != value)
+            if (_livePreviewError != value)
             {
-                _selectedDesignCompany = value;
+                _livePreviewError = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(HasLivePreviewError));
             }
         }
     }
+
+    public bool HasLivePreviewError => !string.IsNullOrWhiteSpace(_livePreviewError);
+    public string OperatingCompanyDisplay => _operatingCompany?.Name ?? "No Operating Company";
+    public string PaperWidthDisplay => string.IsNullOrWhiteSpace(_paperWidth) ? "80mm" : _paperWidth;
+    public bool IsPreviewCashDrawerOnly => _designEditorOpenCashDrawerOnly;
 
     public ReceiptDesignRecord? EditingReceiptDesign
     {
@@ -803,11 +810,14 @@ public class PosSettingsViewModel : INotifyPropertyChanged
                 OnPropertyChanged();
                 if (value != null)
                 {
-                    DesignEditorName = value.Name;
-                    DesignEditorOpenCashDrawerOnly = value.OpenCashDrawerOnly;
-                    DesignEditorReceiptXml = value.ReceiptXml;
-                    SelectedDesignCompany = AvailableCompanies.FirstOrDefault(c =>
-                        (value.CompanyId.HasValue && (c.OdooId == value.CompanyId.Value || c.Id == value.CompanyId.Value)));
+                    _designEditorName = value.Name;
+                    _designEditorOpenCashDrawerOnly = value.OpenCashDrawerOnly;
+                    _designEditorReceiptXml = value.ReceiptXml;
+                    OnPropertyChanged(nameof(DesignEditorName));
+                    OnPropertyChanged(nameof(DesignEditorOpenCashDrawerOnly));
+                    OnPropertyChanged(nameof(IsPreviewCashDrawerOnly));
+                    OnPropertyChanged(nameof(DesignEditorReceiptXml));
+                    RefreshLivePreviewNow();
                 }
             }
         }
@@ -816,7 +826,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     public string DesignEditorName
     {
         get => _designEditorName;
-        set { if (_designEditorName != value) { _designEditorName = value; OnPropertyChanged(); } }
+        set { if (_designEditorName != value) { _designEditorName = value; OnPropertyChanged(); ScheduleLivePreviewRefresh(); } }
     }
 
     public bool DesignEditorOpenCashDrawerOnly
@@ -828,6 +838,8 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             {
                 _designEditorOpenCashDrawerOnly = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(IsPreviewCashDrawerOnly));
+                RefreshLivePreviewNow();
             }
         }
     }
@@ -835,7 +847,37 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     public string DesignEditorReceiptXml
     {
         get => _designEditorReceiptXml;
-        set { if (_designEditorReceiptXml != value) { _designEditorReceiptXml = value; OnPropertyChanged(); } }
+        set { if (_designEditorReceiptXml != value) { _designEditorReceiptXml = value; OnPropertyChanged(); ScheduleLivePreviewRefresh(); } }
+    }
+
+    private void ScheduleLivePreviewRefresh()
+    {
+        _previewDebounceTimer.Stop();
+        _previewDebounceTimer.Start();
+    }
+
+    public void RefreshLivePreviewNow()
+    {
+        _previewDebounceTimer.Stop();
+        if (DesignEditorOpenCashDrawerOnly)
+        {
+            LivePreviewBitmap = null;
+            LivePreviewError = null;
+            return;
+        }
+
+        int dotWidth = PosPrinterService.GetPrinterDotWidth(_paperWidth);
+        var (bmp, err) = ReceiptBitmapRenderer.RenderLivePreview(
+            DesignEditorReceiptXml,
+            DesignEditorName,
+            DesignEditorOpenCashDrawerOnly,
+            _operatingCompany,
+            _printHeaderLogo,
+            dotWidth);
+
+        if (bmp != null)
+            LivePreviewBitmap = bmp;
+        LivePreviewError = err;
     }
 
     private void AutoSaveIfLoaded()
@@ -877,13 +919,28 @@ public class PosSettingsViewModel : INotifyPropertyChanged
                 _allCategoryNames = ["Upper body", "Lower body", "Others", "Desks", "Chairs"];
             }
 
-            // Load Companies for Receipt Designs
+            // Load Operating Company & Printer Preferences from General Settings
             var companies = await db.LoadAllCompaniesAsync();
-            AvailableCompanies.Clear();
-            foreach (var c in companies)
+            var genSettings = await db.GetGeneralSettingsAsync();
+            CompanyRecord? opCompany = null;
+            if (genSettings.DefaultCompanyId.HasValue)
             {
-                AvailableCompanies.Add(c);
+                opCompany = companies.FirstOrDefault(c =>
+                    c.Id == genSettings.DefaultCompanyId.Value ||
+                    c.OdooId == genSettings.DefaultCompanyId.Value);
             }
+            if (opCompany == null && !string.IsNullOrWhiteSpace(genSettings.DefaultCompanyName))
+                opCompany = companies.FirstOrDefault(c =>
+                    string.Equals(c.Name, genSettings.DefaultCompanyName, StringComparison.OrdinalIgnoreCase));
+            opCompany ??= companies.FirstOrDefault(c => c.HasLogo) ?? companies.FirstOrDefault();
+            if (opCompany != null && opCompany.LogoBitmap == null && !string.IsNullOrWhiteSpace(opCompany.LogoBase64))
+                opCompany.LogoBitmap = PosImageUtils.Base64ToBitmapSource(opCompany.LogoBase64);
+
+            _operatingCompany = opCompany;
+            _printHeaderLogo = genSettings.PrintHeaderLogo;
+            _paperWidth = string.IsNullOrWhiteSpace(genSettings.PaperWidth) ? "80mm" : genSettings.PaperWidth;
+            OnPropertyChanged(nameof(OperatingCompanyDisplay));
+            OnPropertyChanged(nameof(PaperWidthDisplay));
 
             // Load Receipt Designs
             long? previousDesignId = _editingReceiptDesign?.Id;
@@ -898,6 +955,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
                 EditingReceiptDesign = previousDesignId.HasValue
                     ? ReceiptDesigns.FirstOrDefault(d => d.Id == previousDesignId.Value) ?? ReceiptDesigns[0]
                     : ReceiptDesigns[0];
+                RefreshLivePreviewNow();
             }
 
             // Load POS Configs
@@ -1112,8 +1170,8 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         EditingReceiptDesign.Name = string.IsNullOrWhiteSpace(DesignEditorName) ? "Custom Receipt" : DesignEditorName.Trim();
         EditingReceiptDesign.OpenCashDrawerOnly = DesignEditorOpenCashDrawerOnly;
         EditingReceiptDesign.ReceiptXml = DesignEditorReceiptXml ?? string.Empty;
-        EditingReceiptDesign.CompanyId = SelectedDesignCompany != null ? (SelectedDesignCompany.OdooId > 0 ? SelectedDesignCompany.OdooId : SelectedDesignCompany.Id) : null;
-        EditingReceiptDesign.CompanyName = SelectedDesignCompany?.Name;
+        EditingReceiptDesign.CompanyId = null;
+        EditingReceiptDesign.CompanyName = null;
         EditingReceiptDesign.UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
 
         await SqliteDatabaseService.Instance.SaveReceiptDesignAsync(EditingReceiptDesign);

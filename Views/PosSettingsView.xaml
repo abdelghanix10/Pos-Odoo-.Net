@@ -537,14 +537,17 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- SUB-TAB 2: RECEIPT DESIGNS EDITOR (Compact 250px Left List for 1280px) -->
+        <!-- SUB-TAB 2: RECEIPT DESIGNS EDITOR (3-Column: List | XML Editor | Live Preview) -->
         <Grid Grid.Row="1" Visibility="{Binding ReceiptDesignsSubTabVisibility}" Margin="18,14,18,18">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250"/>
-                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="340"/>
             </Grid.ColumnDefinitions>
 
+            <!-- Column 0: Saved Receipt Designs List -->
             <Border Grid.Column="0" Style="{StaticResource PosCardBorderStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -589,7 +592,8 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Column="2" Style="{StaticResource PosCardBorderStyle}" Padding="20,16">
+            <!-- Column 2: Design Editor (Design Name + Cash Drawer Toggle + Receipt XML) -->
+            <Border Grid.Column="2" Style="{StaticResource PosCardBorderStyle}" Padding="18,14">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -599,7 +603,7 @@
                     </Grid.RowDefinitions>
 
                     <!-- Editor Actions -->
-                    <Grid Grid.Row="0" Margin="0,0,0,14">
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
                         <StackPanel Orientation="Horizontal">
                             <Button Command="{Binding SaveReceiptDesignCommand}" Style="{StaticResource PosPrimaryButton}" Height="32" Content="Save Design" Margin="0,0,8,0"/>
                             <Button Command="{Binding LoadDefaultXmlTemplateCommand}" Style="{StaticResource PosSecondaryButton}" Height="32" Content="Reset Default XML"/>
@@ -607,24 +611,13 @@
                         <Button HorizontalAlignment="Right" Command="{Binding DeleteReceiptDesignCommand}" Style="{StaticResource PosDangerSoftButton}" Height="32" Content="Delete"/>
                     </Grid>
 
-                    <!-- Name & Company Side-by-Side (Saves Vertical Space) -->
-                    <Grid Grid.Row="1" Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.2*"/>
-                            <ColumnDefinition Width="14"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="Design Name" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,4"/>
-                            <Border Style="{StaticResource PosInputBorderStyle}" Height="34">
-                                <TextBox Text="{Binding DesignEditorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Background="Transparent" BorderThickness="0" VerticalAlignment="Center"/>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="Company Information" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,4"/>
-                            <ComboBox ItemsSource="{Binding AvailableCompanies}" SelectedItem="{Binding SelectedDesignCompany, Mode=TwoWay}" DisplayMemberPath="Name" Style="{StaticResource OdooFilterComboBoxStyle}" Height="34"/>
-                        </StackPanel>
-                    </Grid>
+                    <!-- Design Name (Uses Operating Company from General Settings) -->
+                    <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                        <TextBlock Text="Design Name" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,0,0,4"/>
+                        <Border Style="{StaticResource PosInputBorderStyle}" Height="34">
+                            <TextBox Text="{Binding DesignEditorName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontSize="13.5" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" Background="Transparent" BorderThickness="0" VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
 
                     <!-- Open Cash Drawer Only -->
                     <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
@@ -647,6 +640,81 @@
                                      Background="Transparent" Foreground="#E2E8F0" CaretBrush="White"
                                      BorderThickness="0" Padding="12"/>
                         </Border>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Column 4: Live Receipt Preview -->
+            <Border Grid.Column="4" Style="{StaticResource PosCardBorderStyle}" ClipToBounds="True">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Preview Header -->
+                    <Border Grid.Row="0" BorderBrush="{StaticResource SubtleBorderBrush}" BorderThickness="0,0,0,1" Padding="14,10">
+                        <Grid>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Live Preview" FontSize="14" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}"/>
+                                <TextBlock Text="{Binding OperatingCompanyDisplay}" FontSize="11" Foreground="{StaticResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
+                            </StackPanel>
+                            <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                    Background="{StaticResource OdooPurpleSoftBrush}" BorderBrush="{StaticResource OdooPurpleBorderBrush}"
+                                    BorderThickness="1" CornerRadius="6" Padding="8,2">
+                                <TextBlock Text="{Binding PaperWidthDisplay}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource OdooPurpleBrush}"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- Optional XML Syntax Error Banner -->
+                    <Border Grid.Row="1"
+                            Background="{StaticResource DangerRedSoftBrush}"
+                            BorderBrush="{StaticResource DangerRedBorderBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="12,6"
+                            Visibility="{Binding HasLivePreviewError, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="{Binding LivePreviewError}" FontSize="11.5" Foreground="{StaticResource DangerRedBrush}" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <!-- Preview Paper Tray -->
+                    <Grid Grid.Row="2" Background="#EEF2F6">
+                        <!-- Cash Drawer Only State -->
+                        <Border Margin="18"
+                                Padding="20,24"
+                                Background="#FFFFFF"
+                                BorderBrush="{StaticResource SubtleBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsPreviewCashDrawerOnly, Converter={StaticResource BoolToVis}}">
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="⚡" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="Cash Drawer Pulse Only" FontSize="14" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                <TextBlock Text="No paper receipt will be printed when this design is used." FontSize="12" Foreground="{StaticResource SecondaryTextBrush}" TextWrapping="Wrap" TextAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Thermal Paper Sheet -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Visibility="{Binding IsPreviewCashDrawerOnly, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                            <Border Background="#FFFFFF"
+                                    BorderBrush="#CBD5E1"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="8,10"
+                                    Margin="14,12"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Top"
+                                    Effect="{StaticResource PosSubtleShadow}">
+                                <Image Source="{Binding LivePreviewBitmap}"
+                                       Width="284"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Border>
+                        </ScrollViewer>
                     </Grid>
                 </Grid>
             </Border>

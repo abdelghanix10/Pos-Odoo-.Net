@@ -17,6 +17,7 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     private bool _cashDrawerPulse = false;
     private bool _printHeaderLogo = true;
     private string _printerEncoding = "UTF-8";
+    private string _printerCutMode = "Standard";
 
     // Backup settings
     private string _backupFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Backups");
@@ -93,6 +94,20 @@ public class GeneralSettingsRecord : INotifyPropertyChanged
     {
         get => _printerEncoding;
         set { if (_printerEncoding != value) { _printerEncoding = value; OnPropertyChanged(); } }
+    }
+
+    public string PrinterCutMode
+    {
+        get => _printerCutMode;
+        set
+        {
+            string normalized = string.IsNullOrWhiteSpace(value) ? "Standard" : value.Trim();
+            if (_printerCutMode != normalized)
+            {
+                _printerCutMode = normalized;
+                OnPropertyChanged();
+            }
+        }
     }
 
     public string BackupFolderPath

@@ -77,6 +77,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     private CompanyRecord? _operatingCompany;
     private bool _printHeaderLogo = true;
     private string _paperWidth = "80mm";
+    private string _defaultPrinterName = string.Empty;
     private BitmapSource? _livePreviewBitmap;
     private string? _livePreviewError;
     private readonly DispatcherTimer _previewDebounceTimer;
@@ -793,7 +794,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
 
     public bool HasLivePreviewError => !string.IsNullOrWhiteSpace(_livePreviewError);
     public string OperatingCompanyDisplay => _operatingCompany?.Name ?? "No Operating Company";
-    public string PaperWidthDisplay => string.IsNullOrWhiteSpace(_paperWidth) ? "80mm" : _paperWidth;
+    public string PaperWidthDisplay => PosPrinterService.FormatPaperWidthDisplay(_paperWidth, _defaultPrinterName);
     public bool IsPreviewCashDrawerOnly => _designEditorOpenCashDrawerOnly;
 
     public ReceiptDesignRecord? EditingReceiptDesign
@@ -866,7 +867,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             return;
         }
 
-        int dotWidth = PosPrinterService.GetPrinterDotWidth(_paperWidth);
+        int dotWidth = PosPrinterService.GetPrinterDotWidth(_paperWidth, _defaultPrinterName);
         var (bmp, err) = ReceiptBitmapRenderer.RenderLivePreview(
             DesignEditorReceiptXml,
             DesignEditorName,
@@ -939,6 +940,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             _operatingCompany = opCompany;
             _printHeaderLogo = genSettings.PrintHeaderLogo;
             _paperWidth = string.IsNullOrWhiteSpace(genSettings.PaperWidth) ? "80mm" : genSettings.PaperWidth;
+            _defaultPrinterName = genSettings.DefaultPrinterName ?? string.Empty;
             OnPropertyChanged(nameof(OperatingCompanyDisplay));
             OnPropertyChanged(nameof(PaperWidthDisplay));
 

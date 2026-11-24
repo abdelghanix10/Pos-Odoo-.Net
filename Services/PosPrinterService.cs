@@ -1,4 +1,5 @@
 using System.IO;
+using System.Printing;
 using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
@@ -161,10 +162,160 @@ public static class PosPrinterService
         }
     }
 
-    public static int GetPrinterDotWidth(string? paperWidth) =>
-        !string.IsNullOrWhiteSpace(paperWidth) && paperWidth.Contains("58", StringComparison.OrdinalIgnoreCase)
+    public static int GetPrinterDotWidth(string? paperWidth, string? printerName = null)
+    {
+        if (string.Equals(paperWidth, "Driver", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(paperWidth, "Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            var (widthMm, _) = GetDriverPaperSize(printerName);
+            if (widthMm.HasValue && widthMm.Value > 0 && widthMm.Value <= 64.0)
+                return 384; // 58mm roll (48mm printable)
+            return 576;     // 80mm roll (72mm printable)
+        }
+
+        return !string.IsNullOrWhiteSpace(paperWidth) && paperWidth.Contains("58", StringComparison.OrdinalIgnoreCase)
             ? 384
             : 576;
+    }
+
+    public static string FormatPaperWidthDisplay(string? paperWidth, string? printerName = null)
+    {
+        if (string.Equals(paperWidth, "Driver", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(paperWidth, "Auto", StringComparison.OrdinalIgnoreCase))
+        {
+            var (_, label) = GetDriverPaperSize(printerName);
+            return string.IsNullOrWhiteSpace(label) ? "Driver Default" : $"Driver ({label})";
+        }
+
+        return string.IsNullOrWhiteSpace(paperWidth) ? "80mm" : paperWidth;
+    }
+
+    [DllImport("winspool.Drv", EntryPoint = "DocumentPropertiesA", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+    private static extern int DocumentProperties(
+        IntPtr hwnd,
+        IntPtr hPrinter,
+        [MarshalAs(UnmanagedType.LPStr)] string pDeviceName,
+        IntPtr pDevModeOutput,
+        IntPtr pDevModeInput,
+        int fMode);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    private struct DEVMODEA
+    {
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string dmDeviceName;
+        public short dmSpecVersion;
+        public short dmDriverVersion;
+        public short dmSize;
+        public short dmDriverExtra;
+        public int dmFields;
+        public short dmOrientation;
+        public short dmPaperSize;
+        public short dmPaperLength;
+        public short dmPaperWidth;
+        public short dmScale;
+        public short dmCopies;
+        public short dmDefaultSource;
+        public short dmPrintQuality;
+        public short dmColor;
+        public short dmDuplex;
+        public short dmYResolution;
+        public short dmTTOption;
+        public short dmCollate;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string dmFormName;
+        public short dmLogPixels;
+        public int dmBitsPerPel;
+        public int dmPelsWidth;
+        public int dmPelsHeight;
+        public int dmDisplayFlags;
+        public int dmDisplayFrequency;
+    }
+
+    /// <summary>
+    /// Reads the paper width the Windows printer driver is configured for.
+    /// Tries the WPF PrintQueue ticket first, then falls back to the raw DEVMODE.
+    /// </summary>
+    public static (double? WidthMm, string? SizeLabel) GetDriverPaperSize(string? printerName)
+    {
+        string targetPrinter = !string.IsNullOrWhiteSpace(printerName)
+            ? printerName
+            : GetDefaultPrinter();
+
+        if (string.IsNullOrWhiteSpace(targetPrinter))
+            return (null, null);
+
+        try
+        {
+            using var server = new LocalPrintServer();
+            using var queue = server.GetPrintQueue(targetPrinter);
+            var ticket = queue.DefaultPrintTicket ?? queue.UserPrintTicket;
+            var media = ticket?.PageMediaSize;
+            if (media?.Width is double dipWidth && dipWidth > 0)
+            {
+                double mm = Math.Round(dipWidth * 25.4 / 96.0, 1);
+                string sizeName = media.PageMediaSizeName.HasValue && media.PageMediaSizeName.Value != PageMediaSizeName.Unknown
+                    ? media.PageMediaSizeName.Value.ToString()
+                    : $"{mm:0.#}mm";
+                return (mm, $"{mm:0.#}mm — {sizeName}");
+            }
+        }
+        catch { }
+
+        return GetDriverPaperSizeFromDevMode(targetPrinter);
+    }
+
+    private static (double? WidthMm, string? SizeLabel) GetDriverPaperSizeFromDevMode(string printerName)
+    {
+        const int DM_OUT_BUFFER = 2;
+        IntPtr hPrinter = IntPtr.Zero;
+        IntPtr pDevMode = IntPtr.Zero;
+
+        try
+        {
+            if (!OpenPrinter(printerName, out hPrinter, IntPtr.Zero))
+                return (null, null);
+
+            int devModeSize = DocumentProperties(IntPtr.Zero, hPrinter, printerName, IntPtr.Zero, IntPtr.Zero, 0);
+            if (devModeSize < Marshal.SizeOf<DEVMODEA>())
+                return (null, null);
+
+            pDevMode = Marshal.AllocCoTaskMem(devModeSize);
+            if (DocumentProperties(IntPtr.Zero, hPrinter, printerName, pDevMode, IntPtr.Zero, DM_OUT_BUFFER) < 0)
+                return (null, null);
+
+            var dm = Marshal.PtrToStructure<DEVMODEA>(pDevMode);
+
+            if (dm.dmPaperWidth > 0)
+            {
+                double mm = Math.Round(dm.dmPaperWidth / 10.0, 1);
+                string form = string.IsNullOrWhiteSpace(dm.dmFormName) ? $"{mm:0.#}mm" : dm.dmFormName.Trim();
+                return (mm, $"{mm:0.#}mm — {form}");
+            }
+
+            double? stdMm = dm.dmPaperSize switch
+            {
+                1 or 5 => 215.9, // Letter / Legal
+                9 => 210.0,      // A4
+                11 => 148.0,     // A5
+                _ => null
+            };
+
+            if (stdMm.HasValue)
+            {
+                string form = string.IsNullOrWhiteSpace(dm.dmFormName) ? $"{stdMm.Value:0.#}mm" : dm.dmFormName.Trim();
+                return (stdMm.Value, $"{stdMm.Value:0.#}mm — {form}");
+            }
+        }
+        catch { }
+        finally
+        {
+            if (pDevMode != IntPtr.Zero) Marshal.FreeCoTaskMem(pDevMode);
+            if (hPrinter != IntPtr.Zero) ClosePrinter(hPrinter);
+        }
+
+        return (null, null);
+    }
 
     private static void WritePrePrintBackfeed(MemoryStream ms, string? cutMode)
     {
@@ -370,7 +521,7 @@ public static class PosPrinterService
         sb.AppendLine("            TEST PRINT TICKET           ");
         sb.AppendLine("========================================");
         sb.AppendLine($"Printer: {printerName ?? GetDefaultPrinter()}");
-        sb.AppendLine($"Width:   {paperWidth}");
+        sb.AppendLine($"Width:   {FormatPaperWidthDisplay(paperWidth, printerName)}");
         sb.AppendLine($"Date:    {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine("Status:  Hardware Connected OK");
         sb.AppendLine("----------------------------------------");

@@ -16,6 +16,7 @@ public partial class MainShellView : UserControl
     private readonly DispatcherTimer _toastTimer;
     private readonly DispatcherTimer _backupSchedulerTimer;
     private bool _isLoadingSyncPolicy;
+    private bool _isLoadingPrinterSettings;
 
     // Events to communicate with parent Window
     public event EventHandler? LogoutRequested;
@@ -766,24 +767,26 @@ public partial class MainShellView : UserControl
             CurrencyFormatter.SetCurrency(settings.Currency);
 
             // Set Default Printer
-            if (!string.IsNullOrWhiteSpace(settings.DefaultPrinterName) && printers.Contains(settings.DefaultPrinterName))
+            _isLoadingPrinterSettings = true;
+            try
             {
-                PrinterDeviceComboBox.SelectedItem = settings.DefaultPrinterName;
-            }
-            else if (printers.Count > 0)
-            {
-                var receiptP = printers.FirstOrDefault(p => p.Contains("80", StringComparison.OrdinalIgnoreCase) || p.Contains("POS", StringComparison.OrdinalIgnoreCase));
-                PrinterDeviceComboBox.SelectedItem = receiptP ?? printers[0];
-            }
+                if (!string.IsNullOrWhiteSpace(settings.DefaultPrinterName) && printers.Contains(settings.DefaultPrinterName))
+                {
+                    PrinterDeviceComboBox.SelectedItem = settings.DefaultPrinterName;
+                }
+                else if (printers.Count > 0)
+                {
+                    var receiptP = printers.FirstOrDefault(p => p.Contains("80", StringComparison.OrdinalIgnoreCase) || p.Contains("POS", StringComparison.OrdinalIgnoreCase));
+                    PrinterDeviceComboBox.SelectedItem = receiptP ?? printers[0];
+                }
 
-            // Set Paper Width
-            if (string.Equals(settings.PaperWidth, "58mm", StringComparison.OrdinalIgnoreCase))
-            {
-                PrinterPaperWidthComboBox.SelectedIndex = 1;
+                // Set Paper Width — "Driver" resolves the width from the printer driver.
+                UpdateDriverPaperWidthOptionLabel(PrinterDeviceComboBox.SelectedItem?.ToString());
+                SelectComboItemByTag(PrinterPaperWidthComboBox, settings.PaperWidth, "Driver");
             }
-            else
+            finally
             {
-                PrinterPaperWidthComboBox.SelectedIndex = 0;
+                _isLoadingPrinterSettings = false;
             }
 
             // Set Encoding
@@ -1138,15 +1141,54 @@ public partial class MainShellView : UserControl
         }
     }
 
+    private void UpdateDriverPaperWidthOptionLabel(string? printerName)
+    {
+        var (_, sizeLabel) = PosPrinterService.GetDriverPaperSize(printerName);
+        DriverPaperWidthItem.Content = string.IsNullOrWhiteSpace(sizeLabel)
+            ? "Default Driver (Auto)"
+            : $"Default Driver ({sizeLabel})";
+
+        // WPF caches the closed ComboBox text; re-select so the new label shows.
+        if (ReferenceEquals(PrinterPaperWidthComboBox.SelectedItem, DriverPaperWidthItem))
+        {
+            PrinterPaperWidthComboBox.SelectedIndex = -1;
+            PrinterPaperWidthComboBox.SelectedItem = DriverPaperWidthItem;
+        }
+    }
+
+    private void PrinterDeviceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoadingPrinterSettings) return;
+
+        string? selectedPrinter = PrinterDeviceComboBox.SelectedItem?.ToString();
+        UpdateDriverPaperWidthOptionLabel(selectedPrinter);
+        PrinterPaperWidthComboBox.SelectedItem = DriverPaperWidthItem;
+    }
+
     private void RefreshPrintersBtn_Click(object sender, RoutedEventArgs e)
     {
-        var printers = PosPrinterService.GetInstalledPrinters();
-        PrinterDeviceComboBox.ItemsSource = printers;
-        if (printers.Count > 0 && PrinterDeviceComboBox.SelectedItem == null)
+        _isLoadingPrinterSettings = true;
+        try
         {
-            PrinterDeviceComboBox.SelectedIndex = 0;
+            string? previous = PrinterDeviceComboBox.SelectedItem?.ToString();
+            var printers = PosPrinterService.GetInstalledPrinters();
+            PrinterDeviceComboBox.ItemsSource = printers;
+
+            if (!string.IsNullOrWhiteSpace(previous) && printers.Contains(previous))
+                PrinterDeviceComboBox.SelectedItem = previous;
+            else if (printers.Count > 0)
+            {
+                string winDefault = PosPrinterService.GetDefaultPrinter();
+                PrinterDeviceComboBox.SelectedItem = printers.Contains(winDefault) ? winDefault : printers[0];
+            }
+
+            UpdateDriverPaperWidthOptionLabel(PrinterDeviceComboBox.SelectedItem?.ToString());
+            ShowToast($"Found {printers.Count} installed printer(s).");
         }
-        ShowToast($"Found {printers.Count} installed printer(s).");
+        finally
+        {
+            _isLoadingPrinterSettings = false;
+        }
     }
 
     private async void SavePrinterSettingsBtn_Click(object sender, RoutedEventArgs e)
@@ -1154,9 +1196,7 @@ public partial class MainShellView : UserControl
         try
         {
             string printerName = PrinterDeviceComboBox.SelectedItem?.ToString() ?? "";
-            string paperWidth = (PrinterPaperWidthComboBox.SelectedItem is ComboBoxItem widthItem &&
-                                 widthItem.Content?.ToString()?.Contains("58mm") == true)
-                                 ? "58mm" : "80mm";
+            string paperWidth = GetSelectedComboTag(PrinterPaperWidthComboBox, "Driver");
 
             string encoding = "UTF-8";
             if (PrinterEncodingComboBox.SelectedItem is ComboBoxItem encItem && encItem.Content != null)
@@ -1203,9 +1243,7 @@ public partial class MainShellView : UserControl
             return;
         }
 
-        string paperWidth = (PrinterPaperWidthComboBox.SelectedItem is ComboBoxItem widthItem &&
-                             widthItem.Content?.ToString()?.Contains("58mm") == true)
-                             ? "58mm" : "80mm";
+        string paperWidth = GetSelectedComboTag(PrinterPaperWidthComboBox, "Driver");
 
         try
         {

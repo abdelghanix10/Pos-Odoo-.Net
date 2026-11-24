@@ -3627,7 +3627,7 @@ public partial class PosRegisterViewModel : ViewModelBase
             try
             {
                 var gen = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
-                int dotWidth = PosPrinterService.GetPrinterDotWidth(gen.PaperWidth);
+                int dotWidth = PosPrinterService.GetPrinterDotWidth(gen.PaperWidth, gen.DefaultPrinterName);
                 var company = ResolveReceiptCompany(gen, companiesSnapshot);
 
                 if (mainIsDrawerOnly)
@@ -3725,7 +3725,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 // A session restored from cache can carry a null StopAt, which prints as
                 // "Closed: —". Fall back to the config's last closing date.
                 targetSession.StopAt ??= configSnapshot.LastClosingDate ?? DateTime.Now;
-                int dotWidth = PosPrinterService.GetPrinterDotWidth(genSettings.PaperWidth);
+                int dotWidth = PosPrinterService.GetPrinterDotWidth(genSettings.PaperWidth, genSettings.DefaultPrinterName);
                 var report = ReceiptBitmapRenderer.RenderSaleDetailsReport(
                     targetSession, configSnapshot, company, sessOrders,
                     productCatById, productCatByName, dotWidth, design);
@@ -4175,7 +4175,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                     .GroupBy(p => p.Name.Trim(), StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => g.First().PosCategoryName!, StringComparer.OrdinalIgnoreCase);
 
-                int dotWidth = PosPrinterService.GetPrinterDotWidth(genSettings.PaperWidth);
+                int dotWidth = PosPrinterService.GetPrinterDotWidth(genSettings.PaperWidth, genSettings.DefaultPrinterName);
                 var report = ReceiptBitmapRenderer.RenderSaleDetailsReport(
                     sessionSnapshot, configSnapshot, company, sessOrdersSnapshot,
                     productCatById, productCatByName, dotWidth, design);

@@ -50,11 +50,14 @@ public static class ReceiptTemplateService
         string diskPath = @"C:\Users\HP\Downloads\pastry.xml";
         if (File.Exists(diskPath))
         {
-            try { return File.ReadAllText(diskPath); } catch { }
+            try { return EnsureLogoBlockInXml(File.ReadAllText(diskPath)); } catch { }
         }
 
         return """
         <div class="pos-receipt">
+            <t t-if="receipt.company.logo">
+                <img class="pos-receipt-logo" t-att-src="receipt.company.logo" alt="Logo"/>
+            </t>
             <div style="text-align:center; border-bottom:2px solid #000; padding-bottom:5px;">
                 <div style="font-size:16px; font-weight:bold; margin-bottom:5px;">
                     <t t-esc="company.name"/>
@@ -120,11 +123,14 @@ public static class ReceiptTemplateService
         string diskPath = @"C:\Users\HP\Downloads\cafe.xml";
         if (File.Exists(diskPath))
         {
-            try { return File.ReadAllText(diskPath); } catch { }
+            try { return EnsureLogoBlockInXml(File.ReadAllText(diskPath)); } catch { }
         }
 
         return """
         <div class="pos-receipt">
+            <t t-if="receipt.company.logo">
+                <img class="pos-receipt-logo" t-att-src="receipt.company.logo" alt="Logo"/>
+            </t>
             <div style="text-align:center; border-bottom:2px solid #000; padding-bottom:5px;">
                 <div style="font-size:16px; font-weight:bold; margin-bottom:5px;">
                     <t t-esc="company.name"/>
@@ -443,5 +449,30 @@ public static class ReceiptTemplateService
         if (text.Length >= width) return text;
         int leftPad = (width - text.Length) / 2;
         return text.PadLeft(text.Length + leftPad);
+    }
+
+    /// <summary>
+    /// Injects an explicit logo &lt;img&gt; block as the first child of the pos-receipt
+    /// container when the template has none. Logo rendering is XML-driven, so a template
+    /// without &lt;img&gt; would otherwise never print the header logo.
+    /// </summary>
+    private static string EnsureLogoBlockInXml(string xml)
+    {
+        if (string.IsNullOrWhiteSpace(xml) || xml.Contains("<img", StringComparison.OrdinalIgnoreCase))
+            return xml;
+
+        const string logoBlock = """
+            <t t-if="receipt.company.logo">
+                <img class="pos-receipt-logo" t-att-src="receipt.company.logo" alt="Logo"/>
+            </t>
+            """;
+
+        string updated = Regex.Replace(
+            xml,
+            @"<div\b[^>]*class\s*=\s*[""'][^""']*pos-receipt[^""']*[""'][^>]*>",
+            m => m.Value + Environment.NewLine + logoBlock,
+            RegexOptions.IgnoreCase);
+
+        return updated == xml ? logoBlock + Environment.NewLine + xml : updated;
     }
 }

@@ -120,7 +120,7 @@ public static partial class ReceiptBitmapRenderer
                 var ctx = new XmlRenderContext(
                     operatingCompany,
                     shopName,
-                    printHeaderLogo && !isSaleDetails && !isSecondReceipt,
+                    printHeaderLogo && !isSaleDetails,
                     currency,
                     sampleOrder,
                     sampleSession,
@@ -263,7 +263,8 @@ public static partial class ReceiptBitmapRenderer
     }
 
     public static RenderedReceiptBitmap RenderSecondReceipt(
-        PosOrderRecord order, CompanyRecord? company, int targetDotWidth, ReceiptDesignRecord? design = null)
+        PosOrderRecord order, CompanyRecord? company, int targetDotWidth, ReceiptDesignRecord? design = null,
+        bool printHeaderLogo = false)
     {
         return RunOnUiThread(() =>
         {
@@ -271,7 +272,7 @@ public static partial class ReceiptBitmapRenderer
             if (design != null && !string.IsNullOrWhiteSpace(design.ReceiptXml))
             {
                 var ctx = new XmlRenderContext(
-                    company, company?.Name ?? "Point of Sale", false, currency, order,
+                    company, company?.Name ?? "Point of Sale", printHeaderLogo, currency, order,
                     null, null, null, null, null, false, true);
                 var (xmlBmp, _) = TryRenderFromXml(design.ReceiptXml, ctx, targetDotWidth);
                 if (xmlBmp.HasValue)
@@ -406,11 +407,9 @@ public static partial class ReceiptBitmapRenderer
             var stack = new StackPanel();
             root.Child = stack;
 
-            bool xmlHasImg = doc.Root.Descendants().Any(e => e.Name.LocalName.Equals("img", StringComparison.OrdinalIgnoreCase));
-            if (ctx.PrintHeaderLogo && !xmlHasImg && ctx.Company?.LogoBitmap != null)
-            {
-                stack.Children.Add(BuildLogoImage(ctx.Company.LogoBitmap));
-            }
+            // Logo rendering is driven solely by an explicit <img> element in the XML
+            // (see the "img" case in RenderBlockElement). No implicit injection here:
+            // a design without <img> must print without a logo.
 
             var baseStyle = XmlStyleState.Default(ctx.IsSaleDetailsReport ? MonoFont : UiFont);
             RenderChildrenIntoStack(doc.Root.Nodes(), stack, ctx, baseStyle, null, null);

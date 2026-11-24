@@ -3643,7 +3643,8 @@ public partial class PosRegisterViewModel : ViewModelBase
 
                 if (secondDesignCopy != null && !secondDesignCopy.OpenCashDrawerOnly)
                 {
-                    var secondBitmap = ReceiptBitmapRenderer.RenderSecondReceipt(order, company, dotWidth, secondDesignCopy);
+                    var secondBitmap = ReceiptBitmapRenderer.RenderSecondReceipt(
+                        order, company, dotWidth, secondDesignCopy, printHeaderLogo: gen.PrintHeaderLogo);
                     PosPrinterService.PrintBgraRasterToEscPos(
                         gen.DefaultPrinterName, secondBitmap.BgraPixels,
                         secondBitmap.Width, secondBitmap.Height, cashDrawerPulse: false, cutMode: gen.PrinterCutMode);

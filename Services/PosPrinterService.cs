@@ -124,8 +124,19 @@ public static class PosPrinterService
 
     private static void WritePrePrintBackfeed(MemoryStream ms, string? cutMode)
     {
+        // GS P sets the vertical/horizontal motion unit. Normalizing it to 1/203" (203,203)
+        // makes the ESC j feed distance deterministic across printers instead of depending
+        // on whatever the device default happens to be. GS P 0 0 restores the defaults.
         if (string.Equals(cutMode, "PrePrintBackfeed", StringComparison.OrdinalIgnoreCase))
-            ms.Write([0x1B, 0x6A, 0x30]);
+        {
+            // GS P 203 203 -> ESC j 96 -> GS P 0 0
+            ms.Write([0x1D, 0x50, 0xCB, 0xCB, 0x1B, 0x6A, 0x60, 0x1D, 0x50, 0x00, 0x00]);
+        }
+        else if (string.Equals(cutMode, "PrePrintBackfeed15", StringComparison.OrdinalIgnoreCase))
+        {
+            // GS P 203 203 -> ESC j 120 -> GS P 0 0
+            ms.Write([0x1D, 0x50, 0xCB, 0xCB, 0x1B, 0x6A, 0x78, 0x1D, 0x50, 0x00, 0x00]);
+        }
     }
 
     private static void WriteCutCommand(MemoryStream ms, string? cutMode)

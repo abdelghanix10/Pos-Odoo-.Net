@@ -932,6 +932,53 @@ public class SqliteDatabaseService
         }
         catch { }
 
+        // Logo rendering is XML-driven (no implicit injection), so existing Pastry/Cafe rows
+        // seeded before the <img> block existed would never print a logo. Inject it once.
+        try
+        {
+            var rowsToAddLogo = new List<(long Id, string Xml)>();
+            using (var selCmd = connection.CreateCommand())
+            {
+                selCmd.CommandText = """
+                    SELECT Id, ReceiptXml
+                    FROM PosReceiptDesigns
+                    WHERE LOWER(Name) IN (LOWER(@pastry), LOWER(@cafe))
+                      AND ReceiptXml IS NOT NULL
+                      AND LOWER(ReceiptXml) NOT LIKE '%<img%';
+                    """;
+                selCmd.Parameters.AddWithValue("@pastry", ReceiptTemplateService.PastryReceiptName);
+                selCmd.Parameters.AddWithValue("@cafe", ReceiptTemplateService.CafeReceiptName);
+                using var reader = selCmd.ExecuteReader();
+                while (reader.Read())
+                    rowsToAddLogo.Add((reader.GetInt64(0), reader.GetString(1)));
+            }
+
+            const string logoTag = """
+                    <t t-if="receipt.company.logo">
+                        <img class="pos-receipt-logo" t-att-src="receipt.company.logo" alt="Logo"/>
+                    </t>
+                """;
+
+            foreach (var (id, xml) in rowsToAddLogo)
+            {
+                string updatedXml = System.Text.RegularExpressions.Regex.Replace(
+                    xml,
+                    @"<div\b[^>]*class\s*=\s*[""'][^""']*pos-receipt[^""']*[""'][^>]*>",
+                    m => m.Value + "\n" + logoTag,
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                if (updatedXml == xml)
+                    updatedXml = logoTag + "\n" + xml;
+
+                using var updCmd = connection.CreateCommand();
+                updCmd.CommandText = "UPDATE PosReceiptDesigns SET ReceiptXml = @xml, UpdatedAt = CURRENT_TIMESTAMP WHERE Id = @id;";
+                updCmd.Parameters.AddWithValue("@xml", updatedXml);
+                updCmd.Parameters.AddWithValue("@id", id);
+                updCmd.ExecuteNonQuery();
+            }
+        }
+        catch { }
+
         try
         {
             using var cleanupDesignsCmd = connection.CreateCommand();

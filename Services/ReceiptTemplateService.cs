@@ -47,12 +47,6 @@ public static class ReceiptTemplateService
 
     public static string GetPastryDefaultXml()
     {
-        string diskPath = @"C:\Users\HP\Downloads\pastry.xml";
-        if (File.Exists(diskPath))
-        {
-            try { return EnsureLogoBlockInXml(File.ReadAllText(diskPath)); } catch { }
-        }
-
         return """
         <div class="pos-receipt">
             <t t-if="receipt.company.logo">
@@ -94,14 +88,14 @@ public static class ReceiptTemplateService
                 </table>
             </div>
 
-            <div style="font-size:10px; border-top:2px solid #000; padding-top:10px;">
+            <div style="font-size:10px; border-top:2px solid #000; padding-top:4px;">
                 <div style="display:flex; justify-content:space-between; font-size:16px; font-weight:bold;">
                     <span>TOTAL:</span>
                     <span t-esc='props.data.amount_total'/>
                 </div>
             </div>
             
-            <div style="margin-top:15px; font-size:13px;">
+            <div style="margin-top:4px; font-size:13px;">
                 <t t-foreach='props.paymentlines' t-as='line'>
                     <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
                         <span><t t-esc='line.name' /></span>
@@ -110,9 +104,9 @@ public static class ReceiptTemplateService
                 </t>
             </div>
 
-            <div dir="rtl" style="margin-top:8px; padding-top:10px; border-top:2px solid #000; text-align:center;">
-                <div style="font-size:14px; font-weight:bold; margin-top:8px; margin-bottom:8px;">★ شكراً  لشرائك ★</div>
-                <div style="font-size:11px; color:#666; margin-top:8px;">★ نحن نقدر تعاملكم معنا ونتطلع إلى خدمتكم مرة أخرى ★</div>
+            <div dir="rtl" style="margin-top:4px; margin-bottom:4px; padding-top:10px; border-top:2px solid #000; text-align:center;">
+                <div style="font-size:14px; font-weight:bold;">★ شكراً  لشرائك ★</div>
+                <div style="font-size:11px; color:#666; margin-top:6px;">★ نحن نقدر تعاملكم معنا ونتطلع إلى خدمتكم مرة أخرى ★</div>
             </div>
         </div>
         """;
@@ -120,12 +114,6 @@ public static class ReceiptTemplateService
 
     public static string GetCafeDefaultXml()
     {
-        string diskPath = @"C:\Users\HP\Downloads\cafe.xml";
-        if (File.Exists(diskPath))
-        {
-            try { return EnsureLogoBlockInXml(File.ReadAllText(diskPath)); } catch { }
-        }
-
         return """
         <div class="pos-receipt">
             <t t-if="receipt.company.logo">
@@ -174,9 +162,9 @@ public static class ReceiptTemplateService
                 </div>
             </div>
 
-            <div dir="rtl" style="margin-top:5px; padding-top:5px; border-top:2px solid #000; text-align:center;">
-                <div style="font-size:14px; font-weight:bold; margin-top:8px; margin-bottom:8px;">★ شكراً  لشرائك ★</div>
-                <div style="font-size:11px; color:#666; margin-top:5px;">★ نحن نقدر تعاملكم معنا ونتطلع إلى خدمتكم مرة أخرى ★</div>
+            <div dir="rtl" style="margin-top:4px; margin-bottom:4px; border-top:2px solid #000; text-align:center;">
+                <div style="font-size:14px; font-weight:bold; margin-top:6px;">★ شكراً  لشرائك ★</div>
+                <div style="font-size:11px; color:#666; margin-top:4px;">★ نحن نقدر تعاملكم معنا ونتطلع إلى خدمتكم مرة أخرى ★</div>
             </div>
         </div>
         """;
@@ -184,12 +172,6 @@ public static class ReceiptTemplateService
 
     public static string GetSaleDetailsReportDefaultXml()
     {
-        string diskPath = @"C:\Users\HP\Downloads\report_saledetails.xml";
-        if (File.Exists(diskPath))
-        {
-            try { return File.ReadAllText(diskPath); } catch { }
-        }
-
         return """
         <?xml version="1.0" encoding="utf-8"?>
         <odoo>
@@ -242,7 +224,6 @@ public static class ReceiptTemplateService
                             </div>
                             <hr style="border: none; border-top: 1px dashed #000; margin: 5px 0;"/>
                             <div style="text-align: center; margin-top: 5px;">
-                                <strong>Thank you for using Odoo POS</strong><br/>
                                 <small>Generated on <t t-esc="session.report_date"/></small>
                             </div>
                         </div>

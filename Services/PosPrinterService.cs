@@ -86,35 +86,79 @@ public static class PosPrinterService
         return posMatch ?? list.FirstOrDefault() ?? "POS-80C";
     }
 
+    private static readonly object _printLock = new();
+
     public static bool SendRawBytesToPrinter(string printerName, byte[] bytes)
     {
         if (string.IsNullOrWhiteSpace(printerName) || bytes == null || bytes.Length == 0)
             return false;
 
-        IntPtr hPrinter = IntPtr.Zero;
-        var di = new DOCINFOA();
-        bool success = false;
-
-        if (OpenPrinter(printerName, out hPrinter, IntPtr.Zero))
+        lock (_printLock)
         {
-            if (StartDocPrinter(hPrinter, 1, di))
+            IntPtr hPrinter = IntPtr.Zero;
+            var di = new DOCINFOA();
+            bool success = false;
+
+            if (OpenPrinter(printerName, out hPrinter, IntPtr.Zero))
             {
-                if (StartPagePrinter(hPrinter))
+                try
                 {
-                    IntPtr pUnmanagedBytes = Marshal.AllocCoTaskMem(bytes.Length);
-                    Marshal.Copy(bytes, 0, pUnmanagedBytes, bytes.Length);
+                    if (StartDocPrinter(hPrinter, 1, di))
+                    {
+                        try
+                        {
+                            if (StartPagePrinter(hPrinter))
+                            {
+                                // Thermal printers typically expose only a 4-8 KB receive buffer.
+                                // Writing a 50-100 KB raster job in one call overruns it, the
+                                // printer drops bytes mid-band, then swallows the next GS v 0
+                                // header as pixel data and dumps the rest as CP437 garbage.
+                                // Chunk the write and pace it so the buffer drains.
+                                const int maxChunkSize = 2048;
+                                IntPtr pUnmanagedBytes = Marshal.AllocCoTaskMem(maxChunkSize);
+                                try
+                                {
+                                    int offset = 0;
+                                    success = true;
+                                    while (offset < bytes.Length)
+                                    {
+                                        int chunkLen = Math.Min(maxChunkSize, bytes.Length - offset);
+                                        Marshal.Copy(bytes, offset, pUnmanagedBytes, chunkLen);
 
-                    success = WritePrinter(hPrinter, pUnmanagedBytes, bytes.Length, out _);
-                    Marshal.FreeCoTaskMem(pUnmanagedBytes);
+                                        if (!WritePrinter(hPrinter, pUnmanagedBytes, chunkLen, out int dwWritten) || dwWritten <= 0)
+                                        {
+                                            success = false;
+                                            break;
+                                        }
 
-                    EndPagePrinter(hPrinter);
+                                        offset += dwWritten;
+
+                                        if (offset < bytes.Length)
+                                            Thread.Sleep(15);
+                                    }
+                                }
+                                finally
+                                {
+                                    Marshal.FreeCoTaskMem(pUnmanagedBytes);
+                                }
+
+                                EndPagePrinter(hPrinter);
+                            }
+                        }
+                        finally
+                        {
+                            EndDocPrinter(hPrinter);
+                        }
+                    }
                 }
-                EndDocPrinter(hPrinter);
+                finally
+                {
+                    ClosePrinter(hPrinter);
+                }
             }
-            ClosePrinter(hPrinter);
-        }
 
-        return success;
+            return success;
+        }
     }
 
     public static int GetPrinterDotWidth(string? paperWidth) =>
@@ -136,6 +180,19 @@ public static class PosPrinterService
         {
             // GS P 203 203 -> ESC j 120 -> GS P 0 0
             ms.Write([0x1D, 0x50, 0xCB, 0xCB, 0x1B, 0x6A, 0x78, 0x1D, 0x50, 0x00, 0x00]);
+        }
+        else if (string.Equals(cutMode, "PrePrintBackfeedDirect", StringComparison.OrdinalIgnoreCase))
+        {
+            // Some firmwares ignore or mishandle GS P. Send the raw ESC j 96 with no
+            // motion-unit change, so the feed uses whatever the device already has.
+            ms.Write([0x1B, 0x6A, 0x60]);
+        }
+        else if (string.Equals(cutMode, "PrePrintBackfeedEscK", StringComparison.OrdinalIgnoreCase))
+        {
+            // ESC K is the documented ESC/POS "print and reverse feed" command
+            // (1B 4B n). ESC j is not part of the Epson TM ESC/POS set at all, which is
+            // why it silently does nothing on many thermal units. Same 12mm distance.
+            ms.Write([0x1D, 0x50, 0xCB, 0xCB, 0x1B, 0x4B, 0x60, 0x1D, 0x50, 0x00, 0x00]);
         }
     }
 
@@ -236,7 +293,10 @@ public static class PosPrinterService
         WritePrePrintBackfeed(ms, cutMode);
         ms.Write([0x1B, 0x61, 0x01]);
 
-        const int maxBandHeight = 256;
+        // 32 rows x 72 bytes = 2,304 bytes per GS v 0 band. Keeps yH at 0 (some firmware
+        // misreads yH = 1 when bandHeight is exactly 256) and stays far inside the
+        // printer's receive buffer.
+        const int maxBandHeight = 32;
         byte xL = (byte)(bytesPerRow & 0xFF);
         byte xH = (byte)((bytesPerRow >> 8) & 0xFF);
         for (int y = startRow; y <= endRow; y += maxBandHeight)

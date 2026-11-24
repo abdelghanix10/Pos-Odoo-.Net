@@ -1227,9 +1227,11 @@
                                         </StackPanel>
                                         <ComboBox x:Name="PrinterCutModeComboBox" Grid.Column="1" Style="{StaticResource OdooFilterComboBoxStyle}" Height="34" Width="280" HorizontalAlignment="Left">
                                             <ComboBoxItem Content="Standard Cut (GS V 66 0)" Tag="Standard" IsSelected="True"/>
-                                            <ComboBoxItem Content="Backfeed Cut — Reduce Top (GS V 104 0)" Tag="BackfeedCut"/>
-                                            <ComboBoxItem Content="Pre-Print Feed — 12mm (ESC j 96)" Tag="PrePrintBackfeed"/>
-                                            <ComboBoxItem Content="Pre-Print Feed — 15mm (ESC j 120)" Tag="PrePrintBackfeed15"/>
+                                            <ComboBoxItem Content="Pre-Print Backfeed — 12mm (GS P + ESC j 96)" Tag="PrePrintBackfeed"/>
+                                            <ComboBoxItem Content="Pre-Print Backfeed — 15mm (GS P + ESC j 120)" Tag="PrePrintBackfeed15"/>
+                                            <ComboBoxItem Content="Pre-Print Backfeed — Direct (ESC j 96)" Tag="PrePrintBackfeedDirect"/>
+                                            <ComboBoxItem Content="Pre-Print Backfeed — 12mm (GS P + ESC K 96)" Tag="PrePrintBackfeedEscK"/>
+                                            <ComboBoxItem Content="Epson Backfeed Cut (GS V 104 0)" Tag="BackfeedCut"/>
                                             <ComboBoxItem Content="Immediate Cut (GS V 1)" Tag="ImmediateCut"/>
                                         </ComboBox>
                                     </Grid>

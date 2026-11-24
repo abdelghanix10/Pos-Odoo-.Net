@@ -3722,6 +3722,9 @@ public partial class PosRegisterViewModel : ViewModelBase
                     .GroupBy(p => p.Name.Trim(), StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => g.First().PosCategoryName!, StringComparer.OrdinalIgnoreCase);
                 targetSession.State = "closed";
+                // A session restored from cache can carry a null StopAt, which prints as
+                // "Closed: —". Fall back to the config's last closing date.
+                targetSession.StopAt ??= configSnapshot.LastClosingDate ?? DateTime.Now;
                 int dotWidth = PosPrinterService.GetPrinterDotWidth(genSettings.PaperWidth);
                 var report = ReceiptBitmapRenderer.RenderSaleDetailsReport(
                     targetSession, configSnapshot, company, sessOrders,
@@ -4047,8 +4050,7 @@ public partial class PosRegisterViewModel : ViewModelBase
             await RefreshBoundConfigSessionAsync();
             sessId = CurrentConfig?.CurrentSessionId ?? sessId;
 
-            // Automatically print report_saledetails.xml on closing
-            TriggerSalesDetailsReportPrint();
+            DateTime closedAt = DateTime.Now;
 
             await SqliteDatabaseService.Instance.CloseSessionAsync(
                 cfgId,
@@ -4062,8 +4064,40 @@ public partial class PosRegisterViewModel : ViewModelBase
             {
                 CurrentConfig.CurrentSessionState = "closed";
                 CurrentConfig.LastClosingBalance = counted;
-                CurrentConfig.LastClosingDate = DateTime.Now;
+                CurrentConfig.LastClosingDate = closedAt;
             }
+
+            if (CurrentSession != null)
+            {
+                CurrentSession.State = "closed";
+                CurrentSession.StopAt = closedAt;
+                CurrentSession.ClosingBalance = counted;
+                CurrentSession.OrdersCount = SessionTotalOrdersCount;
+                CurrentSession.TotalPaymentsAmount = SessionTotalPaymentsAmount;
+            }
+
+            var closedOrders = _allInPosOrders
+                .Where(o => OrderMatchesCurrentSession(o) && !o.IsCancelled && !o.IsDraft)
+                .ToList();
+
+            var closedSessionSnapshot = CurrentSession ?? new PosSessionRecord
+            {
+                OdooId = sessId,
+                Name = CurrentConfig?.CurrentSessionName ?? $"{ActiveShopName}/00001",
+                PosConfigId = cfgId,
+                PosConfigName = ActiveShopName,
+                UserName = CashierName,
+                State = "closed",
+                StartAt = closedAt,
+                StopAt = closedAt,
+                OrdersCount = closedOrders.Count,
+                TotalPaymentsAmount = closedOrders.Sum(o => o.AmountTotal),
+                OpeningBalance = CurrentConfig?.OpeningBalance ?? 0m,
+                ClosingBalance = counted
+            };
+
+            // Print report_saledetails.xml with the closed session state, not the live one.
+            TriggerSalesDetailsReportPrint(closedSessionSnapshot, closedOrders);
 
             UpdateLandingState();
             _ = LoadLastSessionInfoAsync();
@@ -4110,54 +4144,40 @@ public partial class PosRegisterViewModel : ViewModelBase
         IsClosingRegisterModalOpen = false;
     }
 
-    private void TriggerSalesDetailsReportPrint()
+    private void TriggerSalesDetailsReportPrint(PosSessionRecord sessionSnapshot, List<PosOrderRecord> sessOrdersSnapshot)
     {
+        // Snapshot everything the background task needs before leaving the UI thread.
+        var configSnapshot = CurrentConfig ?? new PosConfigRecord { Name = ActiveShopName };
+        var designsSnapshot = _allReceiptDesigns.ToList();
+        var companiesSnapshot = _allCompanies.ToList();
+        var productsSnapshot = _allProducts.ToList();
+
         _ = Task.Run(async () =>
         {
             try
             {
                 var genSettings = await SqliteDatabaseService.Instance.GetGeneralSettingsAsync();
-                var sessOrders = _allInPosOrders.Where(o => OrderMatchesCurrentSession(o) && !o.IsCancelled && !o.IsDraft).ToList();
-                var session = CurrentSession ?? new PosSessionRecord
-                {
-                    OdooId = CurrentConfig?.CurrentSessionId ?? 1,
-                    Name = CurrentConfig?.CurrentSessionName ?? $"{ActiveShopName}/00001",
-                    PosConfigId = CurrentConfig?.OdooId ?? 1,
-                    PosConfigName = ActiveShopName,
-                    UserName = CashierName,
-                    State = "closed",
-                    StartAt = CurrentSession?.StartAt ?? DateTime.Now,
-                    StopAt = DateTime.Now,
-                    OrdersCount = sessOrders.Count,
-                    TotalPaymentsAmount = sessOrders.Sum(o => o.AmountTotal),
-                    OpeningBalance = CurrentConfig?.OpeningBalance ?? 0m,
-                    ClosingBalance = decimal.TryParse(ClosingCashCount, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal cb) ? cb : CashCounted
-                };
-
-                var config = CurrentConfig ?? new PosConfigRecord { Name = ActiveShopName };
 
                 ReceiptDesignRecord? design = null;
-                if (config.CustomSalesReceiptDesignId.HasValue)
+                if (configSnapshot.CustomSalesReceiptDesignId.HasValue)
                 {
-                    design = _allReceiptDesigns.FirstOrDefault(d => d.Id == config.CustomSalesReceiptDesignId.Value);
+                    design = designsSnapshot.FirstOrDefault(d => d.Id == configSnapshot.CustomSalesReceiptDesignId.Value);
                 }
-                if (design == null)
-                {
-                    design = _allReceiptDesigns.FirstOrDefault(d => d.Name == ReceiptTemplateService.SaleDetailsReportName);
-                }
+                design ??= designsSnapshot.FirstOrDefault(d => d.Name == ReceiptTemplateService.SaleDetailsReportName);
 
-                var company = ResolveReceiptCompany(genSettings, _allCompanies.ToList());
-                var productCatById = _allProducts
+                var company = ResolveReceiptCompany(genSettings, companiesSnapshot);
+                var productCatById = productsSnapshot
                     .Where(p => p.OdooId.HasValue && !string.IsNullOrWhiteSpace(p.PosCategoryName))
                     .GroupBy(p => p.OdooId!.Value)
                     .ToDictionary(g => g.Key, g => g.First().PosCategoryName!);
-                var productCatByName = _allProducts
+                var productCatByName = productsSnapshot
                     .Where(p => !string.IsNullOrWhiteSpace(p.Name) && !string.IsNullOrWhiteSpace(p.PosCategoryName))
                     .GroupBy(p => p.Name.Trim(), StringComparer.OrdinalIgnoreCase)
                     .ToDictionary(g => g.Key, g => g.First().PosCategoryName!, StringComparer.OrdinalIgnoreCase);
+
                 int dotWidth = PosPrinterService.GetPrinterDotWidth(genSettings.PaperWidth);
                 var report = ReceiptBitmapRenderer.RenderSaleDetailsReport(
-                    session, config, company, sessOrders,
+                    sessionSnapshot, configSnapshot, company, sessOrdersSnapshot,
                     productCatById, productCatByName, dotWidth, design);
                 PosPrinterService.PrintBgraRasterToEscPos(
                     genSettings.DefaultPrinterName, report.BgraPixels,

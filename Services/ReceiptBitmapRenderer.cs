@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -6,6 +7,7 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using System.Xml.Linq;
 
 namespace OdooPosLogin;
@@ -1243,6 +1245,10 @@ public static partial class ReceiptBitmapRenderer
 
     private static BitmapSource TrimLogoVerticalWhitespace(BitmapSource source)
     {
+        if (_trimmedLogoCache.TryGetValue(source, out var cached))
+            return cached;
+
+        BitmapSource result = source;
         try
         {
             BitmapSource bgra = source.Format == PixelFormats.Bgra32
@@ -1251,7 +1257,11 @@ public static partial class ReceiptBitmapRenderer
 
             int w = bgra.PixelWidth;
             int h = bgra.PixelHeight;
-            if (w <= 0 || h <= 2) return source;
+            if (w <= 0 || h <= 2)
+            {
+                _trimmedLogoCache.AddOrUpdate(source, result);
+                return result;
+            }
 
             int stride = w * 4;
             byte[] pixels = new byte[stride * h];
@@ -1284,11 +1294,13 @@ public static partial class ReceiptBitmapRenderer
             {
                 var cropped = new CroppedBitmap(bgra, new Int32Rect(0, top, w, bottom - top + 1));
                 cropped.Freeze();
-                return cropped;
+                result = cropped;
             }
         }
         catch { }
-        return source;
+
+        _trimmedLogoCache.AddOrUpdate(source, result);
+        return result;
     }
 
     private static Border CreateRoot() => new()
@@ -1432,7 +1444,44 @@ public static partial class ReceiptBitmapRenderer
 
     private static T RunOnUiThread<T>(Func<T> func)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        return dispatcher == null || dispatcher.CheckAccess() ? func() : dispatcher.Invoke(func);
+        var uiDispatcher = Application.Current?.Dispatcher;
+        if (uiDispatcher != null && uiDispatcher.CheckAccess())
+            return func();
+
+        // Receipt rendering is pure WPF layout + RenderTargetBitmap with no dependency on
+        // live app resources, so it can run on a dedicated STA thread instead of blocking
+        // the POS UI thread. Falls back to the UI dispatcher if no Application exists.
+        if (uiDispatcher == null)
+            return func();
+
+        return EnsureRenderDispatcher().Invoke(func);
+    }
+
+    private static readonly object _renderStaLock = new();
+    private static Dispatcher? _renderDispatcher;
+    private static readonly ManualResetEventSlim _renderReady = new(false);
+    private static readonly ConditionalWeakTable<BitmapSource, BitmapSource> _trimmedLogoCache = new();
+
+    private static Dispatcher EnsureRenderDispatcher()
+    {
+        if (_renderDispatcher != null) return _renderDispatcher;
+        lock (_renderStaLock)
+        {
+            if (_renderDispatcher != null) return _renderDispatcher;
+            var thread = new Thread(() =>
+            {
+                _renderDispatcher = Dispatcher.CurrentDispatcher;
+                _renderReady.Set();
+                Dispatcher.Run();
+            })
+            {
+                Name = "ReceiptRenderSTA",
+                IsBackground = true
+            };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            _renderReady.Wait();
+            return _renderDispatcher!;
+        }
     }
 }

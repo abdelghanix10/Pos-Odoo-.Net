@@ -376,6 +376,22 @@ public class SqliteDatabaseService
         InitializeDatabase();
     }
 
+    /// <summary>
+    /// Opens a connection with the per-connection PRAGMAs already applied.
+    /// synchronous/temp_store are connection-scoped in SQLite, so setting them once in
+    /// InitializeDatabase does not carry over to new connections; without this every
+    /// order save fell back to synchronous = FULL and paid an extra fsync per commit.
+    /// </summary>
+    private async Task<SqliteConnection> OpenFastConnectionAsync()
+    {
+        var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var pragma = connection.CreateCommand();
+        pragma.CommandText = "PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;";
+        await pragma.ExecuteNonQueryAsync();
+        return connection;
+    }
+
     private void InitializeDatabase()
     {
         using var connection = new SqliteConnection(_connectionString);
@@ -3317,6 +3333,236 @@ public class SqliteDatabaseService
                 });
             }
         }
+    }
+
+    public async Task<List<PosOrderRecord>> LoadDraftOrdersForShopAsync(string shopName)
+    {
+        var drafts = new List<PosOrderRecord>();
+        await using var connection = await OpenFastConnectionAsync();
+
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT Id, OdooId, Name, PosReference, TrackingNumber, SessionId, SessionOdooId, SessionName, PosConfigName,
+                       DateOrder, CashierId, CashierName, AmountTotal, AmountTax, AmountPaid, State, Company, Note,
+                       COALESCE(Uuid, ''), COALESCE(CustomerName, '')
+                FROM PosOrders
+                WHERE PosConfigName = @shop
+                  AND LOWER(COALESCE(State, 'paid')) IN ('draft', 'ongoing', 'new')
+                ORDER BY Id ASC;
+                """;
+            cmd.Parameters.AddWithValue("@shop", shopName ?? "");
+
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                drafts.Add(new PosOrderRecord
+                {
+                    Id = r.GetInt64(0),
+                    OdooId = r.IsDBNull(1) ? null : r.GetInt32(1),
+                    Name = r.GetString(2),
+                    PosReference = r.IsDBNull(3) ? "" : r.GetString(3),
+                    TrackingNumber = r.IsDBNull(4) ? "" : r.GetString(4),
+                    SessionId = r.IsDBNull(5) ? null : r.GetInt32(5),
+                    SessionOdooId = r.IsDBNull(6) ? null : r.GetInt32(6),
+                    SessionName = r.IsDBNull(7) ? "" : r.GetString(7),
+                    PosConfigName = r.IsDBNull(8) ? "" : r.GetString(8),
+                    DateOrder = r.IsDBNull(9) ? null : (DateTime.TryParse(r.GetString(9), out var d) ? d : null),
+                    CashierId = r.IsDBNull(10) ? null : r.GetInt32(10),
+                    CashierName = r.IsDBNull(11) ? "" : r.GetString(11),
+                    AmountTotal = r.IsDBNull(12) ? 0m : Convert.ToDecimal(r.GetDouble(12)),
+                    AmountTax = r.IsDBNull(13) ? 0m : Convert.ToDecimal(r.GetDouble(13)),
+                    AmountPaid = r.IsDBNull(14) ? 0m : Convert.ToDecimal(r.GetDouble(14)),
+                    State = r.IsDBNull(15) ? "draft" : r.GetString(15),
+                    Company = r.IsDBNull(16) ? "My Company" : r.GetString(16),
+                    Note = r.IsDBNull(17) ? "" : r.GetString(17),
+                    Uuid = string.IsNullOrWhiteSpace(r.GetString(18)) ? Guid.NewGuid().ToString() : r.GetString(18),
+                    CustomerName = r.GetString(19),
+                    IsSynced = false
+                });
+            }
+        }
+
+        if (drafts.Count == 0) return drafts;
+
+        var byId = drafts.ToDictionary(d => d.Id, d => d);
+        string inClause = string.Join(",", byId.Keys);
+        await using var lineCmd = connection.CreateCommand();
+        lineCmd.CommandText = $"""
+            SELECT Id, OdooId, OrderId, OrderOdooId, ProductId, ProductName, IsEdited, Qty, PriceUnit, Discount, Taxes, PriceSubtotal, PriceSubtotalIncl
+            FROM PosOrderLines
+            WHERE OrderId IN ({inClause});
+            """;
+        await using var lr = await lineCmd.ExecuteReaderAsync();
+        while (await lr.ReadAsync())
+        {
+            long ordId = lr.GetInt64(2);
+            if (byId.TryGetValue(ordId, out var parent))
+            {
+                parent.Lines.Add(new PosOrderLineRecord
+                {
+                    Id = lr.GetInt64(0),
+                    OdooId = lr.IsDBNull(1) ? null : lr.GetInt32(1),
+                    OrderId = ordId,
+                    OrderOdooId = lr.IsDBNull(3) ? null : lr.GetInt32(3),
+                    ProductId = lr.IsDBNull(4) ? null : lr.GetInt32(4),
+                    ProductName = lr.GetString(5),
+                    IsEdited = !lr.IsDBNull(6) && lr.GetInt32(6) == 1,
+                    Qty = lr.IsDBNull(7) ? 1m : Convert.ToDecimal(lr.GetDouble(7)),
+                    PriceUnit = lr.IsDBNull(8) ? 0m : Convert.ToDecimal(lr.GetDouble(8)),
+                    Discount = lr.IsDBNull(9) ? 0m : Convert.ToDecimal(lr.GetDouble(9)),
+                    Taxes = lr.IsDBNull(10) ? "15%" : lr.GetString(10),
+                    PriceSubtotal = lr.IsDBNull(11) ? 0m : Convert.ToDecimal(lr.GetDouble(11)),
+                    PriceSubtotalIncl = lr.IsDBNull(12) ? 0m : Convert.ToDecimal(lr.GetDouble(12))
+                });
+            }
+        }
+
+        return drafts;
+    }
+
+    public async Task<List<PosOrderRecord>> LoadCurrentSessionOrdersAsync(
+        long? sessionId, int? sessionOdooId, string? sessionName)
+    {
+        var orders = new List<PosOrderRecord>();
+        await using var connection = await OpenFastConnectionAsync();
+
+        await using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT Id, OdooId, Name, PosReference, TrackingNumber, SessionId, SessionOdooId, SessionName, PosConfigName,
+                       DateOrder, CashierId, CashierName, FiscalPosition, AmountTotal, AmountTax, AmountPaid,
+                       State, IsEdited, Company, Note, COALESCE(Uuid, ''), COALESCE(IsSynced, 1), COALESCE(CustomerName, '')
+                FROM PosOrders
+                WHERE LOWER(COALESCE(State, 'paid')) NOT IN ('draft', 'ongoing', 'new', 'cancel', 'cancelled')
+                  AND (
+                        (@sessId IS NOT NULL AND (SessionId = @sessId OR SessionOdooId = @sessId))
+                     OR (@sessOdooId IS NOT NULL AND (SessionOdooId = @sessOdooId OR SessionId = @sessOdooId))
+                     OR (@sessName != '' AND SessionName = @sessName)
+                  )
+                ORDER BY COALESCE(OdooId, Id) DESC;
+                """;
+            cmd.Parameters.AddWithValue("@sessId", (object?)sessionId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@sessOdooId", (object?)sessionOdooId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@sessName", sessionName?.Trim() ?? "");
+
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                orders.Add(new PosOrderRecord
+                {
+                    Id = r.GetInt64(0),
+                    OdooId = r.IsDBNull(1) ? null : r.GetInt32(1),
+                    Name = r.GetString(2),
+                    PosReference = r.IsDBNull(3) ? "" : r.GetString(3),
+                    TrackingNumber = r.IsDBNull(4) ? "" : r.GetString(4),
+                    SessionId = r.IsDBNull(5) ? null : r.GetInt32(5),
+                    SessionOdooId = r.IsDBNull(6) ? null : r.GetInt32(6),
+                    SessionName = r.IsDBNull(7) ? "" : r.GetString(7),
+                    PosConfigName = r.IsDBNull(8) ? "" : r.GetString(8),
+                    DateOrder = r.IsDBNull(9) ? null : (DateTime.TryParse(r.GetString(9), out var d) ? d : null),
+                    CashierId = r.IsDBNull(10) ? null : r.GetInt32(10),
+                    CashierName = r.IsDBNull(11) ? "" : r.GetString(11),
+                    FiscalPosition = r.IsDBNull(12) ? "Standard Tax" : r.GetString(12),
+                    AmountTotal = r.IsDBNull(13) ? 0m : Convert.ToDecimal(r.GetDouble(13)),
+                    AmountTax = r.IsDBNull(14) ? 0m : Convert.ToDecimal(r.GetDouble(14)),
+                    AmountPaid = r.IsDBNull(15) ? 0m : Convert.ToDecimal(r.GetDouble(15)),
+                    State = r.IsDBNull(16) ? "paid" : r.GetString(16),
+                    IsEdited = !r.IsDBNull(17) && r.GetInt32(17) == 1,
+                    Company = r.IsDBNull(18) ? "My Company" : r.GetString(18),
+                    Note = r.IsDBNull(19) ? "" : r.GetString(19),
+                    Uuid = string.IsNullOrWhiteSpace(r.GetString(20)) ? Guid.NewGuid().ToString() : r.GetString(20),
+                    IsSynced = r.IsDBNull(21) || r.GetInt32(21) != 0,
+                    CustomerName = r.GetString(22)
+                });
+            }
+        }
+
+        if (orders.Count == 0) return orders;
+
+        var byId = orders.ToDictionary(o => o.Id, o => o);
+        var byOdooId = orders.Where(o => o.OdooId.HasValue).GroupBy(o => o.OdooId!.Value).ToDictionary(g => g.Key, g => g.First());
+        string idIn = string.Join(",", byId.Keys);
+        string odooIn = byOdooId.Count > 0 ? string.Join(",", byOdooId.Keys) : "-1";
+
+        await using (var lineCmd = connection.CreateCommand())
+        {
+            lineCmd.CommandText = $"""
+                SELECT Id, OdooId, OrderId, OrderOdooId, ProductId, ProductName, IsEdited, Qty, PriceUnit, Discount, Taxes, PriceSubtotal, PriceSubtotalIncl
+                FROM PosOrderLines
+                WHERE OrderId IN ({idIn}) OR OrderOdooId IN ({odooIn});
+                """;
+            await using var lr = await lineCmd.ExecuteReaderAsync();
+            while (await lr.ReadAsync())
+            {
+                long? ordId = lr.IsDBNull(2) ? null : lr.GetInt64(2);
+                int? ordOdooId = lr.IsDBNull(3) ? null : lr.GetInt32(3);
+                PosOrderRecord? parent = (ordId.HasValue && byId.TryGetValue(ordId.Value, out var p1)) ? p1
+                    : (ordOdooId.HasValue && byOdooId.TryGetValue(ordOdooId.Value, out var p2) ? p2 : null);
+
+                if (parent != null)
+                {
+                    parent.Lines.Add(new PosOrderLineRecord
+                    {
+                        Id = lr.GetInt64(0),
+                        OdooId = lr.IsDBNull(1) ? null : lr.GetInt32(1),
+                        OrderId = ordId ?? parent.Id,
+                        OrderOdooId = ordOdooId ?? parent.OdooId,
+                        ProductId = lr.IsDBNull(4) ? null : lr.GetInt32(4),
+                        ProductName = lr.GetString(5),
+                        IsEdited = !lr.IsDBNull(6) && lr.GetInt32(6) == 1,
+                        Qty = lr.IsDBNull(7) ? 1m : Convert.ToDecimal(lr.GetDouble(7)),
+                        PriceUnit = lr.IsDBNull(8) ? 0m : Convert.ToDecimal(lr.GetDouble(8)),
+                        Discount = lr.IsDBNull(9) ? 0m : Convert.ToDecimal(lr.GetDouble(9)),
+                        Taxes = lr.IsDBNull(10) ? "15%" : lr.GetString(10),
+                        PriceSubtotal = lr.IsDBNull(11) ? 0m : Convert.ToDecimal(lr.GetDouble(11)),
+                        PriceSubtotalIncl = lr.IsDBNull(12) ? 0m : Convert.ToDecimal(lr.GetDouble(12))
+                    });
+                }
+            }
+        }
+
+        await using (var payCmd = connection.CreateCommand())
+        {
+            payCmd.CommandText = $"""
+                SELECT Id, OdooId, OrderId, OrderOdooId, OrderName, SessionId, SessionOdooId, SessionName, CashierName,
+                       PaymentMethodId, PaymentMethodName, Amount, CurrencyName, ForeignCurrency, PaymentDate
+                FROM PosPayments
+                WHERE OrderId IN ({idIn}) OR OrderOdooId IN ({odooIn});
+                """;
+            await using var pr = await payCmd.ExecuteReaderAsync();
+            while (await pr.ReadAsync())
+            {
+                long? ordId = pr.IsDBNull(2) ? null : pr.GetInt64(2);
+                int? ordOdooId = pr.IsDBNull(3) ? null : pr.GetInt32(3);
+                PosOrderRecord? parent = (ordId.HasValue && byId.TryGetValue(ordId.Value, out var p1)) ? p1
+                    : (ordOdooId.HasValue && byOdooId.TryGetValue(ordOdooId.Value, out var p2) ? p2 : null);
+
+                if (parent != null)
+                {
+                    parent.Payments.Add(new PosPaymentRecord
+                    {
+                        Id = pr.GetInt64(0),
+                        OdooId = pr.IsDBNull(1) ? null : pr.GetInt32(1),
+                        OrderId = ordId ?? parent.Id,
+                        OrderOdooId = ordOdooId ?? parent.OdooId,
+                        OrderName = pr.IsDBNull(4) ? parent.Name : pr.GetString(4),
+                        SessionId = pr.IsDBNull(5) ? null : pr.GetInt64(5),
+                        SessionOdooId = pr.IsDBNull(6) ? null : pr.GetInt32(6),
+                        SessionName = pr.IsDBNull(7) ? "" : pr.GetString(7),
+                        CashierName = pr.IsDBNull(8) ? "" : pr.GetString(8),
+                        PaymentMethodId = pr.IsDBNull(9) ? null : pr.GetInt32(9),
+                        PaymentMethodName = pr.IsDBNull(10) ? "Cash" : pr.GetString(10),
+                        Amount = pr.IsDBNull(11) ? 0m : Convert.ToDecimal(pr.GetDouble(11)),
+                        CurrencyName = pr.IsDBNull(12) ? "MAD" : pr.GetString(12),
+                        ForeignCurrency = pr.IsDBNull(13) ? "—" : pr.GetString(13),
+                        PaymentDate = pr.IsDBNull(14) ? null : (DateTime.TryParse(pr.GetString(14), out var pd) ? pd : null)
+                    });
+                }
+            }
+        }
+
+        return orders;
     }
 
     public async Task<List<PosOrderRecord>> LoadAllOrdersAsync(string? sessionFilter = null)

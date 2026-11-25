@@ -1201,6 +1201,7 @@
                                         <ComboBox x:Name="PrinterPaperWidthComboBox" Grid.Column="1" Style="{StaticResource OdooFilterComboBoxStyle}" Height="34" Width="260" HorizontalAlignment="Left">
                                             <ComboBoxItem x:Name="DriverPaperWidthItem" Content="Default Driver (Auto)" Tag="Driver" IsSelected="True"/>
                                             <ComboBoxItem Content="80mm (Standard POS / 48 cols)" Tag="80mm"/>
+                                            <ComboBoxItem Content="72mm (Compact 80 / 42 cols)" Tag="72mm"/>
                                             <ComboBoxItem Content="58mm (Compact / 32 cols)" Tag="58mm"/>
                                         </ComboBox>
                                     </Grid>

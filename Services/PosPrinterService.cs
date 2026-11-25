@@ -168,14 +168,21 @@ public static class PosPrinterService
             string.Equals(paperWidth, "Auto", StringComparison.OrdinalIgnoreCase))
         {
             var (widthMm, _) = GetDriverPaperSize(printerName);
-            if (widthMm.HasValue && widthMm.Value > 0 && widthMm.Value <= 64.0)
-                return 384; // 58mm roll (48mm printable)
-            return 576;     // 80mm roll (72mm printable)
+            if (widthMm.HasValue && widthMm.Value > 0)
+            {
+                if (widthMm.Value <= 60.0) return 384; // 58mm roll
+                if (widthMm.Value <= 71.0) return 512; // 72mm / 64mm printable
+            }
+            return 576; // 80mm roll (72.1mm printable)
         }
 
-        return !string.IsNullOrWhiteSpace(paperWidth) && paperWidth.Contains("58", StringComparison.OrdinalIgnoreCase)
-            ? 384
-            : 576;
+        if (!string.IsNullOrWhiteSpace(paperWidth))
+        {
+            if (paperWidth.Contains("58", StringComparison.OrdinalIgnoreCase)) return 384;
+            if (paperWidth.Contains("72", StringComparison.OrdinalIgnoreCase)) return 512;
+        }
+
+        return 576;
     }
 
     public static string FormatPaperWidthDisplay(string? paperWidth, string? printerName = null)
@@ -378,26 +385,46 @@ public static class PosPrinterService
             ? printerName
             : GetDefaultPrinter();
 
-        var gray = new float[width * height];
-        for (int i = 0, p = 0; i < gray.Length; i++, p += 4)
+        // Two-row float dithering buffer (~4.6 KB) instead of a full float[width*height]
+        // (~2 MB, which lands on the Large Object Heap and causes GC pauses on 2 GB RAM).
+        // The arithmetic is identical to the original full-image version, so output is
+        // byte-for-byte the same; only the memory footprint changes.
+        int bytesPerRow = (width + 7) / 8;
+        var monoBits = new byte[bytesPerRow * height];
+
+        var curRow = new float[width];
+        var nextRow = new float[width];
+
+        for (int x = 0, p = 0; x < width; x++, p += 4)
         {
             float lum = (0.299f * bgraPixels[p + 2]) +
                         (0.587f * bgraPixels[p + 1]) +
                         (0.114f * bgraPixels[p]);
             if (bgraPixels[p + 3] < 255)
                 lum = lum + (255 - bgraPixels[p + 3]);
-            gray[i] = Math.Clamp(lum, 0f, 255f);
+            curRow[x] = Math.Clamp(lum, 0f, 255f);
         }
 
-        int bytesPerRow = (width + 7) / 8;
-        var monoBits = new byte[bytesPerRow * height];
         for (int y = 0; y < height; y++)
         {
-            int rowOffset = y * width;
+            if (y + 1 < height)
+            {
+                int nextP = (y + 1) * width * 4;
+                for (int x = 0; x < width; x++, nextP += 4)
+                {
+                    float lum = (0.299f * bgraPixels[nextP + 2]) +
+                                (0.587f * bgraPixels[nextP + 1]) +
+                                (0.114f * bgraPixels[nextP]);
+                    if (bgraPixels[nextP + 3] < 255)
+                        lum = lum + (255 - bgraPixels[nextP + 3]);
+                    nextRow[x] = Math.Clamp(lum, 0f, 255f);
+                }
+            }
+
             int outRowOffset = y * bytesPerRow;
             for (int x = 0; x < width; x++)
             {
-                float oldPixel = gray[rowOffset + x];
+                float oldPixel = curRow[x];
                 float newPixel = oldPixel < 165f ? 0f : 255f;
                 float error = oldPixel - newPixel;
                 if (newPixel == 0f)
@@ -406,16 +433,17 @@ public static class PosPrinterService
                 if (MathF.Abs(error) > 0.5f)
                 {
                     if (x + 1 < width)
-                        gray[rowOffset + x + 1] += error * (7f / 16f);
+                        curRow[x + 1] += error * (7f / 16f);
                     if (y + 1 < height)
                     {
-                        int nextRow = rowOffset + width;
-                        if (x > 0) gray[nextRow + x - 1] += error * (3f / 16f);
-                        gray[nextRow + x] += error * (5f / 16f);
-                        if (x + 1 < width) gray[nextRow + x + 1] += error * (1f / 16f);
+                        if (x > 0) nextRow[x - 1] += error * (3f / 16f);
+                        nextRow[x] += error * (5f / 16f);
+                        if (x + 1 < width) nextRow[x + 1] += error * (1f / 16f);
                     }
                 }
             }
+
+            (curRow, nextRow) = (nextRow, curRow);
         }
 
         int firstInkRow = -1;
@@ -516,21 +544,25 @@ public static class PosPrinterService
 
     public static bool PrintTestReceipt(string? printerName, string paperWidth = "80mm", string cutMode = "Standard")
     {
+        int dots = GetPrinterDotWidth(paperWidth, printerName);
+        int cols = dots <= 384 ? 32 : (dots <= 512 ? 42 : 48);
+        string eq = new('=', cols);
+        string dash = new('-', cols);
+        string resolvedWidth = FormatPaperWidthDisplay(paperWidth, printerName);
+
         var sb = new StringBuilder();
-        sb.AppendLine("========================================");
-        sb.AppendLine("            TEST PRINT TICKET           ");
-        sb.AppendLine("========================================");
+        sb.AppendLine(eq);
+        sb.AppendLine("TEST PRINT TICKET".PadLeft((cols + 17) / 2));
+        sb.AppendLine(eq);
         sb.AppendLine($"Printer: {printerName ?? GetDefaultPrinter()}");
-        sb.AppendLine($"Width:   {FormatPaperWidthDisplay(paperWidth, printerName)}");
+        sb.AppendLine($"Width:   {resolvedWidth} ({dots} dots)");
         sb.AppendLine($"Date:    {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         sb.AppendLine("Status:  Hardware Connected OK");
-        sb.AppendLine("----------------------------------------");
-        sb.AppendLine("1 x Thermal Print Test          $ 0.00");
-        sb.AppendLine("----------------------------------------");
-        sb.AppendLine("TOTAL:                          $ 0.00");
-        sb.AppendLine("========================================");
-        sb.AppendLine("      Odoo POS Hardware Verified        ");
-        sb.AppendLine("========================================");
+        sb.AppendLine(dash);
+        sb.AppendLine(string.Format("{0,-" + (cols - 8) + "} {1,7}", "1 x Thermal Print Test", "$ 0.00"));
+        sb.AppendLine(dash);
+        sb.AppendLine(string.Format("{0,-" + (cols - 8) + "} {1,7}", "TOTAL:", "$ 0.00"));
+        sb.AppendLine(eq);
 
         return PrintReceiptText(printerName, sb.ToString(), cashDrawerPulse: false, cutMode: cutMode);
     }

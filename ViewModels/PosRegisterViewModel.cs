@@ -13,6 +13,8 @@ public partial class PosRegisterViewModel : ViewModelBase
     private readonly List<ProductRecord> _allProducts = [];
     private readonly List<PosCategoryRecord> _allCategories = [];
     private readonly List<PosOrderRecord> _allInPosOrders = [];
+    private bool _isInPosOrdersLoaded;
+    private bool _isInPosOrdersDirty = true;
     private readonly List<ProductAttributeRecord> _allProductAttributes = [];
     private readonly List<ReceiptDesignRecord> _allReceiptDesigns = [];
     private readonly List<CompanyRecord> _allCompanies = [];
@@ -1165,7 +1167,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         _landingClockTimer.Tick += (_, _) => UpdateLandingClock();
         _landingClockTimer.Start();
 
-        _draftSaveDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
+        _draftSaveDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
         _draftSaveDebounceTimer.Tick += async (_, _) =>
         {
             _draftSaveDebounceTimer.Stop();
@@ -1535,6 +1537,8 @@ public partial class PosRegisterViewModel : ViewModelBase
         await ReloadCatalogAsync();
         await ReloadPaymentMethodsForShopAsync();
         await RestoreDraftOrdersForShopAsync();
+        _isInPosOrdersLoaded = false;
+        _isInPosOrdersDirty = true;
         await ReloadInPosOrdersAsync();
         await RefreshPendingSyncCountAsync();
 
@@ -1922,11 +1926,16 @@ public partial class PosRegisterViewModel : ViewModelBase
     {
         try
         {
-            string? shopFilter = CurrentConfig?.Name;
-            var orders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync(shopFilter);
+            var orders = await SqliteDatabaseService.Instance.LoadCurrentSessionOrdersAsync(
+                CurrentSession?.Id,
+                CurrentConfig?.CurrentSessionId ?? CurrentSession?.OdooId,
+                CurrentConfig?.CurrentSessionName ?? CurrentSession?.Name);
             _allInPosOrders.Clear();
             _allInPosOrders.AddRange(orders);
-            FilterInPosOrders();
+            _isInPosOrdersLoaded = true;
+            _isInPosOrdersDirty = true;
+            if (ActivePosView == "Orders")
+                FilterInPosOrders();
             await UpdateSessionBreakdownAsync();
         }
         catch (Exception ex)
@@ -1946,7 +1955,7 @@ public partial class PosRegisterViewModel : ViewModelBase
 
         try
         {
-            var shopOrders = await SqliteDatabaseService.Instance.LoadAllOrdersAsync(shopName);
+            var shopOrders = await SqliteDatabaseService.Instance.LoadDraftOrdersForShopAsync(shopName);
             var draftRecords = shopOrders
                 .Where(o => o.IsDraft &&
                             (string.Equals(o.PosConfigName, shopName, StringComparison.OrdinalIgnoreCase) || OrderMatchesCurrentSession(o)))
@@ -2829,14 +2838,21 @@ public partial class PosRegisterViewModel : ViewModelBase
     [RelayCommand]
     public async Task SwitchToOrdersViewAsync()
     {
-        if (CurrentOrder != null && CurrentOrder.HasItems)
-        {
-            await PersistDraftOrderToDatabaseAsync(CurrentOrder);
-        }
         IsPaymentViewOpen = false;
         IsPaymentConfirmationOpen = false;
         ActivePosView = "Orders";
-        await ReloadInPosOrdersAsync();
+
+        if (!_isInPosOrdersLoaded)
+            await ReloadInPosOrdersAsync();
+        else if (_isInPosOrdersDirty)
+            FilterInPosOrders();
+
+        if (CurrentOrder != null && CurrentOrder.HasItems)
+        {
+            _draftSaveDebounceTimer.Stop();
+            _pendingDraftToSave = null;
+            _ = PersistDraftOrderToDatabaseAsync(CurrentOrder);
+        }
     }
 
     [RelayCommand]
@@ -2848,7 +2864,6 @@ public partial class PosRegisterViewModel : ViewModelBase
     private void FilterInPosOrders()
     {
         string query = OrderSearchText.Trim();
-        FilteredInPosOrders.Clear();
 
         // Always show only PAID orders belonging to the current session
         IEnumerable<PosOrderRecord> source = _allInPosOrders.Where(o =>
@@ -2863,10 +2878,10 @@ public partial class PosRegisterViewModel : ViewModelBase
                 o.CustomerName.Contains(query, StringComparison.OrdinalIgnoreCase));
         }
 
-        foreach (var o in source)
-        {
-            FilteredInPosOrders.Add(o);
-        }
+        // Single collection swap instead of Clear() + N Add(), which raised one
+        // CollectionChanged per order and rebuilt the list view each time.
+        FilteredInPosOrders = new ObservableCollection<PosOrderRecord>(source.ToList());
+        _isInPosOrdersDirty = false;
 
         OrdersPagerText = FilteredInPosOrders.Count > 0
             ? $"1-{FilteredInPosOrders.Count} / {FilteredInPosOrders.Count}"
@@ -3342,7 +3357,14 @@ public partial class PosRegisterViewModel : ViewModelBase
             _draftSaveDebounceTimer.Stop();
             _pendingDraftToSave = null;
 
-            await RefreshBoundConfigSessionAsync();
+            // Only re-read the bound session when it is genuinely unknown. Refreshing on
+            // every payment costs a full config query per sale, but skipping it entirely
+            // risks attributing the order to session 1 if CurrentConfig is stale.
+            if (CurrentConfig != null &&
+                (!CurrentConfig.CurrentSessionId.HasValue || string.IsNullOrWhiteSpace(CurrentConfig.CurrentSessionName)))
+            {
+                await RefreshBoundConfigSessionAsync();
+            }
 
             decimal total = CurrentOrder.TotalAmount;
             decimal tax = CurrentOrder.Taxes;
@@ -3437,7 +3459,9 @@ public partial class PosRegisterViewModel : ViewModelBase
             // Update in-memory orders list & breakdown in <1ms without re-reading SQLite from HDD
             _allInPosOrders.RemoveAll(o => o.Id == order.Id || o.Uuid == order.Uuid);
             _allInPosOrders.Insert(0, order);
-            FilterInPosOrders();
+            _isInPosOrdersDirty = true;
+            if (ActivePosView == "Orders")
+                FilterInPosOrders();
             UpdateSessionBreakdownFromMemory();
 
             ConfirmedPaidAmount = total;

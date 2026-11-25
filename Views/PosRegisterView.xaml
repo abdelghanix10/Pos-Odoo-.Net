@@ -1632,9 +1632,37 @@
                 </Border>
 
                 <!-- Paid Orders Cards -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="14,10">
-                    <ItemsControl ItemsSource="{Binding FilteredInPosOrders}">
-                        <ItemsControl.ItemTemplate>
+                <ListBox Grid.Row="1"
+                         ItemsSource="{Binding FilteredInPosOrders}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="14,10"
+                         HorizontalContentAlignment="Stretch"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.CanContentScroll="True"
+                         ScrollViewer.PanningMode="VerticalOnly"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling"
+                         VirtualizingPanel.ScrollUnit="Pixel"
+                         VirtualizingPanel.CacheLength="1,1"
+                         VirtualizingPanel.CacheLengthUnit="Page">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="0"/>
+                            <Setter Property="Focusable" Value="False"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <ContentPresenter/>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type local:PosOrderRecord}">
                                 <Button Command="{Binding DataContext.SelectInPosOrderCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}"
@@ -1766,9 +1794,8 @@
                                     </Button.Template>
                                 </Button>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                    </ListBox.ItemTemplate>
+                </ListBox>
             </Grid>
 
              <!-- =================================================================== -->

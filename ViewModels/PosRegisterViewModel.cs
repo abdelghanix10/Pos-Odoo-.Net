@@ -1414,6 +1414,7 @@ public partial class PosRegisterViewModel : ViewModelBase
                 config.IsPrintLastReceiptEnabled = fresh.IsPrintLastReceiptEnabled;
                 config.LastReceiptDesignId = fresh.LastReceiptDesignId;
                 config.IsPrintButtonEnabled = fresh.IsPrintButtonEnabled;
+                config.PrintButtonReceiptDesignId = fresh.PrintButtonReceiptDesignId;
                 config.IsCustomOrderReceiptsEnabled = fresh.IsCustomOrderReceiptsEnabled;
                 config.CustomOrderReceiptDesignId = fresh.CustomOrderReceiptDesignId;
                 config.IsHideOpeningCashControlEnabled = fresh.IsHideOpeningCashControlEnabled;
@@ -3528,13 +3529,18 @@ public partial class PosRegisterViewModel : ViewModelBase
         var targetOrder = _lastPaidOrder ?? _allInPosOrders.FirstOrDefault(o => !o.IsDraft && !o.IsCancelled);
         if (targetOrder != null)
         {
-            ExecuteOrderReceiptPrint(targetOrder, isAutoPrint: false);
+            ExecuteOrderReceiptPrint(targetOrder, isAutoPrint: false, overrideDesign: ResolvePrintButtonReceiptDesign());
         }
         else
         {
             ShowPosToast("Receipt sent to printer.");
         }
     }
+
+    private ReceiptDesignRecord? ResolvePrintButtonReceiptDesign() =>
+        CurrentConfig?.PrintButtonReceiptDesignId.HasValue == true
+            ? _allReceiptDesigns.FirstOrDefault(d => d.Id == CurrentConfig.PrintButtonReceiptDesignId.Value)
+            : null;
 
     // Setting 7: Print Last Receipt (Enable a button to print the last paid order.)
     [RelayCommand]
@@ -3606,16 +3612,18 @@ public partial class PosRegisterViewModel : ViewModelBase
                 : _allReceiptDesigns.Skip(1).FirstOrDefault() ?? _allReceiptDesigns.FirstOrDefault();
         }
 
-        // If main design is "Open Cash Drawer Only" and no second receipt is enabled
-        if (mainDesign != null && mainDesign.OpenCashDrawerOnly && secondDesign == null)
-        {
-            ShowPosToast($"Cash Drawer Opened ({mainDesign.Name}) — No paper receipt printed.");
-            return;
-        }
+        // A design can be drawer-only either via the flag or an open-cashdrawer marker in its XML.
+        static bool IsDrawerOnly(ReceiptDesignRecord? d) => d != null && (
+            d.OpenCashDrawerOnly ||
+            (d.ReceiptXml?.Contains("open-cashdrawer=\"true\"", StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (d.ReceiptXml?.Contains("open-cashdrawer='true'", StringComparison.OrdinalIgnoreCase) ?? false));
+
+        bool mainIsDrawerOnly = IsDrawerOnly(mainDesign);
+        bool secondIsDrawerOnly = IsDrawerOnly(secondDesign);
 
         ReceiptPreviewTitle = isAutoPrint ? "Automatic Receipt Printed" : "Order Receipt";
         ReceiptPreviewDesignBadge = mainDesign != null
-            ? (mainDesign.OpenCashDrawerOnly ? $"{mainDesign.Name} (Cash Drawer Only)" : $"Custom Design: {mainDesign.Name}")
+            ? (mainIsDrawerOnly ? $"{mainDesign.Name} (Cash Drawer Only)" : $"Custom Design: {mainDesign.Name}")
             : "Standard Receipt";
 
         ReceiptPreviewMainText = BuildFormattedReceiptText(order, mainDesign, isSimplified: false);
@@ -3623,7 +3631,7 @@ public partial class PosRegisterViewModel : ViewModelBase
         if (secondDesign != null)
         {
             HasSecondReceiptPreview = true;
-            ReceiptPreviewSecondTitle = secondDesign.OpenCashDrawerOnly
+            ReceiptPreviewSecondTitle = secondIsDrawerOnly
                 ? $"Second Receipt: {secondDesign.Name} (Open Cash Drawer Only)"
                 : $"Second Receipt ({secondDesign.Name})";
             ReceiptPreviewSecondText = BuildFormattedReceiptText(order, secondDesign, isSimplified: true);
@@ -3634,9 +3642,11 @@ public partial class PosRegisterViewModel : ViewModelBase
             ReceiptPreviewSecondText = string.Empty;
         }
 
-        ShowPosToast(isAutoPrint
-            ? (HasSecondReceiptPreview ? "Main & Second Receipts printed automatically." : "Receipt printed automatically.")
-            : "Receipt printed.");
+        ShowPosToast(mainIsDrawerOnly && secondDesign == null
+            ? $"Cash Drawer Opened ({mainDesign!.Name}) — No paper receipt printed."
+            : isAutoPrint
+                ? (HasSecondReceiptPreview ? "Main & Second Receipts printed automatically." : "Receipt printed automatically.")
+                : "Receipt printed.");
 
         // Physical print output via PosPrinterService — format AND print on a background thread
         // so the UI never stutters. Snapshot everything the worker needs first.
@@ -3644,7 +3654,6 @@ public partial class PosRegisterViewModel : ViewModelBase
         var companiesSnapshot = _allCompanies.ToList();
         var mainDesignCopy = mainDesign;
         var secondDesignCopy = secondDesign;
-        bool mainIsDrawerOnly = mainDesign?.OpenCashDrawerOnly == true;
 
         _ = Task.Run(async () =>
         {
@@ -3655,7 +3664,9 @@ public partial class PosRegisterViewModel : ViewModelBase
                 var company = ResolveReceiptCompany(gen, companiesSnapshot);
 
                 if (mainIsDrawerOnly)
+                {
                     PosPrinterService.OpenCashDrawerOnly(gen.DefaultPrinterName);
+                }
                 else
                 {
                     var bitmap = ReceiptBitmapRenderer.RenderOrderReceipt(
@@ -3665,13 +3676,20 @@ public partial class PosRegisterViewModel : ViewModelBase
                         cashDrawerPulse: gen.CashDrawerPulse, cutMode: gen.PrinterCutMode);
                 }
 
-                if (secondDesignCopy != null && !secondDesignCopy.OpenCashDrawerOnly)
+                if (secondDesignCopy != null)
                 {
-                    var secondBitmap = ReceiptBitmapRenderer.RenderSecondReceipt(
-                        order, company, dotWidth, secondDesignCopy, printHeaderLogo: gen.PrintHeaderLogo);
-                    PosPrinterService.PrintBgraRasterToEscPos(
-                        gen.DefaultPrinterName, secondBitmap.BgraPixels,
-                        secondBitmap.Width, secondBitmap.Height, cashDrawerPulse: false, cutMode: gen.PrinterCutMode);
+                    if (secondIsDrawerOnly)
+                    {
+                        PosPrinterService.OpenCashDrawerOnly(gen.DefaultPrinterName);
+                    }
+                    else
+                    {
+                        var secondBitmap = ReceiptBitmapRenderer.RenderSecondReceipt(
+                            order, company, dotWidth, secondDesignCopy, printHeaderLogo: gen.PrintHeaderLogo);
+                        PosPrinterService.PrintBgraRasterToEscPos(
+                            gen.DefaultPrinterName, secondBitmap.BgraPixels,
+                            secondBitmap.Width, secondBitmap.Height, cashDrawerPulse: false, cutMode: gen.PrinterCutMode);
+                    }
                 }
             }
             catch (Exception ex)

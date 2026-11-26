@@ -698,6 +698,7 @@ public class SqliteDatabaseService
                 IsPrintLastReceiptEnabled INTEGER DEFAULT 0,
                 LastReceiptDesignId INTEGER,
                 IsPrintButtonEnabled INTEGER DEFAULT 1,
+                PrintButtonReceiptDesignId INTEGER,
                 IsCustomOrderReceiptsEnabled INTEGER DEFAULT 0,
                 CustomOrderReceiptDesignId INTEGER,
                 IsHideOpeningCashControlEnabled INTEGER DEFAULT 0,
@@ -819,6 +820,7 @@ public class SqliteDatabaseService
             "ALTER TABLE PosConfigs ADD COLUMN IsPrintLastReceiptEnabled INTEGER DEFAULT 0;",
             "ALTER TABLE PosConfigs ADD COLUMN LastReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN IsPrintButtonEnabled INTEGER DEFAULT 1;",
+            "ALTER TABLE PosConfigs ADD COLUMN PrintButtonReceiptDesignId INTEGER;",
             "ALTER TABLE PosConfigs ADD COLUMN PosLayout TEXT DEFAULT 'standard';",
             "ALTER TABLE GeneralSettings ADD COLUMN BackupFolderPath TEXT DEFAULT '';",
             "ALTER TABLE GeneralSettings ADD COLUMN AutoBackupEnabled INTEGER DEFAULT 0;",
@@ -4359,7 +4361,8 @@ public class SqliteDatabaseService
                    COALESCE(c.PosLayout, 'standard'),
                    COALESCE(c.PaymentLayout, 'standard'),
                    COALESCE(c.IsHideProductPriceEnabled, 0),
-                   COALESCE(c.IsShowCashChangeEnabled, 1)
+                   COALESCE(c.IsShowCashChangeEnabled, 1),
+                   c.PrintButtonReceiptDesignId
             FROM PosConfigs c
             LEFT JOIN Users u ON c.ActiveUserId = u.OdooId
             ORDER BY COALESCE(c.OdooId, c.Id) ASC;
@@ -4407,7 +4410,8 @@ public class SqliteDatabaseService
                 PosLayout = reader.IsDBNull(34) ? "standard" : reader.GetString(34),
                 PaymentLayout = reader.IsDBNull(35) ? "standard" : reader.GetString(35),
                 IsHideProductPriceEnabled = !reader.IsDBNull(36) && reader.GetInt32(36) != 0,
-                IsShowCashChangeEnabled = reader.IsDBNull(37) || reader.GetInt32(37) != 0
+                IsShowCashChangeEnabled = reader.IsDBNull(37) || reader.GetInt32(37) != 0,
+                PrintButtonReceiptDesignId = reader.IsDBNull(38) ? null : reader.GetInt64(38)
             });
         }
 
@@ -4606,6 +4610,7 @@ public class SqliteDatabaseService
                 IsPrintLastReceiptEnabled = @printLast,
                 LastReceiptDesignId = @lastReceiptId,
                 IsPrintButtonEnabled = @printButtonEnabled,
+                PrintButtonReceiptDesignId = @printButtonDesignId,
                 IsCustomOrderReceiptsEnabled = @customReceiptEnabled,
                 CustomOrderReceiptDesignId = @customReceiptId,
                 IsHideOpeningCashControlEnabled = @hideOpening,
@@ -4628,6 +4633,7 @@ public class SqliteDatabaseService
         cmd.Parameters.AddWithValue("@printLast", config.IsPrintLastReceiptEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@lastReceiptId", (object?)config.LastReceiptDesignId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@printButtonEnabled", config.IsPrintButtonEnabled ? 1 : 0);
+        cmd.Parameters.AddWithValue("@printButtonDesignId", (object?)config.PrintButtonReceiptDesignId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@customReceiptEnabled", config.IsCustomOrderReceiptsEnabled ? 1 : 0);
         cmd.Parameters.AddWithValue("@customReceiptId", (object?)config.CustomOrderReceiptDesignId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@hideOpening", config.IsHideOpeningCashControlEnabled ? 1 : 0);

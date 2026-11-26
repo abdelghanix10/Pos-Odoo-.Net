@@ -41,6 +41,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
     private bool _isPrintLastReceiptEnabled;
     private ReceiptDesignRecord? _selectedLastReceiptDesign;
     private bool _isPrintButtonEnabled = true;
+    private ReceiptDesignRecord? _selectedPrintButtonReceiptDesign;
 
     // 8. Custom Order Receipts
     private bool _isCustomOrderReceiptsEnabled;
@@ -496,6 +497,23 @@ public class PosSettingsViewModel : INotifyPropertyChanged
             if (_isPrintButtonEnabled != value)
             {
                 _isPrintButtonEnabled = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PrintButtonDetailsVisibility));
+                AutoSaveIfLoaded();
+            }
+        }
+    }
+
+    public Visibility PrintButtonDetailsVisibility => _isPrintButtonEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+    public ReceiptDesignRecord? SelectedPrintButtonReceiptDesign
+    {
+        get => _selectedPrintButtonReceiptDesign;
+        set
+        {
+            if (_selectedPrintButtonReceiptDesign != value)
+            {
+                _selectedPrintButtonReceiptDesign = value;
                 OnPropertyChanged();
                 AutoSaveIfLoaded();
             }
@@ -1038,6 +1056,9 @@ public class PosSettingsViewModel : INotifyPropertyChanged
                 ? ReceiptDesigns.FirstOrDefault(d => d.Id == config.LastReceiptDesignId.Value)
                 : null;
             IsPrintButtonEnabled = config.IsPrintButtonEnabled;
+            SelectedPrintButtonReceiptDesign = config.PrintButtonReceiptDesignId.HasValue
+                ? ReceiptDesigns.FirstOrDefault(d => d.Id == config.PrintButtonReceiptDesignId.Value)
+                : null;
 
             IsCustomOrderReceiptsEnabled = config.IsCustomOrderReceiptsEnabled;
             SelectedCustomOrderReceiptDesign = config.CustomOrderReceiptDesignId.HasValue
@@ -1112,6 +1133,7 @@ public class PosSettingsViewModel : INotifyPropertyChanged
         _selectedConfig.IsPrintLastReceiptEnabled = IsPrintLastReceiptEnabled;
         _selectedConfig.LastReceiptDesignId = SelectedLastReceiptDesign?.Id;
         _selectedConfig.IsPrintButtonEnabled = IsPrintButtonEnabled;
+        _selectedConfig.PrintButtonReceiptDesignId = SelectedPrintButtonReceiptDesign?.Id;
         _selectedConfig.IsCustomOrderReceiptsEnabled = IsCustomOrderReceiptsEnabled;
         _selectedConfig.CustomOrderReceiptDesignId = SelectedCustomOrderReceiptDesign?.Id;
         _selectedConfig.IsHideOpeningCashControlEnabled = IsHideOpeningCashControlEnabled;

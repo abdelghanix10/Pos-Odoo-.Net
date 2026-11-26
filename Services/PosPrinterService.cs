@@ -468,7 +468,7 @@ public static class PosPrinterService
         using var ms = new MemoryStream(monoBits.Length + 64);
         ms.Write([0x1B, 0x40]);
         if (cashDrawerPulse)
-            ms.Write([0x1B, 0x70, 0x00, 0x19, 0xFA]);
+            ms.Write(CashDrawerPulseCommands);
         WritePrePrintBackfeed(ms, cutMode);
         ms.Write([0x1B, 0x61, 0x01]);
 
@@ -490,10 +490,24 @@ public static class PosPrinterService
         return SendRawBytesToPrinter(targetPrinter, ms.ToArray());
     }
 
+    // Drawer kick-out pulses. Printers differ on which pin/timing they accept, so all
+    // three common variants are sent back to back; a drawer ignores the ones it does
+    // not use and opens on the one it does.
+    private static readonly byte[] CashDrawerPulseCommands =
+    [
+        0x1B, 0x70, 0x00, 0x19, 0xFA, // ESC p 0 25 250
+        0x1B, 0x70, 0x00, 0x32, 0x32, // ESC p 0 50 50
+        0x1B, 0x70, 0x00, 0x19, 0x19  // ESC p 0 25 25
+    ];
+
     public static bool OpenCashDrawerOnly(string? printerName)
     {
         string targetPrinter = !string.IsNullOrWhiteSpace(printerName) ? printerName : GetDefaultPrinter();
-        return SendRawBytesToPrinter(targetPrinter, [0x1B, 0x40, 0x1B, 0x70, 0x00, 0x19, 0xFA]);
+        byte[] payload = new byte[2 + CashDrawerPulseCommands.Length];
+        payload[0] = 0x1B;
+        payload[1] = 0x40; // ESC @
+        Buffer.BlockCopy(CashDrawerPulseCommands, 0, payload, 2, CashDrawerPulseCommands.Length);
+        return SendRawBytesToPrinter(targetPrinter, payload);
     }
 
     public static bool PrintReceiptText(
@@ -527,7 +541,7 @@ public static class PosPrinterService
         // 2. Pulse cash drawer kick-out if requested: ESC p 0 25 250
         if (cashDrawerPulse)
         {
-            ms.Write([0x1B, 0x70, 0x00, 0x19, 0xFA]);
+            ms.Write(CashDrawerPulseCommands);
         }
         WritePrePrintBackfeed(ms, cutMode);
 
